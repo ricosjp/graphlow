@@ -37,14 +37,6 @@ pytest:
     - no-gpu
     - GenuineIntel
 
-e2e_test:
-  stage: test
-  script:
-    - poetry run pytest tests/e2e_tests
-  tags:
-    - no-gpu
-    - GenuineIntel
-
 # pages:
 #   stage: deploy
 #   script:

@@ -10,7 +10,7 @@ init:
 
 .PHONY: mypy
 mypy:
-	poetry run mypy src
+	poetry run mypy src --check-untyped-defs
 
 .PHONY: format
 format:
