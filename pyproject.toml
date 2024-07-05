@@ -15,6 +15,7 @@ python = "^3.10"
 pyvista = "^0.43"
 ruff = "^0.4.10"
 scipy = "^1.14.0"
+torch = "^2.3.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"
