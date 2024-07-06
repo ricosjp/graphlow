@@ -97,6 +97,23 @@ class GraphlowMesh(GraphProcessorMixin):
             cast: bool = True,
             overwrite_features: bool = False,
             overwrite_file: bool = False):
+        """Save mesh data. On writing, dict_point_tensor and dict_cell_tensor
+        will be copied to pyvista mesh.
+
+        Parameters
+        ----------
+        file_name: pathlib.Path | str
+            File name to be written. If the parent directory does not exist,
+            it will be created.
+        binary: bool
+            If True, write binary file. The default is True.
+        cast: bool
+            If True, cast mesh if needed. The default is True.
+        overwrite_features: bool
+            If True, allow overwriting features. The default is False.
+        overwrite_file: bool
+            If True, allow overwriting the file. The default is False.
+        """
         file_path = pathlib.Path(file_name)
         if not overwrite_file and file_path.exists():
             raise ValueError(f"{file_path} already exists.")
