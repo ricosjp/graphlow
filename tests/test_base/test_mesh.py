@@ -1,5 +1,6 @@
 
 import pathlib
+import shutil
 
 import numpy as np
 import pytest
@@ -75,3 +76,55 @@ def test__send_float16(file_name):
     assert mesh.dict_sparse_tensor['cell_adjacency'].dtype == torch.float16
 
     mesh.copy_features_to_pyvista()
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
+    ],
+)
+def test__optimize(file_name):
+    n_optimization = 300
+    print_period = 10
+    target_lz = 3.
+    weight_l2 = 1e-5
+    output_directory = pathlib.Path("tests/outputs/optimization")
+    if output_directory.exists():
+        shutil.rmtree(output_directory)
+
+    def cost_function(deformed_points, deformation):
+        z = deformed_points[:, -1]
+        lz = torch.max(z) - torch.min(z)
+        loss_lz = (lz - target_lz)**2
+        norm_deformation = torch.einsum('ip,ip->', deformation, deformation)
+        return loss_lz + weight_l2 * norm_deformation
+
+    mesh = graphlow.read(file_name)
+    points = mesh.points
+    deform_coeff = torch.nn.Parameter(torch.rand(3))
+    optimizer = torch.optim.Adam([deform_coeff], lr=1e-2)
+
+    print("\n   i,       cx,       cy,       cz,        cost")
+    for i in range(1, n_optimization + 1):
+        optimizer.zero_grad()
+
+        deformation = torch.einsum('np,p->np', points, deform_coeff)
+        deformed_points = points + deformation
+
+        cost = cost_function(deformed_points, deformation)
+
+        if i % print_period == 0:
+            cx = deform_coeff[0]
+            cy = deform_coeff[1]
+            cz = deform_coeff[2]
+            print(
+                f"{i:4d}, {cx:8.5f}, {cy:8.5f}, {cz:8.5f}, {cost:.5e}")
+            mesh.dict_point_tensor.update(
+                {"deformation": deformation}, overwrite=True)
+            mesh.save(
+                output_directory / f"mesh.{i:08d}.vtu",
+                overwrite_file=True, overwrite_features=True)
+
+        cost.backward()
+        optimizer.step()

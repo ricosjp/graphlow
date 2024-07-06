@@ -95,6 +95,7 @@ class GraphlowMesh(GraphProcessorMixin):
             self, file_name: pathlib.Path | str, *,
             binary: bool = True,
             cast: bool = True,
+            remove_time: bool = True,
             overwrite_features: bool = False,
             overwrite_file: bool = False):
         """Save mesh data. On writing, dict_point_tensor and dict_cell_tensor
@@ -109,6 +110,8 @@ class GraphlowMesh(GraphProcessorMixin):
             If True, write binary file. The default is True.
         cast: bool
             If True, cast mesh if needed. The default is True.
+        remove_time: bool
+            If True, remove TimeValue field data.
         overwrite_features: bool
             If True, allow overwriting features. The default is False.
         overwrite_file: bool
@@ -124,6 +127,9 @@ class GraphlowMesh(GraphProcessorMixin):
         if not cast:
             self.mesh.save(file_name, binary=binary)
             return
+
+        if remove_time:
+            self.mesh.field_data.pop(FeatureName.TIME_VALUE, None)
 
         ext = file_path.suffix.lstrip('.')
         if ext in constants.UNSTRUCTURED_GRID_EXTENSIONS:

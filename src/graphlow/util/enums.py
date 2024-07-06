@@ -12,6 +12,7 @@ class SparseMatrixName(str, Enum):
 class FeatureName(str, Enum):
     POINTS = "points"
     ORIGINAL_INDEX = "original_index"
+    TIME_VALUE = "TimeValue"
 
 
 class Extension(str, Enum):

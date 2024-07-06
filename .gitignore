@@ -163,8 +163,11 @@ cython_debug/
 .vscode
 
 # data
+data
 tests/outputs
 
 # Misc
 *~
 .DS_Store
+tmp
+spike
