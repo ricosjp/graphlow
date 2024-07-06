@@ -1,31 +1,52 @@
-<?xml version="1.0"?>
-<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian" header_type="UInt32" compressor="vtkZLibDataCompressor">
+<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">
   <UnstructuredGrid>
     <FieldData>
-      <DataArray type="Float32" Name="TimeValue" NumberOfTuples="1" format="binary" RangeMin="1" RangeMax="1">
-        AQAAAACAAAAEAAAADAAAAA==eJxjYGiwBwABQwDA
+      <DataArray type="Float64" Name="TimeValue" NumberOfTuples="1" format="ascii" RangeMin="1" RangeMax="1">
+        1
       </DataArray>
     </FieldData>
     <Piece NumberOfPoints="28" NumberOfCells="23">
       <PointData Scalars="original_index">
-        <DataArray type="Int64" Name="original_index" format="binary" RangeMin="0" RangeMax="29">
-          AQAAAACAAADgAAAAOwAAAA==eJwtxbcNgDAAALDQu0To9f83GbAXh/DLXThx7dmTN6duXDpz68qDo0fv7tx78erHh0+/vnz7A4egAZc=
-        </DataArray>
-        <DataArray type="Int64" IdType="1" Name="vtkOriginalPointIds" format="binary" RangeMin="0" RangeMax="29">
-          AQAAAACAAADgAAAAOwAAAA==eJwtxbcNgDAAALDQu0To9f83GbAXh/DLXThx7dmTN6duXDpz68qDo0fv7tx78erHh0+/vnz7A4egAZc=
+        <DataArray type="Int64" Name="original_index" format="ascii" RangeMin="0" RangeMax="29">
+          0 4 5 1 8 19
+          18 22 2 9 6 3
+          10 7 13 17 16 23
+          11 12 20 21 28 24
+          25 29 26 27
         </DataArray>
       </PointData>
       <CellData Scalars="original_index">
-        <DataArray type="Int64" Name="original_index" format="binary" RangeMin="0" RangeMax="6">
-          AQAAAACAAAC4AAAAJwAAAA==eJxjYMAOGNFoZhw0unqYOBOUZkGjYeJsaDQrmnno+tHVAQAROAA+
-        </DataArray>
-        <DataArray type="Int64" IdType="1" Name="vtkOriginalCellIds" format="binary" RangeMin="0" RangeMax="6">
-          AQAAAACAAAC4AAAAJwAAAA==eJxjYMAOGNFoZhw0unqYOBOUZkGjYeJsaDQrmnno+tHVAQAROAA+
+        <DataArray type="Int64" Name="original_index" format="ascii" RangeMin="0" RangeMax="6">
+          0 0 0 1 1 3
+          3 3 0 1 3 2
+          4 4 2 6 6 5
+          0 2 4 6 5
         </DataArray>
       </CellData>
       <Points>
-        <DataArray type="Float32" Name="Points" NumberOfComponents="3" format="binary" RangeMin="0" RangeMax="3.3166247903554">
-          AQAAAACAAABQAQAAUgAAAA==eJyFjsENwCAMAzNZyQAM5QFhp0q0IUc+ICEs54htVo9avtR1bpf5/u9YHvr3g3UwDsYLs/Ty5+jUT/ap98hCH7XMEvYIvNBByP0Y8uG/PBkrcQ==
+        <DataArray type="Float32" Name="Points" NumberOfComponents="3" format="ascii" RangeMin="0" RangeMax="3.3166247903554">
+          0 0 0 0 1 0
+          1 1 0 1 0 0
+          1 0 0.5 1 0 1
+          0 0 1 0 1 1
+          2 0 0 2 0 0.5
+          2 1 0 3 0 0
+          3 0 0.5 3 1 0
+          3 1 0.5 3 0.800000011920929 0.5
+          3 0.20000000298023224 0.5 1 1 1
+          1 1 0.5 2 1 0.5
+          2 0 1 3 0 1
+          3 0.20000000298023224 1 2 1 1
+          3 1 1 3 0.800000011920929 1
+          2 0.20000000298023224 1 2 0.800000011920929 1
+          <InformationKey name="L2_NORM_FINITE_RANGE" location="vtkDataArray" length="2">
+            <Value index="0">
+              0
+            </Value>
+            <Value index="1">
+              3.3166247904
+            </Value>
+          </InformationKey>
           <InformationKey name="L2_NORM_RANGE" location="vtkDataArray" length="2">
             <Value index="0">
               0
@@ -37,14 +58,36 @@
         </DataArray>
       </Points>
       <Cells>
-        <DataArray type="Int64" Name="connectivity" format="binary" RangeMin="0" RangeMax="27">
-          AQAAAACAAAAQAwAAnAAAAA==eJxdkkESgkAMBFcQUVAQQUT8/z89OH2w9zK1k9mkQ1HK7xyiVbQu/4f7MdpET8pxb9WX9+foRf2oM79THu2jV/Whzrub8r38ITpG7+oLN3tM0Yc4K/mzODr5zIWD/dljiTby4Xoqhw//qhxc8L/EM8vfxDnIf0f93UbV4eB/YB84Wvnss0c/4pqUYz/m7MrzHp5NuVV18l/qowUs
+        <DataArray type="Int64" Name="connectivity" format="ascii" RangeMin="0" RangeMax="27">
+          0 1 2 3 0 3
+          4 5 6 0 6 7
+          1 3 8 9 4 3
+          2 10 8 8 11 12
+          9 8 10 13 11 11
+          13 14 15 16 12 1
+          7 17 18 2 2 18
+          19 10 10 19 14 13
+          4 9 20 5 9 12
+          21 20 12 16 22 21
+          18 17 23 19 19 23
+          24 14 14 24 25 15
+          16 15 25 22 6 5
+          17 7 5 20 26 27
+          23 17 20 21 22 26
+          23 27 25 24 26 22
+          25 27
         </DataArray>
-        <DataArray type="Int64" Name="offsets" format="binary" RangeMin="4" RangeMax="98">
-          AQAAAACAAAC4AAAAQgAAAA==eJwtxRECgDAAAMBgEgRBEETJIBgEQRAMgmA0CIL+/4igO7nQ/Fp37j149OTZ0YuTV2/efTj79OXi6tuPX381DwSe
+        <DataArray type="Int64" Name="offsets" format="ascii" RangeMin="4" RangeMax="98">
+          4 9 13 17 21 25
+          29 35 40 44 48 52
+          56 60 64 68 72 76
+          80 86 90 94 98
         </DataArray>
-        <DataArray type="UInt8" Name="types" format="binary" RangeMin="7" RangeMax="9">
-          AQAAAACAAAAXAAAAEgAAAA==eJzjZOcEAXYIBWEDMQAJWQDI
+        <DataArray type="UInt8" Name="types" format="ascii" RangeMin="7" RangeMax="9">
+          9 7 9 9 9 9
+          9 7 7 9 9 9
+          9 9 9 9 9 9
+          9 7 9 9 9
         </DataArray>
       </Cells>
     </Piece>
