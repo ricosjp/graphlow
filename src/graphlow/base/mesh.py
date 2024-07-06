@@ -1,4 +1,6 @@
 
+import pathlib
+
 import numpy as np
 import pyvista as pv
 import torch
@@ -7,13 +9,14 @@ from typing_extensions import Self
 from graphlow.base.dict_tensor import GraphlowDictTensor
 from graphlow.base.tensor_property import GraphlowTensorProperty
 from graphlow.processors.graph_processor import GraphProcessorMixin
+from graphlow.util import constants
 from graphlow.util.enums import FeatureName
 
 
 class GraphlowMesh(GraphProcessorMixin):
 
     def __init__(
-            self, mesh: pv.PointGrid,
+            self, mesh: pv.UnstructuredGrid,
             *,
             dict_point_tensor: GraphlowDictTensor | None = None,
             dict_cell_tensor: GraphlowDictTensor | None = None,
@@ -38,7 +41,7 @@ class GraphlowMesh(GraphProcessorMixin):
         self._tensor_property = GraphlowTensorProperty(
             device=device, dtype=dtype)
 
-        self._mesh = mesh
+        self._mesh = mesh.cast_to_unstructured_grid()
         self._dict_point_tensor = dict_point_tensor or GraphlowDictTensor(
             {}, length=self.n_points)
         if FeatureName.POINTS not in self._dict_point_tensor:
@@ -87,6 +90,39 @@ class GraphlowMesh(GraphProcessorMixin):
     @property
     def dtype(self) -> torch.Tensor:
         return self._tensor_property.dtype
+
+    def save(
+            self, file_name: pathlib.Path | str, *,
+            binary: bool = True,
+            cast: bool = True,
+            overwrite_features: bool = False,
+            overwrite_file: bool = False):
+        file_path = pathlib.Path(file_name)
+        if not overwrite_file and file_path.exists():
+            raise ValueError(f"{file_path} already exists.")
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        self.copy_features_to_pyvista(overwrite=overwrite_features)
+
+        if not cast:
+            self.mesh.save(file_name, binary=binary)
+            return
+
+        ext = file_path.suffix.lstrip('.')
+        if ext in constants.UNSTRUCTURED_GRID_EXTENSIONS:
+            unstructured_grid = self.mesh.cast_to_unstructured_grid()
+            unstructured_grid.save(file_name, binary=binary)
+            return
+
+        if ext in constants.POLYDATA_EXTENSIONS:
+            if isinstance(self.mesh, pv.PolyData):
+                self.mesh.save(file_name, binary=binary)
+                return
+            poly_data = self.mesh.extract_surface()
+            poly_data.save(file_name, binary=binary)
+            return
+
+        raise ValueError(f"Unexpected extension: {ext}")
 
     def send(
             self, *,

@@ -9,6 +9,38 @@ import graphlow
 
 
 @pytest.mark.parametrize(
+    "input_file_name",
+    [
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
+        pathlib.Path("tests/data/vtp/complex_surface/mesh.vtp"),
+    ],
+)
+@pytest.mark.parametrize(
+    "output_file_name",
+    [
+        pathlib.Path("tests/outputs/save/mesh.vtk"),
+        pathlib.Path("tests/outputs/save/mesh.vtu"),
+        pathlib.Path("tests/outputs/save/mesh.vtp"),
+        pathlib.Path("tests/outputs/save/mesh.stl"),
+    ],
+)
+def test__save(input_file_name: pathlib.Path, output_file_name: pathlib.Path):
+    output_file_name.unlink(missing_ok=True)
+
+    mesh = graphlow.read(input_file_name)
+    mesh.save(output_file_name)
+
+    # Raise ValueError when overwriting
+    with pytest.raises(ValueError) as e:
+        mesh.save(output_file_name)
+        assert 'already exists' in str(e.value)
+
+    # Overwrite
+    mesh.save(output_file_name, overwrite_file=True, overwrite_features=True)
+
+
+@pytest.mark.parametrize(
     "file_name, desired_file",
     [
         (
