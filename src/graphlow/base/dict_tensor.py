@@ -41,18 +41,15 @@ class GraphlowDictTensor:
         self._tensor_property = GraphlowTensorProperty(
             device=device, dtype=dtype)
 
-        if dict_tensor is None:
-            self._dict_tensor: dict[typing.KeyType, GraphlowTensor] = {}
-        else:
-            if isinstance(time_series, bool):
-                time_series = [time_series] * len(dict_tensor)
+        if isinstance(time_series, bool):
+            time_series = [time_series] * len(dict_tensor)
 
-            self._dict_tensor: dict[typing.KeyType, GraphlowTensor] = {
-                k: GraphlowTensor(
-                    v, time_series=ts,
-                    device=self.device, dtype=self.dtype)
-                for ts, (k, v) in zip(
-                    time_series, dict_tensor.items(), strict=True)}
+        self._dict_tensor: dict[typing.KeyType, GraphlowTensor] = {
+            k: GraphlowTensor(
+                v, time_series=ts, device=self.device, dtype=self.dtype)
+            for ts, (k, v) in zip(
+                time_series, dict_tensor.items(), strict=True)}
+
         self.length = length
         self.validate_length_if_needed()
         return
