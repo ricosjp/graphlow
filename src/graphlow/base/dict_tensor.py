@@ -64,7 +64,7 @@ class GraphlowDictTensor:
         if key not in self:
             keys = list(self.keys())
             raise KeyError(f"{key} not in {keys}")
-        return self.dict_tensor[key]
+        return self.dict_tensor[key].tensor
 
     @property
     def device(self) -> torch.Tensor:
@@ -86,6 +86,9 @@ class GraphlowDictTensor:
 
     def items(self) -> abc.ItemsView:
         return self.dict_tensor.items()
+
+    def pop(self, key: typing.KeyType) -> torch.Tensor:
+        return self._dict_tensor.pop(key)
 
     def send(
             self, *,

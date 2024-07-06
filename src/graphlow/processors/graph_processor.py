@@ -7,7 +7,7 @@ import torch
 from scipy import sparse as sp
 
 from graphlow.util import array_handler
-from graphlow.util.enums import SparseMatrixName
+from graphlow.util.enums import FeatureName, SparseMatrixName
 
 if TYPE_CHECKING:
     from graphlow.base import GraphlowMesh
@@ -126,7 +126,18 @@ class GraphProcessorMixin:
         torch.Tensor[float]
             (n_points_other, n_points_self)-shapece sparse adjacency matrix.
         """
-        col = torch.from_numpy(other_mesh.mesh.point_data['original_index'])
+        if other_mesh.n_points > self.n_points:
+            return other_mesh.compute_point_relative_incidence(
+                self).transpose(0, 1)
+
+        if FeatureName.ORIGINAL_INDEX not in other_mesh.mesh.point_data:
+            raise ValueError(
+                f"{FeatureName.ORIGINAL_INDEX} not found in "
+                f"{other_mesh.point_data.keys()}.\n"
+                "Run mesh operation with add_original_index=True option.")
+
+        col = torch.from_numpy(
+            other_mesh.mesh.point_data[FeatureName.ORIGINAL_INDEX])
         row = torch.arange(len(col))
         value = torch.ones(len(col))
         indices = torch.stack([row, col], dim=0)
@@ -155,6 +166,10 @@ class GraphProcessorMixin:
         torch.Tensor[float]
             (n_cells_other, n_cells_self)-shapece sparse adjacency matrix.
         """
+        if other_mesh.n_points > self.n_points:
+            return other_mesh.compute_cell_relative_incidence(
+                self, minimum_n_sharing=minimum_n_sharing).transpose(0, 1)
+
         other_self_point_incidence = array_handler.convert_to_scipy_sparse_csr(
             self.compute_point_relative_incidence(
                 other_mesh).to(bool))

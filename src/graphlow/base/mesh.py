@@ -58,7 +58,7 @@ class GraphlowMesh(GraphProcessorMixin):
 
     @property
     def points(self) -> torch.Tensor:
-        return self.dict_point_tensor[FeatureName.POINTS].tensor
+        return self.dict_point_tensor[FeatureName.POINTS]
 
     @property
     def n_points(self) -> int:
@@ -156,7 +156,7 @@ class GraphlowMesh(GraphProcessorMixin):
         pyvista_dataset.update(dict_tensor.convert_to_numpy_scipy())
         return
 
-    def add_original_indices(self):
+    def add_original_index(self):
         """Set original indices to points and cells. We do not use
         vtkOriginalPointIds and vtkOriginalCellIds because they are hidden.
         """
@@ -166,9 +166,17 @@ class GraphlowMesh(GraphProcessorMixin):
             self.mesh.n_cells)
         return
 
-    def extract_surface(self) -> Self:
-        """Extract surface."""
-        self.add_original_indices()
+    def extract_surface(self, add_original_index: bool = True) -> Self:
+        """Extract surface.
+
+        Parameters
+        ----------
+        add_original_index: bool
+            If True, add original index feature to enable relative incidence
+            matrix computation. The default is True.
+        """
+        if add_original_index:
+            self.add_original_index()
 
         surface_mesh = self.mesh.extract_surface(
             pass_pointid=False, pass_cellid=False).cast_to_unstructured_grid()

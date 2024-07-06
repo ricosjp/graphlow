@@ -132,6 +132,13 @@ def test__compute_point_relative_incidence(file_name):
     np.testing.assert_almost_equal(
         actual_surface_points.numpy(), desired_surface_points.numpy())
 
+    # Check reversed order also works
+    relative_incidence_t = surface.compute_point_relative_incidence(mesh)
+    np.testing.assert_array_equal(
+        array_handler.convert_to_dense_numpy(relative_incidence),
+        array_handler.convert_to_dense_numpy(relative_incidence_t).T,
+    )
+
 
 @pytest.mark.parametrize(
     "file_name, desired",
@@ -179,3 +186,8 @@ def test__compute_cell_relative_incidence(file_name, desired):
         mesh.compute_cell_relative_incidence(surface)).astype(int)
 
     np.testing.assert_almost_equal(relative_incidence, desired)
+
+    # Check reversed order also works
+    relative_incidence_t = array_handler.convert_to_dense_numpy(
+        surface.compute_cell_relative_incidence(mesh)).astype(int)
+    np.testing.assert_array_equal(relative_incidence, relative_incidence_t.T)
