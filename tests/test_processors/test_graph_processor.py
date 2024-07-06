@@ -60,7 +60,7 @@ def test__compute_cell_adjacency(file_name, desired):
     mesh = graphlow.read(file_name)
     cell_adjacency = mesh.compute_cell_adjacency()
     np.testing.assert_array_equal(
-        array_handler.convert_to_numpy(cell_adjacency), desired)
+        array_handler.convert_to_dense_numpy(cell_adjacency), desired)
 
 
 @pytest.mark.parametrize(
@@ -109,21 +109,24 @@ def test__compute_point_adjacency(file_name, desired):
     mesh = graphlow.read(file_name)
     point_adjacency = mesh.compute_point_adjacency()
     np.testing.assert_array_equal(
-        array_handler.convert_to_numpy(point_adjacency), desired)
+        array_handler.convert_to_dense_numpy(point_adjacency), desired)
 
 
 @pytest.mark.parametrize(
-    "file_name, desired",
+    "file_name",
     [
-        (
-            pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
-            pathlib.Path("tests/data/vtu/complex/surface.vtu"),
-        ),
+        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__compute_relative_incidence(file_name, desired):
+def test__compute_point_relative_incidence(file_name):
     mesh = graphlow.read(file_name)
-    surface = mesh.convert_to_surface()
-    relative_incidence = mesh.compute_relative_incidence(surface)
-    np.testing.assert_array_equal(
-        array_handler.convert_to_numpy(relative_incidence), desired)
+    mesh.dict_point_tensor.update({'feature': mesh.points[:, 0]**2})
+    mesh.copy_features_to_pyvista()
+
+    surface = mesh.extract_surface()
+    relative_incidence = mesh.compute_point_relative_incidence(surface)
+
+    actual_surface_points = relative_incidence.matmul(mesh.points)
+    desired_surface_points = surface.points
+    np.testing.assert_almost_equal(
+        actual_surface_points.numpy(), desired_surface_points.numpy())
