@@ -6,5 +6,6 @@ import scipy.sparse as sp
 import torch
 
 ArrayDataType = np.ndarray | sp.sparray | torch.Tensor
+NumpyScipyArray = np.ndarray | sp.sparray
 
 KeyType = str | Enum

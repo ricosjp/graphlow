@@ -47,10 +47,10 @@ class GraphlowTensor:
     def shape(self) -> torch.Size:
         return self._tensor.shape
 
-    def to(
+    def send(
             self, *,
             device: torch.device | int | None = None,
-            dtype: torch.dtype | type | None = None) -> Self:
+            dtype: torch.dtype | type | None = None):
         """Convert tensor to the specified device and dtype.
 
         Parameters
@@ -60,13 +60,20 @@ class GraphlowTensor:
         """
         self._tensor_property.device = device or self.device
         self._tensor_property.dtype = dtype or self.dtype
-        self._tensor = array_handler.convert_to_torch_tensor(
-            self._tensor, device=self.device, dtype=self.dtype)
-        return self
+        self._tensor = array_handler.convert_to_torch_tensor(self._tensor)
+        return
 
     def convert_to_torch_tensor(
-            self, tensor: Self | typing.ArrayDataType) -> torch.Tensor:
+            self,
+            tensor: Self | typing.ArrayDataType | None = None) -> torch.Tensor:
+        if tensor is None:
+            tensor = self._tensor
         if isinstance(tensor, GraphlowTensor):
-            return self._tensor
+            tensor.send()
+            return tensor.tensor
         else:
-            return array_handler.convert_to_torch_tensor(tensor)
+            return array_handler.convert_to_torch_tensor(
+                tensor, device=self.device, dtype=self.dtype)
+
+    def convert_to_numpy_scipy(self) -> typing.NumpyScipyArray:
+        return array_handler.convert_to_numpy_scipy(self.tensor)

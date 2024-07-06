@@ -32,9 +32,9 @@ def test__extract_surface(file_name, desired_file):
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__to_float16(file_name):
+def test__send_float16(file_name):
     mesh = graphlow.read(file_name)
-    mesh.to(dtype=torch.float16)
+    mesh.send(dtype=torch.float16)
 
     mesh.dict_point_tensor.update({'feature': mesh.points[:, 0]**2})
     assert mesh.dict_point_tensor['feature'].dtype == torch.float16

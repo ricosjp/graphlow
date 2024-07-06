@@ -49,7 +49,7 @@ class GraphlowMesh(GraphProcessorMixin):
         self._dict_sparse_tensor = dict_sparse_tensor or GraphlowDictTensor(
             {}, length=None)
 
-        self.to()
+        self.send()
         return
 
     @property
@@ -58,7 +58,7 @@ class GraphlowMesh(GraphProcessorMixin):
 
     @property
     def points(self) -> torch.Tensor:
-        return self.dict_point_tensor[FeatureName.POINTS]
+        return self.dict_point_tensor[FeatureName.POINTS].tensor
 
     @property
     def n_points(self) -> int:
@@ -88,7 +88,7 @@ class GraphlowMesh(GraphProcessorMixin):
     def dtype(self) -> torch.Tensor:
         return self._tensor_property.dtype
 
-    def to(
+    def send(
             self, *,
             device: torch.device | int | None = None,
             dtype: torch.dtype | type | None = None):
@@ -103,9 +103,9 @@ class GraphlowMesh(GraphProcessorMixin):
         self._tensor_property.device = device or self.device
         self._tensor_property.dtype = dtype or self.dtype
 
-        self._dict_point_tensor.to(device=self.device, dtype=self.dtype)
-        self._dict_cell_tensor.to(device=self.device, dtype=self.dtype)
-        self._dict_sparse_tensor.to(device=self.device, dtype=self.dtype)
+        self._dict_point_tensor.send(device=self.device, dtype=self.dtype)
+        self._dict_cell_tensor.send(device=self.device, dtype=self.dtype)
+        self._dict_sparse_tensor.send(device=self.device, dtype=self.dtype)
         return
 
     def copy_features_to_pyvista(self, *, overwrite: bool = False):

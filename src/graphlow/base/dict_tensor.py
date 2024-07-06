@@ -2,13 +2,12 @@
 from collections import abc
 
 import numpy as np
-import scipy.sparse as sp
 import torch
 from typing_extensions import Self
 
 from graphlow.base.tensor import GraphlowTensor
 from graphlow.base.tensor_property import GraphlowTensorProperty
-from graphlow.util import array_handler, typing
+from graphlow.util import typing
 
 
 class GraphlowDictTensor:
@@ -88,7 +87,7 @@ class GraphlowDictTensor:
     def items(self) -> abc.ItemsView:
         return self.dict_tensor.items()
 
-    def to(
+    def send(
             self, *,
             device: torch.device | int | None = None,
             dtype: torch.dtype | type | None = None):
@@ -102,9 +101,11 @@ class GraphlowDictTensor:
         self._tensor_property.device = device or self.device
         self._tensor_property.dtype = dtype or self.dtype
 
-        self._dict_tensor = {
-            k: v.to(device=self.device, dtype=self.dtype)
-            for k, v in self._dict_tensor.items()}
+        for v in self._dict_tensor.values():
+            v.send(device=self.device, dtype=self.dtype)
+        # self._dict_tensor = {
+        #     k: v.send(device=self.device, dtype=self.dtype)
+        #     for k, v in self._dict_tensor.items()}
         return
 
     def has_time_series(self) -> bool:
@@ -119,6 +120,7 @@ class GraphlowDictTensor:
 
     def update(
             self, dict_tensor: dict[str, typing.ArrayDataType] | Self, *,
+            time_series: bool | list[bool] = False,
             overwrite: bool = False):
         """Update GraphlowDictTensor with input dict.
 
@@ -128,14 +130,19 @@ class GraphlowDictTensor:
         overwrite: bool
             If True, allow overwriting exsiting items. The default is False.
         """
-        for key, value in dict_tensor.items():
+        if isinstance(time_series, bool):
+            time_series = [time_series] * len(dict_tensor)
+
+        for ts, (key, value) in zip(
+                time_series, dict_tensor.items(), strict=True):
             if key in self.dict_tensor:
                 if not overwrite:
                     keys = list(self.keys())
                     raise ValueError(f"{key} already exists in {keys}")
 
-            self._dict_tensor[key] = array_handler.convert_to_torch_tensor(
-                value, device=self.device, dtype=self.dtype)
+            self._dict_tensor[key] = GraphlowTensor(
+                value, device=self.device, dtype=self.dtype,
+                time_series=ts)
 
         self.validate_length_if_needed()
         return
@@ -152,7 +159,7 @@ class GraphlowDictTensor:
         return
 
     def convert_to_numpy_scipy(self) -> dict[
-            typing.KeyType, np.ndarray | sp.sparray]:
+            typing.KeyType, typing.NumpyScipyArray]:
         return {
-            k: array_handler.convert_to_numpy_scipy(v)
+            k: v.convert_to_numpy_scipy()
             for k, v in self.items()}
