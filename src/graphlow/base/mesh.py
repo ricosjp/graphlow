@@ -11,6 +11,9 @@ from graphlow.base.tensor_property import GraphlowTensorProperty
 from graphlow.processors.graph_processor import GraphProcessorMixin
 from graphlow.util import constants
 from graphlow.util.enums import FeatureName
+from graphlow.util.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class GraphlowMesh(GraphProcessorMixin):
@@ -126,6 +129,7 @@ class GraphlowMesh(GraphProcessorMixin):
 
         if not cast:
             self.mesh.save(file_name, binary=binary)
+            logger.info(f"File writtein in: {file_name}")
             return
 
         if remove_time:
@@ -135,6 +139,7 @@ class GraphlowMesh(GraphProcessorMixin):
         if ext in constants.UNSTRUCTURED_GRID_EXTENSIONS:
             unstructured_grid = self.mesh.cast_to_unstructured_grid()
             unstructured_grid.save(file_name, binary=binary)
+            logger.info(f"File writtein in: {file_name}")
             return
 
         if ext in constants.POLYDATA_EXTENSIONS:
@@ -143,6 +148,7 @@ class GraphlowMesh(GraphProcessorMixin):
                 return
             poly_data = self.mesh.extract_surface()
             poly_data.save(file_name, binary=binary)
+            logger.info(f"File writtein in: {file_name}")
             return
 
         raise ValueError(f"Unexpected extension: {ext}")

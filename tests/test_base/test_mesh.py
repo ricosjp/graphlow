@@ -1,12 +1,22 @@
 
+import logging
 import pathlib
 import shutil
+import sys
 
 import numpy as np
 import pytest
 import torch
 
 import graphlow
+
+LOG_STDOUT = True
+
+if LOG_STDOUT:
+    logger = graphlow.util.logger.get_graphlow_logger()
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(sys.stdout)
+    logger.addHandler(handler)
 
 
 @pytest.mark.parametrize(
@@ -85,10 +95,13 @@ def test__send_float16(file_name):
     ],
 )
 def test__optimize(file_name):
-    n_optimization = 300
+    # Optimization setting
+    n_optimization = 500
     print_period = 10
     target_lz = 3.
-    weight_l2 = 1e-5
+    weight_l2 = 1e-6
+    desired_coeff = np.array([0., 0., 2.])
+
     output_directory = pathlib.Path("tests/outputs/optimization")
     if output_directory.exists():
         shutil.rmtree(output_directory)
@@ -100,11 +113,13 @@ def test__optimize(file_name):
         norm_deformation = torch.einsum('ip,ip->', deformation, deformation)
         return loss_lz + weight_l2 * norm_deformation
 
+    # Initialize
     mesh = graphlow.read(file_name)
     points = mesh.points
     deform_coeff = torch.nn.Parameter(torch.rand(3))
     optimizer = torch.optim.Adam([deform_coeff], lr=1e-2)
 
+    # Optimization loop
     print("\n   i,       cx,       cy,       cz,        cost")
     for i in range(1, n_optimization + 1):
         optimizer.zero_grad()
@@ -128,3 +143,6 @@ def test__optimize(file_name):
 
         cost.backward()
         optimizer.step()
+
+    np.testing.assert_almost_equal(
+        deform_coeff.detach().numpy(), desired_coeff, decimal=2)
