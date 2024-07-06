@@ -108,6 +108,18 @@ class GraphlowMesh(GraphProcessorMixin):
         self._dict_sparse_tensor.send(device=self.device, dtype=self.dtype)
         return
 
+    def copy_features_from_pyvista(self, *, overwrite: bool = False):
+        """Copy point and cell data from pyvista mesh.
+
+        overwrite: bool
+            If True, allow overwriting exsiting items. The default is False.
+        """
+        self.dict_point_tensor.update(
+            self.mesh.point_data, overwrite=overwrite)
+        self.dict_cell_tensor.update(
+            self.mesh.cell_data, overwrite=overwrite)
+        return
+
     def copy_features_to_pyvista(self, *, overwrite: bool = False):
         """Copy point and cell tensor data to pyvista mesh.
 

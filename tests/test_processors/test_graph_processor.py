@@ -3,6 +3,7 @@ import pathlib
 
 import numpy as np
 import pytest
+import pyvista as pv
 
 import graphlow
 from graphlow.util import array_handler
@@ -130,3 +131,51 @@ def test__compute_point_relative_incidence(file_name):
     desired_surface_points = surface.points
     np.testing.assert_almost_equal(
         actual_surface_points.numpy(), desired_surface_points.numpy())
+
+
+@pytest.mark.parametrize(
+    "file_name, desired",
+    [
+        (
+            pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
+            np.array([
+                # 0  1  2  3  4  5  6
+                [1, 0, 0, 0, 0, 0, 0],  #  0
+                [1, 0, 0, 0, 0, 0, 0],  #  1
+                [1, 0, 0, 0, 0, 0, 0],  #  2
+                [0, 1, 0, 0, 0, 0, 0],  #  3
+                [0, 1, 0, 0, 0, 0, 0],  #  4
+                [0, 0, 0, 1, 0, 0, 0],  #  5
+                [0, 0, 0, 1, 0, 0, 0],  #  6
+                [0, 0, 0, 1, 0, 0, 0],  #  7
+                [1, 0, 0, 0, 0, 0, 0],  #  8
+                [0, 1, 0, 0, 0, 0, 0],  #  9
+                [0, 0, 0, 1, 0, 0, 0],  # 10
+                [0, 0, 1, 0, 0, 0, 0],  # 11
+                [0, 0, 0, 0, 1, 0, 0],  # 12
+                [0, 0, 0, 0, 1, 0, 0],  # 13
+                [0, 0, 1, 0, 0, 0, 0],  # 14
+                [0, 0, 0, 0, 0, 0, 1],  # 15
+                [0, 0, 0, 0, 0, 0, 1],  # 16
+                [0, 0, 0, 0, 0, 1, 0],  # 17
+                [1, 0, 0, 0, 0, 0, 0],  # 18
+                [0, 0, 1, 0, 0, 0, 0],  # 19
+                [0, 0, 0, 0, 1, 0, 0],  # 20
+                [0, 0, 0, 0, 0, 0, 1],  # 21
+                [0, 0, 0, 0, 0, 1, 0],  # 22
+            ]),
+        ),
+    ],
+)
+def test__compute_cell_relative_incidence(file_name, desired):
+    pv_mesh = pv.read(file_name)
+    pv_mesh.point_data['feature'] = pv_mesh.points[:, -1]**2
+    pv_mesh = pv_mesh.point_data_to_cell_data()
+    mesh = graphlow.GraphlowMesh(pv_mesh)
+    mesh.copy_features_from_pyvista()
+
+    surface = mesh.extract_surface()
+    relative_incidence = array_handler.convert_to_dense_numpy(
+        mesh.compute_cell_relative_incidence(surface)).astype(int)
+
+    np.testing.assert_almost_equal(relative_incidence, desired)
