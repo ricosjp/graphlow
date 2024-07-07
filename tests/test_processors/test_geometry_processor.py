@@ -14,6 +14,8 @@ import graphlow
     "file_name",
     [
         pathlib.Path("tests/data/vts/cube/mesh.vts"),
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
 def test__optimize_area_volume(file_name):
