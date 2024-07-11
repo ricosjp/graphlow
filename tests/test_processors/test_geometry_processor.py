@@ -18,6 +18,37 @@ import graphlow
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
+def test__compute_area(file_name):
+    pv_vol = graphlow.read(file_name)
+    pv_surf = pv_vol.extract_surface()
+    cell_areas = pv_surf.compute_area()
+    desired = pv_surf.mesh.compute_cell_sizes().cell_data["Area"]
+    np.testing.assert_almost_equal(cell_areas.detach().numpy(), desired, decimal=4)
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        pathlib.Path("tests/data/vts/cube/mesh.vts"),
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
+    ],
+)
+def test__compute_volume(file_name):
+    pv_vol = graphlow.read(file_name)
+    cell_volumes = pv_vol.compute_volume()
+    desired = pv_vol.mesh.compute_cell_sizes().cell_data["Volume"]
+    np.testing.assert_almost_equal(cell_volumes.detach().numpy(), desired, decimal=4)
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        pathlib.Path("tests/data/vts/cube/mesh.vts"),
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
+    ],
+)
 def test__optimize_area_volume(file_name):
     # Optimization setting
     n_optimization = 10000
