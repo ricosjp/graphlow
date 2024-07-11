@@ -1,43 +1,46 @@
 
 import torch
 import pyvista as pv
-import numpy as np
 
 class GeometryProcessorMixin:
     """A mix-in class for geometry processing."""
 
     def compute_area(self) -> torch.Tensor:
-        areas = torch.zeros(self.n_cells)
+        areas = torch.empty(self.n_cells)
+        cell_type_to_function = {
+            pv.CellType.TRIANGLE: self._tri_area,
+            pv.CellType.QUAD: self._poly_area,
+            pv.CellType.POLYGON: self._poly_area
+        }
         for i in range(self.n_cells):
             cell = self.mesh.get_cell(i)
             pids = torch.tensor(cell.point_ids, dtype=torch.int)
             celltype = cell.type
-            if celltype == pv.CellType.TRIANGLE:
-                areas[i] = self._tri_area(pids)
-            elif celltype == pv.CellType.QUAD or celltype == pv.CellType.POLYGON:
-                areas[i] = self._poly_area(pids)
-            else:
+            if celltype not in cell_type_to_function:
                 raise Exception('Unavailable cell type for area computation')
+            areas[i] = cell_type_to_function[celltype](pids)
         return areas
 
     def compute_volume(self) -> torch.Tensor:
-        volumes = torch.zeros(self.n_cells)
+        volumes = torch.empty(self.n_cells)
+        cell_type_to_function = {
+            pv.CellType.TETRA: self._tet_volume,
+            pv.CellType.PYRAMID: self._pyramid_volume,
+            pv.CellType.WEDGE: self._wedge_volume,
+            pv.CellType.HEXAHEDRON: self._hex_volume,
+            pv.CellType.POLYHEDRON: self._poly_volume,
+        }
         for i in range(self.n_cells):
             cell = self.mesh.get_cell(i)
             pids = torch.tensor(cell.point_ids, dtype=torch.int)
-            celltype = cell.type
-            if celltype == pv.CellType.TETRA:
-                volumes[i] = self._tet_volume(pids)
-            elif celltype == pv.CellType.PYRAMID:
-                volumes[i] = self._pyramid_volume(pids)
-            elif celltype == pv.CellType.WEDGE:
-                volumes[i] = self._wedge_volume(pids)
-            elif celltype == pv.CellType.HEXAHEDRON:
-                volumes[i] = self._hex_volume(pids)
-            elif celltype == pv.CellType.POLYHEDRON:
-                volumes[i] = self._poly_volume(pids, cell.faces)
-            else:
+            func = cell_type_to_function[cell.type]
+            if func is None:
                 raise Exception('Unavailable cell type for volume computation')
+
+            if cell.type == pv.CellType.POLYHEDRON:
+                volumes[i] = func(pids, cell.faces)
+            else:
+                volumes[i] = func(pids)
         return volumes
 
     #
@@ -51,12 +54,10 @@ class GeometryProcessorMixin:
         return 0.5 * torch.linalg.vector_norm(cross)
 
     def _poly_area(self, pids):
-        n = len(pids)
-        signed_area = torch.zeros(3, requires_grad=True)
-        for i in range(n):
-            v1 = self.points[pids[i]]
-            v2 = self.points[pids[(i + 1) % n]]
-            signed_area = signed_area + torch.linalg.cross(v1, v2)
+        points = self.points[pids]
+        v1 = points
+        v2 = torch.roll(points, shifts=-1, dims=0)
+        signed_area = torch.sum(torch.linalg.cross(v1, v2), dim=0)
         return 0.5 * torch.linalg.vector_norm(signed_area)
 
     #
@@ -84,7 +85,7 @@ class GeometryProcessorMixin:
         quad_idx = torch.tensor([[0,3,4,1], [1,4,5,2], [0,2,5,3]], dtype=int)
         quad_centers = torch.mean(self.points[pids[quad_idx]], axis=1)
 
-        sub_tet_points = torch.zeros(11, 4, 3)
+        sub_tet_points = torch.empty(11, 4, 3)
         sub_tet_points[0][0] = self.points[pids[0]]
         sub_tet_points[0][1] = quad_centers[0]
         sub_tet_points[0][2] = self.points[pids[3]]
@@ -152,20 +153,6 @@ class GeometryProcessorMixin:
         side_vec = self.points[pids[face_idx]] - cell_center
         return torch.sum(torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=1)) * cc2fc.unsqueeze(1)) / 6.0
 
-
-    # def _poly_volume(self, faces):
-    #     # require right face orientation
-    #     volume = 0.0
-    #     for face in faces:
-    #         face_pids = face.point_ids
-    #         n_tris = face.n_points - 2
-    #         p0 = self.points[face_pids[0]]
-    #         for tri_idx in range(n_tris):
-    #             p1 = self.points[face_pids[tri_idx + 1]]
-    #             p2 = self.points[face_pids[tri_idx + 2]]
-    #             volume += torch.dot(torch.linalg.cross(p0, p1), p2) / 6.0
-    #     return volume
-
     def _poly_volume(self, pids, faces):
         # Assume cell is convex
         volume = 0.0
@@ -179,3 +166,16 @@ class GeometryProcessorMixin:
                 p3 = self.points[face_pids[tri_idx + 2]]
                 volume += torch.abs(torch.dot(torch.linalg.cross(p1 - p0, p2 - p0), p3 - p0)) / 6.0
         return volume
+
+    # def _poly_volume(self, faces):
+    #     # require right face orientation
+    #     volume = 0.0
+    #     for face in faces:
+    #         face_pids = face.point_ids
+    #         n_tris = face.n_points - 2
+    #         p0 = self.points[face_pids[0]]
+    #         for tri_idx in range(n_tris):
+    #             p1 = self.points[face_pids[tri_idx + 1]]
+    #             p2 = self.points[face_pids[tri_idx + 2]]
+    #             volume += torch.dot(torch.linalg.cross(p0, p1), p2) / 6.0
+    #     return volume
