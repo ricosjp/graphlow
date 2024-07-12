@@ -156,15 +156,14 @@ class GeometryProcessorMixin:
     def _poly_volume(self, pids, faces):
         # Assume cell is convex
         volume = 0.0
-        p0 = torch.mean(self.points[pids], dim=0)
+        cell_center = torch.mean(self.points[pids], dim=0)
         for face in faces:
             face_pids = face.point_ids
-            n_tris = face.n_points - 2
-            p1 = self.points[face_pids[0]]
-            for tri_idx in range(n_tris):
-                p2 = self.points[face_pids[tri_idx + 1]]
-                p3 = self.points[face_pids[tri_idx + 2]]
-                volume += torch.abs(torch.dot(torch.linalg.cross(p1 - p0, p2 - p0), p3 - p0)) / 6.0
+            face_centers = torch.mean(self.points[face_pids], dim=0)
+            side_vec = self.points[face_pids] - cell_center
+            cc2fc = face_centers - cell_center
+            sub_vol = torch.abs(torch.matmul(torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0)), cc2fc))
+            volume += torch.sum(sub_vol) / 6.0
         return volume
 
     # def _poly_volume(self, faces):
