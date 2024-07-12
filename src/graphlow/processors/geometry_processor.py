@@ -1,6 +1,6 @@
-
 import torch
 import pyvista as pv
+
 
 class GeometryProcessorMixin:
     """A mix-in class for geometry processing."""
@@ -10,14 +10,14 @@ class GeometryProcessorMixin:
         cell_type_to_function = {
             pv.CellType.TRIANGLE: self._tri_area,
             pv.CellType.QUAD: self._poly_area,
-            pv.CellType.POLYGON: self._poly_area
+            pv.CellType.POLYGON: self._poly_area,
         }
         for i in range(self.n_cells):
             cell = self.mesh.get_cell(i)
             pids = torch.tensor(cell.point_ids, dtype=torch.int)
             celltype = cell.type
             if celltype not in cell_type_to_function:
-                raise Exception('Unavailable cell type for area computation')
+                raise Exception("Unavailable cell type for area computation")
             areas[i] = cell_type_to_function[celltype](pids)
         return areas
 
@@ -35,7 +35,7 @@ class GeometryProcessorMixin:
             pids = torch.tensor(cell.point_ids, dtype=torch.int)
             celltype = cell.type
             if celltype not in cell_type_to_function:
-                raise Exception('Unavailable cell type for volume computation')
+                raise Exception("Unavailable cell type for volume computation")
             func = cell_type_to_function[celltype]
             if celltype == pv.CellType.POLYHEDRON:
                 volumes[i] = func(pids, cell.faces)
@@ -72,7 +72,7 @@ class GeometryProcessorMixin:
 
     def _pyramid_volume(self, pids):
         volume = 0.0
-        sub_tet_idx = torch.tensor([[0,1,2,4], [0,2,3,4]], dtype=int)
+        sub_tet_idx = torch.tensor([[0, 1, 2, 4], [0, 2, 3, 4]], dtype=int)
         sub_tet_pids = pids[sub_tet_idx]
         volume += self._tet_volume(sub_tet_pids[0])
         volume += self._tet_volume(sub_tet_pids[1])
@@ -82,7 +82,7 @@ class GeometryProcessorMixin:
         # divide the wedge into 11 tets
         # This is a better solution than 3 tets because
         # if the wedge is twisted then the 3 quads will be twisted.
-        quad_idx = torch.tensor([[0,3,4,1], [1,4,5,2], [0,2,5,3]], dtype=int)
+        quad_idx = torch.tensor([[0, 3, 4, 1], [1, 4, 5, 2], [0, 2, 5, 3]], dtype=int)
         quad_centers = torch.mean(self.points[pids[quad_idx]], axis=1)
 
         sub_tet_points = torch.empty(11, 4, 3)
@@ -146,7 +146,17 @@ class GeometryProcessorMixin:
 
     def _hex_volume(self, pids):
         # divide the hex into 24 (=4*6) tets for the same reason as a wedge
-        face_idx = torch.tensor([[0,1,5,4], [1,2,6,5], [2,3,7,6], [3,0,4,7], [3,2,1,0], [4,5,6,7]], dtype=int)
+        face_idx = torch.tensor(
+            [
+                [0, 1, 5, 4],
+                [1, 2, 6, 5],
+                [2, 3, 7, 6],
+                [3, 0, 4, 7],
+                [3, 2, 1, 0],
+                [4, 5, 6, 7],
+            ],
+            dtype=int,
+        )
         face_centers = torch.mean(self.points[pids[face_idx]], dim=1)
         cell_center = torch.mean(self.points[pids], dim=0)
         cc2fc = face_centers - cell_center
@@ -165,16 +175,3 @@ class GeometryProcessorMixin:
             sub_vol = torch.abs(torch.matmul(torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0)), cc2fc))
             volume += torch.sum(sub_vol) / 6.0
         return volume
-
-    # def _poly_volume(self, faces):
-    #     # require right face orientation
-    #     volume = 0.0
-    #     for face in faces:
-    #         face_pids = face.point_ids
-    #         n_tris = face.n_points - 2
-    #         p0 = self.points[face_pids[0]]
-    #         for tri_idx in range(n_tris):
-    #             p1 = self.points[face_pids[tri_idx + 1]]
-    #             p2 = self.points[face_pids[tri_idx + 2]]
-    #             volume += torch.dot(torch.linalg.cross(p0, p1), p2) / 6.0
-    #     return volume
