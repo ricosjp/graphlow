@@ -33,11 +33,11 @@ class GeometryProcessorMixin:
         for i in range(self.n_cells):
             cell = self.mesh.get_cell(i)
             pids = torch.tensor(cell.point_ids, dtype=torch.int)
-            func = cell_type_to_function[cell.type]
-            if func is None:
+            celltype = cell.type
+            if celltype not in cell_type_to_function:
                 raise Exception('Unavailable cell type for volume computation')
-
-            if cell.type == pv.CellType.POLYHEDRON:
+            func = cell_type_to_function[celltype]
+            if celltype == pv.CellType.POLYHEDRON:
                 volumes[i] = func(pids, cell.faces)
             else:
                 volumes[i] = func(pids)
