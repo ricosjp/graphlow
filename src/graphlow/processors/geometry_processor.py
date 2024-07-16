@@ -5,7 +5,7 @@ import pyvista as pv
 class GeometryProcessorMixin:
     """A mix-in class for geometry processing."""
 
-    def compute_area(self) -> torch.Tensor:
+    def compute_area(self, raise_negative_area=True) -> torch.Tensor:
         areas = torch.empty(self.n_cells)
         cell_type_to_function = {
             pv.CellType.TRIANGLE: self._tri_area,
@@ -14,14 +14,19 @@ class GeometryProcessorMixin:
         }
         for i in range(self.n_cells):
             cell = self.mesh.get_cell(i)
-            pids = torch.tensor(cell.point_ids, dtype=torch.int)
             celltype = cell.type
             if celltype not in cell_type_to_function:
-                raise Exception("Unavailable cell type for area computation")
+                raise KeyError(f"Unavailable cell type for area computation: cell[{i}]")
+
+            pids = torch.tensor(cell.point_ids, dtype=torch.int)
             areas[i] = cell_type_to_function[celltype](pids)
+
+        if raise_negative_area and torch.any(areas < 0.0):
+            indices = (areas < 0).nonzero(as_tuple=True)
+            raise ValueError(f"Negative volume found: cell indices: {indices}")
         return areas
 
-    def compute_volume(self) -> torch.Tensor:
+    def compute_volume(self, raise_negative_volume=True) -> torch.Tensor:
         volumes = torch.empty(self.n_cells)
         cell_type_to_function = {
             pv.CellType.TETRA: self._tet_volume,
@@ -32,15 +37,20 @@ class GeometryProcessorMixin:
         }
         for i in range(self.n_cells):
             cell = self.mesh.get_cell(i)
-            pids = torch.tensor(cell.point_ids, dtype=torch.int)
             celltype = cell.type
             if celltype not in cell_type_to_function:
-                raise Exception("Unavailable cell type for volume computation")
+                raise KeyError(f"Unavailable cell type for area computation: cell[{i}]")
+
+            pids = torch.tensor(cell.point_ids, dtype=torch.int)
             func = cell_type_to_function[celltype]
             if celltype == pv.CellType.POLYHEDRON:
                 volumes[i] = func(pids, cell.faces)
             else:
                 volumes[i] = func(pids)
+
+        if raise_negative_volume and torch.any(volumes < 0.0):
+            indices = (volumes < 0).nonzero(as_tuple=True)
+            raise ValueError(f"Negative volume found: cell indices: {indices}")
         return volumes
 
     #
