@@ -64,9 +64,8 @@ class GeometryProcessorMixin:
         return 0.5 * torch.linalg.vector_norm(cross)
 
     def _poly_area(self, pids):
-        points = self.points[pids]
-        v1 = points
-        v2 = torch.roll(points, shifts=-1, dims=0)
+        v1 = self.points[pids]
+        v2 = torch.roll(v1, shifts=-1, dims=0)
         signed_area = torch.sum(torch.linalg.cross(v1, v2), dim=0)
         return 0.5 * torch.linalg.vector_norm(signed_area)
 
@@ -78,22 +77,19 @@ class GeometryProcessorMixin:
         v10 = tet_points[1] - tet_points[0]
         v20 = tet_points[2] - tet_points[0]
         v30 = tet_points[3] - tet_points[0]
-        return torch.dot(torch.linalg.cross(v10, v20), v30) / 6.0
+        return torch.abs(torch.dot(torch.linalg.cross(v10, v20), v30)) / 6.0
 
     def _pyramid_volume(self, pids):
-        volume = 0.0
-        sub_tet_idx = torch.tensor([[0, 1, 2, 4], [0, 2, 3, 4]], dtype=int)
+        sub_tet_idx = torch.tensor([[0, 1, 2, 4], [0, 2, 3, 4]], dtype=torch.int)
         sub_tet_pids = pids[sub_tet_idx]
-        volume += self._tet_volume(sub_tet_pids[0])
-        volume += self._tet_volume(sub_tet_pids[1])
-        return volume
+        return torch.sum(torch.stack([self._tet_volume(sub_tet_pids[i]) for i in range(sub_tet_pids.size(0))]))
 
     def _wedge_volume(self, pids):
         # divide the wedge into 11 tets
         # This is a better solution than 3 tets because
         # if the wedge is twisted then the 3 quads will be twisted.
-        quad_idx = torch.tensor([[0, 3, 4, 1], [1, 4, 5, 2], [0, 2, 5, 3]], dtype=int)
-        quad_centers = torch.mean(self.points[pids[quad_idx]], axis=1)
+        quad_idx = torch.tensor([[0, 3, 4, 1], [1, 4, 5, 2], [0, 2, 5, 3]], dtype=torch.int)
+        quad_centers = torch.mean(self.points[pids[quad_idx]], dim=1)
 
         sub_tet_points = torch.empty(11, 4, 3)
         sub_tet_points[0][0] = self.points[pids[0]]
@@ -165,7 +161,7 @@ class GeometryProcessorMixin:
                 [3, 2, 1, 0],
                 [4, 5, 6, 7],
             ],
-            dtype=int,
+            dtype=torch.int,
         )
         face_centers = torch.mean(self.points[pids[face_idx]], dim=1)
         cell_center = torch.mean(self.points[pids], dim=0)
@@ -175,7 +171,7 @@ class GeometryProcessorMixin:
 
     def _poly_volume(self, pids, faces):
         # Assume cell is convex
-        volume = 0.0
+        volume = torch.tensor(0.0, requires_grad=True)
         cell_center = torch.mean(self.points[pids], dim=0)
         for face in faces:
             face_pids = face.point_ids
@@ -183,5 +179,5 @@ class GeometryProcessorMixin:
             side_vec = self.points[face_pids] - cell_center
             cc2fc = face_centers - cell_center
             sub_vol = torch.abs(torch.matmul(torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0)), cc2fc))
-            volume += torch.sum(sub_vol) / 6.0
+            volume = volume + torch.sum(sub_vol) / 6.0
         return volume
