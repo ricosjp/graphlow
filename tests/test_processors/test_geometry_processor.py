@@ -158,6 +158,31 @@ def test__compute_volume(file_name):
 @pytest.mark.parametrize(
     "file_name",
     [
+        # primitives
+        pathlib.Path("tests/data/vtu/primitive_cell/cuboid.vtu"),
+    ],
+)
+def test__volume_gradient(file_name):
+    pv_vol = graphlow.read(file_name)
+    pv_vol.points.requires_grad_(True)
+    cell_volumes = pv_vol.compute_volume()
+    total_volume = torch.sum(cell_volumes)
+    total_volume.backward()
+
+    vol_grad = pv_vol.points.grad
+
+    for i in range(pv_vol.mesh.n_cells):
+        cell = pv_vol.mesh.get_cell(i)
+        for face in cell.faces:
+            pids = face.point_ids
+            dV = torch.abs(torch.sum(vol_grad[pids])) #TODO: To obtain results for any plane, take the dot product with the normal and then sum the results.
+            area = face.cast_to_unstructured_grid().compute_cell_quality('area').cell_data["CellQuality"]
+            np.testing.assert_equal(dV, area)
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
         pathlib.Path("tests/data/vts/cube/mesh.vts"),
         pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
