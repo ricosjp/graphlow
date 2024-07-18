@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import pyvista as pv
 
@@ -54,29 +53,6 @@ class GeometryProcessorMixin:
             raise ValueError(f"Negative volume found: cell indices: {indices}")
         return volumes
 
-    def tetrahedralize_cell(self, cell):
-        pid_map = {global_pid: local_pid for local_pid, global_pid in enumerate(cell.point_ids)}
-
-        cell_n_points = cell.n_points
-
-        cell_points = np.vstack((cell.points, cell.center))
-        cell_center_pid = cell_n_points
-        cell_n_points += 1
-
-        tet_cells_list = []
-        for face in cell.faces:
-            cell_points = np.vstack((cell_points, face.center))
-            face_center_pid = cell_n_points
-            cell_n_points += 1
-            for edge in face.edges:
-                edge_global_pids = edge.point_ids
-                edge_local_pids = [pid_map[global_pid] for global_pid in edge_global_pids]
-                tet_cell = np.array([4, edge_local_pids[1], edge_local_pids[0], face_center_pid, cell_center_pid])
-                tet_cells_list.append(tet_cell)
-
-        tet_cells = np.asarray(tet_cells_list)
-        tet_celltypes = np.full(tet_cells.shape[0], pv.CellType.TETRA)
-        return pv.UnstructuredGrid(tet_cells, tet_celltypes, cell_points)
 
     #
     # Area function
