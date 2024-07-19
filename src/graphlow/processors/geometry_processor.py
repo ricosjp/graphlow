@@ -1,5 +1,5 @@
-import torch
 import pyvista as pv
+import torch
 
 
 class GeometryProcessorMixin:
@@ -81,9 +81,14 @@ class GeometryProcessorMixin:
         return torch.abs(torch.dot(torch.linalg.cross(v10, v20), v30)) / 6.0
 
     def _pyramid_volume(self, pids):
-        sub_tet_idx = torch.tensor([[0, 1, 2, 4], [0, 2, 3, 4]], dtype=torch.int)
-        sub_tet_pids = pids[sub_tet_idx]
-        return torch.sum(torch.stack([self._tet_volume(sub_tet_pids[i]) for i in range(sub_tet_pids.size(0))]))
+        quad_idx =  torch.tensor([0, 1, 2, 3], dtype=torch.int)
+        quad_center = torch.mean(self.points[pids[quad_idx]], dim=0)
+        top = self.points[pids[4]]
+        axis = quad_center - top
+        side_vec = self.points[pids[quad_idx]] - top
+        cross = torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0))
+        tet_volumes = torch.abs(torch.sum(cross * axis, dim=1)) / 6.0
+        return torch.sum(tet_volumes)
 
     def _wedge_volume(self, pids):
         # divide the wedge into 11 tets
@@ -149,7 +154,9 @@ class GeometryProcessorMixin:
         sub_tet_points[10][3] = self.points[pids[3]]
 
         sub_tet_vec = sub_tet_points[:, 1:] - sub_tet_points[:, 0].unsqueeze(1)
-        return torch.sum(torch.linalg.cross(sub_tet_vec[:, 0], sub_tet_vec[:, 1]) * sub_tet_vec[:, 2]) / 6.0
+        cross = torch.linalg.cross(sub_tet_vec[:, 0], sub_tet_vec[:, 1])
+        tet_volumes = torch.abs(torch.sum(cross * sub_tet_vec[:, 2], dim=1)) / 6.0
+        return torch.sum(tet_volumes)
 
     def _hex_volume(self, pids):
         # divide the hex into 24 (=4*6) tets for the same reason as a wedge
@@ -168,17 +175,20 @@ class GeometryProcessorMixin:
         cell_center = torch.mean(self.points[pids], dim=0)
         cc2fc = face_centers - cell_center
         side_vec = self.points[pids[face_idx]] - cell_center
-        return torch.sum(torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=1)) * cc2fc.unsqueeze(1)) / 6.0
+        cross = torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=1))
+        tet_volumes = torch.abs(torch.sum(cross * cc2fc.unsqueeze(1), dim=2)) / 6.0
+        return torch.sum(tet_volumes)
 
     def _poly_volume(self, pids, faces):
         # Assume cell is convex
-        volume = torch.tensor(0.0, requires_grad=True)
+        volume = 0.0
         cell_center = torch.mean(self.points[pids], dim=0)
         for face in faces:
             face_pids = face.point_ids
             face_centers = torch.mean(self.points[face_pids], dim=0)
-            side_vec = self.points[face_pids] - cell_center
             cc2fc = face_centers - cell_center
-            sub_vol = torch.abs(torch.matmul(torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0)), cc2fc))
-            volume = volume + torch.sum(sub_vol) / 6.0
+            side_vec = self.points[face_pids] - cell_center
+            cross = torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0))
+            tet_volumes = torch.abs(torch.sum(cross * cc2fc, dim=1)) / 6.0
+            volume += torch.sum(tet_volumes)
         return volume
