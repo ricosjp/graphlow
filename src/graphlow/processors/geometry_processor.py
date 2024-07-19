@@ -16,7 +16,9 @@ class GeometryProcessorMixin:
             cell = self.mesh.get_cell(i)
             celltype = cell.type
             if celltype not in cell_type_to_function:
-                raise KeyError(f"Unavailable cell type for area computation: cell[{i}]")
+                raise KeyError(
+                    f"Unavailable cell type for area computation: cell[{i}]"
+                )
 
             pids = torch.tensor(cell.point_ids, dtype=torch.int)
             areas[i] = cell_type_to_function[celltype](pids)
@@ -39,7 +41,9 @@ class GeometryProcessorMixin:
             cell = self.mesh.get_cell(i)
             celltype = cell.type
             if celltype not in cell_type_to_function:
-                raise KeyError(f"Unavailable cell type for area computation: cell[{i}]")
+                raise KeyError(
+                    f"Unavailable cell type for area computation: cell[{i}]"
+                )
 
             pids = torch.tensor(cell.point_ids, dtype=torch.int)
             func = cell_type_to_function[celltype]
@@ -52,7 +56,6 @@ class GeometryProcessorMixin:
             indices = (volumes < 0).nonzero(as_tuple=True)
             raise ValueError(f"Negative volume found: cell indices: {indices}")
         return volumes
-
 
     #
     # Area function
@@ -81,12 +84,14 @@ class GeometryProcessorMixin:
         return torch.abs(torch.dot(torch.linalg.cross(v10, v20), v30)) / 6.0
 
     def _pyramid_volume(self, pids):
-        quad_idx =  torch.tensor([0, 1, 2, 3], dtype=torch.int)
+        quad_idx = torch.tensor([0, 1, 2, 3], dtype=torch.int)
         quad_center = torch.mean(self.points[pids[quad_idx]], dim=0)
         top = self.points[pids[4]]
         axis = quad_center - top
         side_vec = self.points[pids[quad_idx]] - top
-        cross = torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0))
+        cross = torch.linalg.cross(
+            side_vec, torch.roll(side_vec, shifts=-1, dims=0)
+        )
         tet_volumes = torch.abs(torch.sum(cross * axis, dim=1)) / 6.0
         return torch.sum(tet_volumes)
 
@@ -94,7 +99,9 @@ class GeometryProcessorMixin:
         # divide the wedge into 11 tets
         # This is a better solution than 3 tets because
         # if the wedge is twisted then the 3 quads will be twisted.
-        quad_idx = torch.tensor([[0, 3, 4, 1], [1, 4, 5, 2], [0, 2, 5, 3]], dtype=torch.int)
+        quad_idx = torch.tensor(
+            [[0, 3, 4, 1], [1, 4, 5, 2], [0, 2, 5, 3]], dtype=torch.int
+        )
         quad_centers = torch.mean(self.points[pids[quad_idx]], dim=1)
 
         sub_tet_points = torch.empty(11, 4, 3)
@@ -155,7 +162,9 @@ class GeometryProcessorMixin:
 
         sub_tet_vec = sub_tet_points[:, 1:] - sub_tet_points[:, 0].unsqueeze(1)
         cross = torch.linalg.cross(sub_tet_vec[:, 0], sub_tet_vec[:, 1])
-        tet_volumes = torch.abs(torch.sum(cross * sub_tet_vec[:, 2], dim=1)) / 6.0
+        tet_volumes = (
+            torch.abs(torch.sum(cross * sub_tet_vec[:, 2], dim=1)) / 6.0
+        )
         return torch.sum(tet_volumes)
 
     def _hex_volume(self, pids):
@@ -175,8 +184,12 @@ class GeometryProcessorMixin:
         cell_center = torch.mean(self.points[pids], dim=0)
         cc2fc = face_centers - cell_center
         side_vec = self.points[pids[face_idx]] - cell_center
-        cross = torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=1))
-        tet_volumes = torch.abs(torch.sum(cross * cc2fc.unsqueeze(1), dim=2)) / 6.0
+        cross = torch.linalg.cross(
+            side_vec, torch.roll(side_vec, shifts=-1, dims=1)
+        )
+        tet_volumes = (
+            torch.abs(torch.sum(cross * cc2fc.unsqueeze(1), dim=2)) / 6.0
+        )
         return torch.sum(tet_volumes)
 
     def _poly_volume(self, pids, faces):
@@ -188,7 +201,9 @@ class GeometryProcessorMixin:
             face_centers = torch.mean(self.points[face_pids], dim=0)
             cc2fc = face_centers - cell_center
             side_vec = self.points[face_pids] - cell_center
-            cross = torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0))
+            cross = torch.linalg.cross(
+                side_vec, torch.roll(side_vec, shifts=-1, dims=0)
+            )
             tet_volumes = torch.abs(torch.sum(cross * cc2fc, dim=1)) / 6.0
             volume += torch.sum(tet_volumes)
         return volume

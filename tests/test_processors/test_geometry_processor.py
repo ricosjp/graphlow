@@ -1,4 +1,3 @@
-
 import pathlib
 import shutil
 
@@ -11,7 +10,10 @@ import graphlow
 
 
 def tetrahedralize_cell_for_test(cell):
-    pid_map = {global_pid: local_pid for local_pid, global_pid in enumerate(cell.point_ids)}
+    pid_map = {
+        global_pid: local_pid
+        for local_pid, global_pid in enumerate(cell.point_ids)
+    }
 
     cell_n_points = cell.n_points
 
@@ -26,8 +28,18 @@ def tetrahedralize_cell_for_test(cell):
         cell_n_points += 1
         for edge in face.edges:
             edge_global_pids = edge.point_ids
-            edge_local_pids = [pid_map[global_pid] for global_pid in edge_global_pids]
-            tet_cell = np.array([4, edge_local_pids[1], edge_local_pids[0], face_center_pid, cell_center_pid])
+            edge_local_pids = [
+                pid_map[global_pid] for global_pid in edge_global_pids
+            ]
+            tet_cell = np.array(
+                [
+                    4,
+                    edge_local_pids[1],
+                    edge_local_pids[0],
+                    face_center_pid,
+                    cell_center_pid,
+                ]
+            )
             tet_cells_list.append(tet_cell)
 
     tet_cells = np.asarray(tet_cells_list)
@@ -39,51 +51,55 @@ def tetrahedralize_cell_for_test(cell):
     "points, unit_cell, unit_celltype, desired_cells",
     [
         (
-            np.array([
-                [0.0, 0.0, 0.0], # 0
-                [2.0, 0.0, 0.0], # 1
-                [2.0, 2.0, 0.0], # 2
-                [0.0, 2.0, 0.0], # 3
-                [0.0, 0.0, 2.0], # 4
-                [2.0, 0.0, 2.0], # 5
-                [2.0, 2.0, 2.0], # 6
-                [0.0, 2.0, 2.0], # 7
-                [1.0, 1.0, 1.0], # 8  cell center
-                [0.0, 1.0, 1.0], # 9  face center x=0 yz
-                [2.0, 1.0, 1.0], # 10 face center x=2 yz
-                [1.0, 0.0, 1.0], # 11 face center y=0 zx
-                [1.0, 2.0, 1.0], # 12 face center y=2 zx
-                [1.0, 1.0, 0.0], # 13 face center z=0 xy
-                [1.0, 1.0, 2.0], # 14 face center z=2 xy
-            ]),
+            np.array(
+                [
+                    [0.0, 0.0, 0.0],  # 0
+                    [2.0, 0.0, 0.0],  # 1
+                    [2.0, 2.0, 0.0],  # 2
+                    [0.0, 2.0, 0.0],  # 3
+                    [0.0, 0.0, 2.0],  # 4
+                    [2.0, 0.0, 2.0],  # 5
+                    [2.0, 2.0, 2.0],  # 6
+                    [0.0, 2.0, 2.0],  # 7
+                    [1.0, 1.0, 1.0],  # 8  cell center
+                    [0.0, 1.0, 1.0],  # 9  face center x=0 yz
+                    [2.0, 1.0, 1.0],  # 10 face center x=2 yz
+                    [1.0, 0.0, 1.0],  # 11 face center y=0 zx
+                    [1.0, 2.0, 1.0],  # 12 face center y=2 zx
+                    [1.0, 1.0, 0.0],  # 13 face center z=0 xy
+                    [1.0, 1.0, 2.0],  # 14 face center z=2 xy
+                ]
+            ),
             np.array([8, 0, 1, 2, 3, 4, 5, 6, 7]),
             np.array([pv.CellType.HEXAHEDRON]),
-            np.array([
-                [4, 4, 0, 9, 8], # face x=0 yz
-                [4, 7, 4, 9, 8],
-                [4, 3, 7, 9, 8],
-                [4, 0, 3, 9, 8],
-                [4, 2, 1, 10, 8], # face x=2 yz
-                [4, 6, 2, 10, 8],
-                [4, 5, 6, 10, 8],
-                [4, 1, 5, 10, 8],
-                [4, 1, 0, 11, 8], # face y=0 zx
-                [4, 5, 1, 11, 8],
-                [4, 4, 5, 11, 8],
-                [4, 0, 4, 11, 8],
-                [4, 7, 3, 12, 8], # face y=2 zx
-                [4, 6, 7, 12, 8],
-                [4, 2, 6, 12, 8],
-                [4, 3, 2, 12, 8],
-                [4, 3, 0, 13, 8], # face z=0 xy
-                [4, 2, 3, 13, 8],
-                [4, 1, 2, 13, 8],
-                [4, 0, 1, 13, 8],
-                [4, 5, 4, 14, 8], # face z=2 xy
-                [4, 6, 5, 14, 8],
-                [4, 7, 6, 14, 8],
-                [4, 4, 7, 14, 8],
-            ]),
+            np.array(
+                [
+                    [4, 4, 0, 9, 8],  # face x=0 yz
+                    [4, 7, 4, 9, 8],
+                    [4, 3, 7, 9, 8],
+                    [4, 0, 3, 9, 8],
+                    [4, 2, 1, 10, 8],  # face x=2 yz
+                    [4, 6, 2, 10, 8],
+                    [4, 5, 6, 10, 8],
+                    [4, 1, 5, 10, 8],
+                    [4, 1, 0, 11, 8],  # face y=0 zx
+                    [4, 5, 1, 11, 8],
+                    [4, 4, 5, 11, 8],
+                    [4, 0, 4, 11, 8],
+                    [4, 7, 3, 12, 8],  # face y=2 zx
+                    [4, 6, 7, 12, 8],
+                    [4, 2, 6, 12, 8],
+                    [4, 3, 2, 12, 8],
+                    [4, 3, 0, 13, 8],  # face z=0 xy
+                    [4, 2, 3, 13, 8],
+                    [4, 1, 2, 13, 8],
+                    [4, 0, 1, 13, 8],
+                    [4, 5, 4, 14, 8],  # face z=2 xy
+                    [4, 6, 5, 14, 8],
+                    [4, 7, 6, 14, 8],
+                    [4, 4, 7, 14, 8],
+                ]
+            ),
         )
     ],
 )
@@ -106,7 +122,6 @@ def test__tetrahedralize_cell(points, unit_cell, unit_celltype, desired_cells):
         pathlib.Path("tests/data/vtu/primitive_cell/wedge.vtu"),
         pathlib.Path("tests/data/vtu/primitive_cell/hex.vtu"),
         pathlib.Path("tests/data/vtu/primitive_cell/poly.vtu"),
-
         pathlib.Path("tests/data/vts/cube/mesh.vts"),
         pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
@@ -118,7 +133,8 @@ def test__compute_area(file_name):
     cell_areas = pv_surf.compute_area()
     desired = pv_surf.mesh.compute_cell_sizes().cell_data["Area"]
     np.testing.assert_almost_equal(
-        cell_areas.detach().numpy(), desired, decimal=4)
+        cell_areas.detach().numpy(), desired, decimal=4
+    )
 
 
 @pytest.mark.parametrize(
@@ -130,7 +146,6 @@ def test__compute_area(file_name):
         pathlib.Path("tests/data/vtu/primitive_cell/wedge.vtu"),
         pathlib.Path("tests/data/vtu/primitive_cell/hex.vtu"),
         pathlib.Path("tests/data/vtu/primitive_cell/poly.vtu"),
-
         pathlib.Path("tests/data/vts/cube/mesh.vts"),
         pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
@@ -142,19 +157,28 @@ def test__compute_volume(file_name):
 
     # See below for why `compute_cell_quality` is used instead of `compute_cell_sizes`
     # https://colab.research.google.com/drive/1ZkMbVfN-74ZXbDFO2ocva-JEYin6Ux4b?usp=sharing
-    desired = np.abs(pv_vol.mesh.compute_cell_quality(quality_measure='volume').cell_data["CellQuality"])
+    desired = np.abs(
+        pv_vol.mesh
+        .compute_cell_quality(quality_measure="volume")
+        .cell_data["CellQuality"]
+    )
 
-    # fix desired for polyhedron cell 
+    # fix desired for polyhedron cell
     # because vtkCellQuality doesn't support vtkPolyhedron
     for i in range(pv_vol.mesh.n_cells):
         cell = pv_vol.mesh.get_cell(i)
         celltype = cell.type
         if celltype == pv.CellType.POLYHEDRON:
             tet_cell_grid = tetrahedralize_cell_for_test(cell)
-            tet_cell_volumes = np.abs(tet_cell_grid.compute_cell_quality(quality_measure='volume').cell_data["CellQuality"])
+            tet_cell_volumes = np.abs(
+                tet_cell_grid
+                .compute_cell_quality(quality_measure="volume")
+                .cell_data["CellQuality"]
+            )
             desired[i] = np.sum(tet_cell_volumes)
     np.testing.assert_almost_equal(
-        cell_volumes.detach().numpy(), desired, decimal=4)
+        cell_volumes.detach().numpy(), desired, decimal=4
+    )
 
 
 @pytest.mark.parametrize(
@@ -177,8 +201,14 @@ def test__volume_gradient(file_name):
         cell = pv_vol.mesh.get_cell(i)
         for face in cell.faces:
             pids = face.point_ids
-            dV = torch.abs(torch.sum(vol_grad[pids])) #TODO: To obtain results for any plane, take the dot product with the normal and then sum the results.
-            area = face.cast_to_unstructured_grid().compute_cell_quality('area').cell_data["CellQuality"]
+            # TODO: To obtain results for any plane,
+            # take the dot product with the normal and then sum the results.
+            dV = torch.abs(torch.sum(vol_grad[pids]))
+            area = (
+                face.cast_to_unstructured_grid()
+                .compute_cell_quality("area")
+                .cell_data["CellQuality"]
+            )
             np.testing.assert_equal(dV, area)
 
 
