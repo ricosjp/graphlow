@@ -8,6 +8,7 @@ from typing_extensions import Self
 
 from graphlow.base.dict_tensor import GraphlowDictTensor
 from graphlow.base.tensor_property import GraphlowTensorProperty
+from graphlow.processors.geometry_processor import GeometryProcessorMixin
 from graphlow.processors.graph_processor import GraphProcessorMixin
 from graphlow.util import constants
 from graphlow.util.enums import FeatureName
@@ -16,7 +17,7 @@ from graphlow.util.logger import get_logger
 logger = get_logger(__name__)
 
 
-class GraphlowMesh(GraphProcessorMixin):
+class GraphlowMesh(GraphProcessorMixin, GeometryProcessorMixin):
 
     def __init__(
             self, mesh: pv.UnstructuredGrid,

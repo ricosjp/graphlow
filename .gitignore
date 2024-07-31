@@ -163,7 +163,7 @@ cython_debug/
 .vscode
 
 # data
-data
+/data
 tests/outputs
 
 # Misc
