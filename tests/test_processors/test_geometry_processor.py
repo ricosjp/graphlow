@@ -235,7 +235,8 @@ def test__volume_gradient(file_name):
         ),
     ],
 )
-def test__optimize_area_volume(file_name, n_optimization, use_bias, threshold):
+def test__optimize_area_volume(
+        file_name, n_optimization, use_bias, threshold, pytestconfig):
     # Optimization setting
     print_period = int(n_optimization / 100)
     weight_norm_constraint = 1.
@@ -312,9 +313,10 @@ def test__optimize_area_volume(file_name, n_optimization, use_bias, threshold):
     mesh.dict_point_tensor.update(
         {"deformation": deformed_points - initial_points},
         overwrite=True)
-    mesh.save(
-        output_directory / f"mesh.{0:08d}.vtu",
-        overwrite_file=True, overwrite_features=True)
+    if pytestconfig.getoption('save'):
+        mesh.save(
+            output_directory / f"mesh.{0:08d}.vtu",
+            overwrite_file=True, overwrite_features=True)
 
     # Optimization loop
     print(f"\ninitial volume: {initial_total_volume:.5f}")
@@ -339,9 +341,10 @@ def test__optimize_area_volume(file_name, n_optimization, use_bias, threshold):
             mesh.dict_point_tensor.update(
                 {"deformation": deformed_points - initial_points},
                 overwrite=True)
-            mesh.save(
-                output_directory / f"mesh.{i:08d}.vtu",
-                overwrite_file=True, overwrite_features=True)
+            if pytestconfig.getoption('save'):
+                mesh.save(
+                    output_directory / f"mesh.{i:08d}.vtu",
+                    overwrite_file=True, overwrite_features=True)
 
         cost.backward()
         optimizer.step()

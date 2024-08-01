@@ -37,6 +37,8 @@ pytest:
     - no-gpu
     - GenuineIntel
     - avx2
+    - cpu-ge-8
+    - mem-ge-32gb
 
 # pages:
 #   stage: deploy
