@@ -21,7 +21,7 @@ lint:
 pytest:
   stage: test
   script:
-    - poetry run pytest tests --cov=src --cov-report term-missing
+    - poetry run pytest tests --cov=src --cov-report term-missing --capture=no
     - poetry run python3 -m coverage html -d coverage
     - poetry run python3 -m coverage xml
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
@@ -36,6 +36,9 @@ pytest:
   tags:
     - no-gpu
     - GenuineIntel
+    - avx2
+    - cpu-ge-8
+    - mem-ge-32gb
 
 # pages:
 #   stage: deploy
