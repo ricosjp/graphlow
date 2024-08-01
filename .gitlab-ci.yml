@@ -36,6 +36,7 @@ pytest:
   tags:
     - no-gpu
     - GenuineIntel
+    - avx2
 
 # pages:
 #   stage: deploy
