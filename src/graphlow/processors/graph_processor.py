@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pyvista as pv
 import torch
 from scipy import sparse as sp
 
@@ -199,3 +200,53 @@ class GraphProcessorMixin:
         return array_handler.convert_to_torch_sparse_csr(
             relative_incidence.astype(float),
             device=self.device, dtype=self.dtype)
+
+    def extract_facets(self):
+        """Extract all internal/external faces of the volume mesh
+        with (n_faces, n_cells)-shaped sparse incidence matrix
+
+        Returns
+        -------
+        pyvista.UnstructuredGrid
+            UnstructuredGrid of vtkPolygon
+
+        scipy.sparse.csr_array
+            (n_faces, n_cells)-shaped sparse incidence matrix
+        """
+        vol = self.mesh
+
+        facet_cells = []
+        row_indices = []
+        col_indices = []
+
+        n_facets = 0
+        n_cells = vol.n_cells
+
+        facet_idmap = {}
+
+        for cell_id in range(n_cells):
+            cell = vol.get_cell(cell_id)
+            for j in range(cell.n_faces):
+                face = cell.get_face(j).point_ids
+                vtk_polygon_cell = [len(face), *face]
+
+                # check duplicated face
+                tri = tuple(sorted(face)[0:3])
+                if tri in facet_idmap:
+                    facet_id = facet_idmap[tri]
+                else:
+                    facet_id = n_facets
+                    facet_idmap[tri] = facet_id
+                    n_facets += 1
+                    facet_cells.extend(vtk_polygon_cell)
+
+                row_indices.append(facet_id)
+                col_indices.append(cell_id)
+
+        celltypes = np.full(n_facets, pv.CellType.POLYGON)
+        grid = pv.UnstructuredGrid(facet_cells, celltypes, self.points.numpy())
+        scipy_fc_inc = sp.csr_array(
+            (np.ones_like(row_indices, dtype=bool), (row_indices, col_indices)),
+            shape=(n_facets, n_cells),
+        )
+        return grid, scipy_fc_inc
