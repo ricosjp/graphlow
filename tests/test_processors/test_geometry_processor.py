@@ -198,7 +198,7 @@ def test__compute_volume(file_name):
 def test__compute_normal(file_name):
     pv_vol = graphlow.read(file_name)
     surf = pv_vol.mesh.extract_surface(pass_pointid=False, pass_cellid=False)
-    facets, _ = pv_vol.extract_facets()
+    facets, _ = pv_vol._extract_facets_impl()
 
     pv_surf = graphlow.GraphlowMesh(
         surf, device=pv_vol.device, dtype=pv_vol.dtype
