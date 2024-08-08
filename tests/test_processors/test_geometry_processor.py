@@ -185,6 +185,55 @@ def test__compute_volume(file_name):
     "file_name",
     [
         # primitives
+        pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
+        pathlib.Path("tests/data/vtu/primitive_cell/pyramid.vtu"),
+        pathlib.Path("tests/data/vtu/primitive_cell/wedge.vtu"),
+        pathlib.Path("tests/data/vtu/primitive_cell/hex.vtu"),
+        pathlib.Path("tests/data/vtu/primitive_cell/poly.vtu"),
+        pathlib.Path("tests/data/vts/cube/mesh.vts"),
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
+    ],
+)
+def test__compute_normal(file_name):
+    pv_vol = graphlow.read(file_name)
+    surf = pv_vol.mesh.extract_surface(pass_pointid=False, pass_cellid=False)
+    facets, _ = pv_vol.extract_facets()
+
+    pv_surf = graphlow.GraphlowMesh(
+        surf, device=pv_vol.device, dtype=pv_vol.dtype
+    )
+    pv_facets = graphlow.GraphlowMesh(
+        facets, device=pv_vol.device, dtype=pv_vol.dtype
+    )
+
+    # implemented
+    surf_normals = pv_surf.compute_normal().detach().numpy()
+    facets_normals = pv_facets.compute_normal().detach().numpy()
+
+    # desired
+    desired_surf_normals = surf.compute_normals(
+        cell_normals=True,
+    ).cell_data["Normals"]
+
+    desired_facets_normals = facets.compute_normals(
+        cell_normals=True,
+        consistent_normals=False  # consistent_normals is invalid for internal face
+    ).cell_data["Normals"]
+
+    # check
+    np.testing.assert_almost_equal(
+        surf_normals, desired_surf_normals, decimal=4
+    )
+    np.testing.assert_almost_equal(
+        facets_normals, desired_facets_normals, decimal=4
+    )
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        # primitives
         pathlib.Path("tests/data/vtu/primitive_cell/cuboid.vtu"),
     ],
 )
