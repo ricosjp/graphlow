@@ -56,6 +56,25 @@ class GeometryProcessorMixin:
             indices = (volumes < 0).nonzero(as_tuple=True)
             raise ValueError(f"Negative volume found: cell indices: {indices}")
         return volumes
+    
+    def compute_normal(self):
+        """Compute the normals of PolyData
+
+        Returns
+        -------
+        torch.Tensor[float]
+        """
+        n_faces = self.mesh.n_cells
+        normals = torch.empty(size=(n_faces, 3))
+        for fid in range(n_faces):
+            face = self.mesh.get_cell(fid).point_ids
+            face_points = self.points[face]
+            face_center = torch.mean(face_points, dim=0)
+            side_vec = face_points - face_center
+            cross = torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0))
+            normal = torch.mean(cross, dim=0)
+            normals[fid] = normal / torch.norm(normal)
+        return normals
 
     #
     # Area function
