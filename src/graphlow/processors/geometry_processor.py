@@ -56,7 +56,7 @@ class GeometryProcessorMixin:
             indices = (volumes < 0).nonzero(as_tuple=True)
             raise ValueError(f"Negative volume found: cell indices: {indices}")
         return volumes
-    
+
     def compute_normal(self):
         """Compute the normals of PolyData
 
