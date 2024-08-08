@@ -269,7 +269,7 @@ def test__extract_facets(file_name, desired_facets, desired_fc_inc):
     polygons, scipy_fc_inc = mesh.extract_facets()
 
     # grid
-    np.testing.assert_array_equal(polygons.cells, desired_facets)
+    np.testing.assert_array_equal(polygons.faces, desired_facets)
 
     # fc inc matrix
     np.testing.assert_array_equal(

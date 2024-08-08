@@ -202,13 +202,13 @@ class GraphProcessorMixin:
             device=self.device, dtype=self.dtype)
 
     def extract_facets(self):
-        """Extract all internal/external faces of the volume mesh
+        """Extract all internal/external facets of the volume mesh
         with (n_faces, n_cells)-shaped sparse incidence matrix
 
         Returns
         -------
-        pyvista.UnstructuredGrid
-            UnstructuredGrid of vtkPolygon
+        pyvista.PolyData
+            PolyData with all internal/external faces registered as cells
 
         scipy.sparse.csr_array
             (n_faces, n_cells)-shaped sparse incidence matrix
@@ -243,10 +243,9 @@ class GraphProcessorMixin:
                 row_indices.append(facet_id)
                 col_indices.append(cell_id)
 
-        celltypes = np.full(n_facets, pv.CellType.POLYGON)
-        grid = pv.UnstructuredGrid(facet_cells, celltypes, self.points.numpy())
+        poly = pv.PolyData(self.points.numpy(), facet_cells)
         scipy_fc_inc = sp.csr_array(
             (np.ones_like(row_indices, dtype=bool), (row_indices, col_indices)),
             shape=(n_facets, n_cells),
         )
-        return grid, scipy_fc_inc
+        return poly, scipy_fc_inc
