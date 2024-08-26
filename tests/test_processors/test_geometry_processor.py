@@ -128,10 +128,10 @@ def test__tetrahedralize_cell(points, unit_cell, unit_celltype, desired_cells):
     ],
 )
 def test__compute_area(file_name):
-    pv_vol = graphlow.read(file_name)
-    pv_surf = pv_vol.extract_surface()
-    cell_areas = pv_surf.compute_area()
-    desired = pv_surf.mesh.compute_cell_sizes().cell_data["Area"]
+    volmesh = graphlow.read(file_name)
+    surfmesh = volmesh.extract_surface()
+    cell_areas = surfmesh.compute_area()
+    desired = surfmesh.mesh.compute_cell_sizes().cell_data["Area"]
     np.testing.assert_almost_equal(
         cell_areas.detach().numpy(), desired, decimal=4
     )
@@ -152,21 +152,21 @@ def test__compute_area(file_name):
     ],
 )
 def test__compute_volume(file_name):
-    pv_vol = graphlow.read(file_name)
-    cell_volumes = pv_vol.compute_volume()
+    volmesh = graphlow.read(file_name)
+    cell_volumes = volmesh.compute_volume()
 
     # See below for why `compute_cell_quality` is used instead of `compute_cell_sizes`
     # https://colab.research.google.com/drive/1ZkMbVfN-74ZXbDFO2ocva-JEYin6Ux4b?usp=sharing
     desired = np.abs(
-        pv_vol.mesh
+        volmesh.mesh
         .compute_cell_quality(quality_measure="volume")
         .cell_data["CellQuality"]
     )
 
     # fix desired for polyhedron cell
     # because vtkCellQuality doesn't support vtkPolyhedron
-    for i in range(pv_vol.mesh.n_cells):
-        cell = pv_vol.mesh.get_cell(i)
+    for i in range(volmesh.mesh.n_cells):
+        cell = volmesh.mesh.get_cell(i)
         celltype = cell.type
         if celltype == pv.CellType.POLYHEDRON:
             tet_cell_grid = tetrahedralize_cell_for_test(cell)
@@ -196,9 +196,9 @@ def test__compute_volume(file_name):
     ],
 )
 def test__compute_normal(file_name):
-    pv_vol = graphlow.read(file_name)
-    surf = pv_vol.extract_surface()
-    facets, _ = pv_vol.extract_facets()
+    volmesh = graphlow.read(file_name)
+    surf = volmesh.extract_surface()
+    facets, _ = volmesh.extract_facets()
 
     # implemented
     surf_normals = surf.compute_normal().detach().numpy()
@@ -239,16 +239,16 @@ def test__compute_normal(file_name):
     ],
 )
 def test__volume_gradient(file_name):
-    pv_vol = graphlow.read(file_name)
-    pv_vol.points.requires_grad_(True)
-    cell_volumes = pv_vol.compute_volume()
+    volmesh = graphlow.read(file_name)
+    volmesh.points.requires_grad_(True)
+    cell_volumes = volmesh.compute_volume()
     total_volume = torch.sum(cell_volumes)
     total_volume.backward()
 
-    vol_grad = pv_vol.points.grad
+    vol_grad = volmesh.points.grad
 
-    for i in range(pv_vol.mesh.n_cells):
-        cell = pv_vol.mesh.get_cell(i)
+    for i in range(volmesh.mesh.n_cells):
+        cell = volmesh.mesh.get_cell(i)
         for face in cell.faces:
             pids = face.point_ids
             # TODO: To obtain results for any plane,
