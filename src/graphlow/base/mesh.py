@@ -251,7 +251,7 @@ class GraphlowMesh(GraphProcessorMixin, GeometryProcessorMixin):
 
     def extract_facets(self) -> tuple[Self, sp.csr_array]:
         """Extract all internal/external facets of the volume mesh
-        with (n_faces, n_cells)-shaped sparse incidence matrix
+        with (n_faces, n_cells)-shaped sparse signed incidence matrix
         """
         poly, scipy_fc_inc = self._extract_facets_impl()
         return GraphlowMesh(poly, device=self.device, dtype=self.dtype), scipy_fc_inc
@@ -265,41 +265,59 @@ class GraphlowMesh(GraphProcessorMixin, GeometryProcessorMixin):
             PolyData with all internal/external faces registered as cells
 
         scipy.sparse.csr_array
-            (n_faces, n_cells)-shaped sparse incidence matrix
+            (n_faces, n_cells)-shaped sparse signed incidence matrix
         """
         vol = self.mesh
 
-        facet_cells = []
+        polygon_cells = []
+        sign_values = []
         row_indices = []
         col_indices = []
 
         n_facets = 0
         n_cells = vol.n_cells
+        cell_centers = torch.from_numpy(self.mesh.cell_centers().points.astype(np.float32)).clone()
 
         facet_idmap = {}
 
         for cell_id in range(n_cells):
             cell = vol.get_cell(cell_id)
+            cell_center = cell_centers[cell_id]
             for j in range(cell.n_faces):
                 face = cell.get_face(j).point_ids
                 vtk_polygon_cell = [len(face), *face]
 
+                face_points = self.points[face]
+                face_center = torch.mean(face_points, dim=0)
+                side_vec = face_points - face_center
+                cc2fc = face_center - cell_center
+                cross = torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0))
+                normal = torch.mean(cross, dim=0)
+                dot = torch.dot(cc2fc, normal)
+                sign_value = 0
+                if dot < 0:
+                    sign_value = -1
+                else:
+                    sign_value = 1
+
                 # check duplicated face
                 tri = tuple(sorted(face)[0:3])
                 if tri in facet_idmap:
-                    facet_id = facet_idmap[tri]
+                    facet_id, sign = facet_idmap[tri]
+                    sign_value = -sign
                 else:
                     facet_id = n_facets
-                    facet_idmap[tri] = facet_id
+                    facet_idmap[tri] = (facet_id, sign_value)
                     n_facets += 1
-                    facet_cells.extend(vtk_polygon_cell)
+                    polygon_cells.extend(vtk_polygon_cell)
 
+                sign_values.append(sign_value)
                 row_indices.append(facet_id)
                 col_indices.append(cell_id)
 
-        poly = pv.PolyData(self.points.numpy(), facet_cells)
+        poly = pv.PolyData(self.points.numpy(), polygon_cells)
         scipy_fc_inc = sp.csr_array(
-            (np.ones_like(row_indices, dtype=bool), (row_indices, col_indices)),
+            (sign_values, (row_indices, col_indices)),
             shape=(n_facets, n_cells),
         )
         return poly, scipy_fc_inc
