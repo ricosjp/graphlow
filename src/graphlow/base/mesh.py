@@ -310,7 +310,7 @@ class GraphlowMesh(IGraphlowMesh):
 
         n_facets = 0
         n_cells = vol.n_cells
-        cell_centers = torch.from_numpy(self.mesh.cell_centers().points.astype(np.float32)).clone()
+        cell_centers = torch.from_numpy(self.pvmesh.cell_centers().points.astype(np.float32)).clone()
 
         facet_idmap = {}
 
