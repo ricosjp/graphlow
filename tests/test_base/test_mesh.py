@@ -1,8 +1,5 @@
-
-import logging
 import pathlib
 import shutil
-import sys
 
 import numpy as np
 import pytest
@@ -10,14 +7,6 @@ import pyvista as pv
 import torch
 
 import graphlow
-
-LOG_STDOUT = False
-
-if LOG_STDOUT:
-    logger = graphlow.util.logger.get_graphlow_logger()
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(sys.stdout)
-    logger.addHandler(handler)
 
 
 @pytest.mark.parametrize(

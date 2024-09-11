@@ -1,0 +1,13 @@
+version: 1
+formatters:
+  simpleFormatter:
+    format: '%(asctime)s | %(name)s | %(levelname)s| [%(filename)s:%(lineno)d] %(message)s'
+handlers:
+  consoleHandler:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: simpleFormatter
+    stream: ext://sys.stdout
+root:
+  level: INFO
+  handlers: [consoleHandler]
