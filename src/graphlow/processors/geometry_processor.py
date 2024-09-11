@@ -1,7 +1,7 @@
 import pyvista as pv
 import torch
 
-from graphlow.base.mesh_interface import IGraphlowMesh
+from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
 
 
 class GeometryProcessor:
@@ -9,7 +9,7 @@ class GeometryProcessor:
     def __init__(self) -> None:
         pass
 
-    def compute_areas(self, mesh: IGraphlowMesh, raise_negative_area: bool = True) -> torch.Tensor:
+    def compute_areas(self, mesh: IReadOnlyGraphlowMesh, raise_negative_area: bool = True) -> torch.Tensor:
         areas = torch.empty(mesh.n_cells)
         cell_type_to_function = {
             pv.CellType.TRIANGLE: self._tri_area,
@@ -33,7 +33,7 @@ class GeometryProcessor:
             raise ValueError(f"Negative volume found: cell indices: {indices}")
         return areas
 
-    def compute_volumes(self, mesh: IGraphlowMesh, raise_negative_volume: bool = True) -> torch.Tensor:
+    def compute_volumes(self, mesh: IReadOnlyGraphlowMesh, raise_negative_volume: bool = True) -> torch.Tensor:
         volumes = torch.empty(mesh.n_cells)
         cell_type_to_function = {
             pv.CellType.TETRA: self._tet_volume,
@@ -63,7 +63,7 @@ class GeometryProcessor:
             raise ValueError(f"Negative volume found: cell indices: {indices}")
         return volumes
 
-    def compute_normals(self, mesh: IGraphlowMesh) -> torch.Tensor:
+    def compute_normals(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
         """Compute the normals of PolyData
 
         Returns

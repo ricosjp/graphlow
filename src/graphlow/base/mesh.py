@@ -11,7 +11,7 @@ import torch
 from scipy import sparse as sp
 
 from graphlow.base.dict_tensor import GraphlowDictTensor
-from graphlow.base.mesh_interface import IGraphlowMesh
+from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
 from graphlow.base.tensor_property import GraphlowTensorProperty
 from graphlow.processors.geometry_processor import GeometryProcessor
 from graphlow.processors.graph_processor import GraphProcessor
@@ -38,7 +38,7 @@ def use_cache_decorator(method: Callable) -> Callable:
 
     return wrapper
 
-class GraphlowMesh(IGraphlowMesh):
+class GraphlowMesh(IReadOnlyGraphlowMesh):
 
     def __init__(
             self, pvmesh: pv.UnstructuredGrid,

@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from scipy import sparse as sp
 
-from graphlow.base.mesh_interface import IGraphlowMesh
+from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
 from graphlow.util import array_handler
 from graphlow.util.enums import FeatureName, SparseMatrixName
 
@@ -15,7 +15,7 @@ class GraphProcessor:
         pass
 
     def compute_cell_point_incidence(
-            self, mesh: IGraphlowMesh) -> torch.Tensor:
+            self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
         """Compute (n_cells, n_points)-shaped sparse incidence matrix.
         The method is cached.
 
@@ -45,7 +45,7 @@ class GraphProcessor:
         return cell_point_incidence
 
     def compute_cell_adjacency(
-            self, mesh: IGraphlowMesh) -> torch.Tensor:
+            self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
         """Compute (n_cells, n_cells)-shaped sparse adjacency matrix including
         self-loops. The method is cached.
 
@@ -71,7 +71,7 @@ class GraphProcessor:
         return cell_adjacency
 
     def compute_point_adjacency(
-            self, mesh: IGraphlowMesh) -> torch.Tensor:
+            self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
         """Compute (n_points, n_points)-shaped sparse adjacency matrix
         including self-loops. The method is cached.
 
@@ -97,7 +97,7 @@ class GraphProcessor:
             overwrite=True)
         return point_adjacency
 
-    def compute_point_relative_incidence(self, mesh: IGraphlowMesh, other_mesh: IGraphlowMesh) -> torch.Tensor:
+    def compute_point_relative_incidence(self, mesh: IReadOnlyGraphlowMesh, other_mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
         """Compute (n_points_other, n_points_self)-shaped sparse incidence
         matrix based on points.
 
@@ -133,7 +133,7 @@ class GraphProcessor:
             device=mesh.device, dtype=mesh.dtype)
 
     def compute_cell_relative_incidence(
-            self, mesh: IGraphlowMesh, other_mesh: IGraphlowMesh,
+            self, mesh: IReadOnlyGraphlowMesh, other_mesh: IReadOnlyGraphlowMesh,
             minimum_n_sharing: int | None = None) -> torch.Tensor:
         """Compute (n_cells_other, n_cells_self)-shaped sparse incidence
         matrix based on cells.
