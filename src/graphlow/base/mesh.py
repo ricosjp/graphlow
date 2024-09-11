@@ -9,7 +9,6 @@ import numpy as np
 import pyvista as pv
 import torch
 from scipy import sparse as sp
-from typing_extensions import Self
 
 from graphlow.base.dict_tensor import GraphlowDictTensor
 from graphlow.base.mesh_interface import IGraphlowMesh
