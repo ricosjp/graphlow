@@ -127,11 +127,11 @@ def test__tetrahedralize_cell(points, unit_cell, unit_celltype, desired_cells):
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__compute_area(file_name):
+def test__compute_areas(file_name):
     volmesh = graphlow.read(file_name)
     surfmesh = volmesh.extract_surface()
-    cell_areas = surfmesh.compute_area()
-    desired = surfmesh.mesh.compute_cell_sizes().cell_data["Area"]
+    cell_areas = surfmesh.compute_areas()
+    desired = surfmesh.pvmesh.compute_cell_sizes().cell_data["Area"]
     np.testing.assert_almost_equal(
         cell_areas.detach().numpy(), desired, decimal=4
     )
@@ -151,22 +151,22 @@ def test__compute_area(file_name):
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__compute_volume(file_name):
+def test__compute_volumes(file_name):
     volmesh = graphlow.read(file_name)
-    cell_volumes = volmesh.compute_volume()
+    cell_volumes = volmesh.compute_volumes()
 
     # See below for why `compute_cell_quality` is used instead of `compute_cell_sizes`
     # https://colab.research.google.com/drive/1ZkMbVfN-74ZXbDFO2ocva-JEYin6Ux4b?usp=sharing
     desired = np.abs(
-        volmesh.mesh
+        volmesh.pvmesh
         .compute_cell_quality(quality_measure="volume")
         .cell_data["CellQuality"]
     )
 
     # fix desired for polyhedron cell
     # because vtkCellQuality doesn't support vtkPolyhedron
-    for i in range(volmesh.mesh.n_cells):
-        cell = volmesh.mesh.get_cell(i)
+    for i in range(volmesh.pvmesh.n_cells):
+        cell = volmesh.pvmesh.get_cell(i)
         celltype = cell.type
         if celltype == pv.CellType.POLYHEDRON:
             tet_cell_grid = tetrahedralize_cell_for_test(cell)
@@ -195,18 +195,18 @@ def test__compute_volume(file_name):
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__compute_normal(file_name):
+def test__compute_normals(file_name):
     volmesh = graphlow.read(file_name)
     surf = volmesh.extract_surface()
     facets, _ = volmesh.extract_facets()
 
     # implemented
-    surf_normals = surf.compute_normal().detach().numpy()
-    facets_normals = facets.compute_normal().detach().numpy()
+    surf_normals = surf.compute_normals().detach().numpy()
+    facets_normals = facets.compute_normals().detach().numpy()
 
     # desired
     desired_surf_normals = (
-        surf.mesh.extract_surface()
+        surf.pvmesh.extract_surface()
         .compute_normals(
             cell_normals=True,
         )
@@ -214,7 +214,7 @@ def test__compute_normal(file_name):
     )
 
     desired_facets_normals = (
-        facets.mesh.extract_surface()
+        facets.pvmesh.extract_surface()
         .compute_normals(
             cell_normals=True,
             consistent_normals=False,  # consistent_normals is invalid for internal face
@@ -241,14 +241,14 @@ def test__compute_normal(file_name):
 def test__volume_gradient(file_name):
     volmesh = graphlow.read(file_name)
     volmesh.points.requires_grad_(True)
-    cell_volumes = volmesh.compute_volume()
+    cell_volumes = volmesh.compute_volumes()
     total_volume = torch.sum(cell_volumes)
     total_volume.backward()
 
     vol_grad = volmesh.points.grad
 
-    for i in range(volmesh.mesh.n_cells):
-        cell = volmesh.mesh.get_cell(i)
+    for i in range(volmesh.pvmesh.n_cells):
+        cell = volmesh.pvmesh.get_cell(i)
         for face in cell.faces:
             pids = face.point_ids
             # TODO: To obtain results for any plane,
@@ -307,13 +307,13 @@ def test__optimize_area_volume(
         pv_mesh.points, axis=0, keepdims=True)  # Center mesh position
 
     mesh = graphlow.GraphlowMesh(pv_mesh)
-    initial_volume = mesh.compute_volume().clone()
-    initial_total_volume = torch.sum(initial_volume)
+    initial_volumes = mesh.compute_volumes().clone()
+    initial_total_volume = torch.sum(initial_volumes)
     initial_points = mesh.points.clone()
 
     surface = mesh.extract_surface()
-    surface_initial_area = surface.compute_area().clone()
-    surface_initial_total_area = torch.sum(surface_initial_area)
+    surface_initial_areas = surface.compute_areas().clone()
+    surface_initial_total_area = torch.sum(surface_initial_areas)
     surface_initial_points = surface.points.clone()
 
     w1 = torch.nn.Parameter(torch.randn(3, n_hidden) / n_hidden**.5)
@@ -334,13 +334,13 @@ def test__optimize_area_volume(
         surface.dict_point_tensor.update({
             'points': surface_deformed_points}, overwrite=True)
 
-        volume = mesh.compute_volume()
-        total_volume = torch.sum(volume)
-        area = surface.compute_area()
-        total_area = torch.sum(area)
+        volumes = mesh.compute_volumes()
+        total_volume = torch.sum(volumes)
+        areas = surface.compute_areas()
+        total_area = torch.sum(areas)
         deformation = deformed_points - initial_points
 
-        if torch.any(volume < 1e-3 * initial_total_volume / mesh.n_cells):
+        if torch.any(volumes < 1e-3 * initial_total_volume / mesh.n_cells):
             return None, None, None
 
         cost_area = total_area / surface_initial_total_area

@@ -66,8 +66,8 @@ def test__extract_surface(file_name, desired_file):
 
     surface = mesh.extract_surface()
     desired = graphlow.read(desired_file)
-    np.testing.assert_almost_equal(surface.mesh.points, desired.mesh.points)
-    np.testing.assert_array_equal(surface.mesh.cells, desired.mesh.cells)
+    np.testing.assert_almost_equal(surface.pvmesh.points, desired.pvmesh.points)
+    np.testing.assert_array_equal(surface.pvmesh.cells, desired.pvmesh.cells)
 
 
 @pytest.mark.parametrize(
