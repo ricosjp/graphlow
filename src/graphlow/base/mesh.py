@@ -267,7 +267,7 @@ class GraphlowMesh(IGraphlowMesh):
             self.pvmesh.n_cells)
         return
 
-    def extract_surface(self, add_original_index: bool = True) -> Self:
+    def extract_surface(self, add_original_index: bool = True) -> GraphlowMesh:
         """Extract surface.
 
         Parameters
@@ -283,14 +283,14 @@ class GraphlowMesh(IGraphlowMesh):
             pass_pointid=False, pass_cellid=False).cast_to_unstructured_grid()
         return GraphlowMesh(surface_mesh, device=self.device, dtype=self.dtype)
 
-    def extract_facets(self) -> tuple[Self, sp.csr_array]:
+    def extract_facets(self) -> tuple[GraphlowMesh, sp.csr_array]:
         """Extract all internal/external facets of the volume mesh
         with (n_faces, n_cells)-shaped sparse signed incidence matrix
         """
         poly, scipy_fc_inc = self._extract_facets_impl()
         return GraphlowMesh(poly, device=self.device, dtype=self.dtype), scipy_fc_inc
 
-    def _extract_facets_impl(self):
+    def _extract_facets_impl(self) -> tuple[pv.PolyData, sp.csr_array]:
         """Implementation of `extract_facets`
 
         Returns
