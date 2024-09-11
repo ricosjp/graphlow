@@ -1,8 +1,8 @@
 import logging.config
 
-import yaml
+from .logging_config import LOGGING_CONFIG
 
-logging.config.dictConfig(yaml.load(open("src/graphlow/util/log_config.yaml").read(), yaml.FullLoader))
+logging.config.dictConfig(LOGGING_CONFIG)
 
 def pytest_addoption(parser):
     parser.addoption('--save', action='store_true')
