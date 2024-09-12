@@ -355,38 +355,46 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         )
         return poly, scipy_fc_inc
 
+    @functools.wraps(GeometryProcessor.compute_areas)
     def compute_areas(self, raise_negative_area: bool = True) -> torch.Tensor:
         val = self._geometry_processor.compute_areas(self, raise_negative_area)
         return val
 
+    @functools.wraps(GeometryProcessor.compute_volumes)
     def compute_volumes(self, raise_negative_volume: bool = True) -> torch.Tensor:
         val = self._geometry_processor.compute_volumes(self, raise_negative_volume)
         return val
 
+    @functools.wraps(GeometryProcessor.compute_normals)
     def compute_normals(self) -> torch.Tensor:
         val = self._geometry_processor.compute_normals(self)
         return val
 
+    @functools.wraps(GraphProcessor.compute_cell_point_incidence)
     @use_cache_decorator
     def compute_cell_point_incidence(self) -> torch.Tensor:
         val = self._graph_processor.compute_cell_point_incidence(self)
         return val
 
+    @functools.wraps(GraphProcessor.compute_cell_adjacency)
     @use_cache_decorator
     def compute_cell_adjacency(self) -> torch.Tensor:
         val = self._graph_processor.compute_cell_adjacency(self)
         return val
 
+    @functools.wraps(GraphProcessor.compute_point_adjacency)
     @use_cache_decorator
     def compute_point_adjacency(self) -> torch.Tensor:
         val = self._graph_processor.compute_point_adjacency(self)
         return val
 
+    @functools.wraps(GraphProcessor.compute_point_relative_incidence)
     @use_cache_decorator
     def compute_point_relative_incidence(self, other_mesh: GraphlowMesh) -> torch.Tensor:
         val = self._graph_processor.compute_point_relative_incidence(self, other_mesh)
         return val
 
+    @functools.wraps(GraphProcessor.compute_cell_relative_incidence)
     @use_cache_decorator
     def compute_cell_relative_incidence(self, other_mesh: GraphlowMesh) -> torch.Tensor:
         val = self._graph_processor.compute_cell_relative_incidence(self, other_mesh)
