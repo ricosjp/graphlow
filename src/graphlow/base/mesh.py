@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 def use_cache_decorator(method: Callable) -> Callable:
     @functools.wraps(method)
     def wrapper(self: GraphlowMesh, *args: Any, **kwargs: Any) -> Any:
-        print(method.__name__)
+        logger.debug(method.__name__)
 
         cached = self.get_cached_results(method.__name__)
         if cached is None:
@@ -33,7 +33,7 @@ def use_cache_decorator(method: Callable) -> Callable:
             self.set_cached_results(method.__name__, result)
             return result
         else:
-            print("use cached value")
+            logger.debug("use cached value")
             return cached
 
     return wrapper

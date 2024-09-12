@@ -7,7 +7,9 @@ import pyvista as pv
 import torch
 
 import graphlow
+from graphlow.util.logger import get_logger
 
+logger = get_logger(__name__)
 
 @pytest.mark.parametrize(
     "input_file_name",
@@ -194,7 +196,7 @@ def test__optimize(file_name):
     optimizer = torch.optim.Adam([deform_coeff], lr=1e-2)
 
     # Optimization loop
-    print("\n   i,       cx,       cy,       cz,        cost")
+    logger.info("\n   i,       cx,       cy,       cz,        cost")
     for i in range(1, n_optimization + 1):
         optimizer.zero_grad()
 
@@ -207,8 +209,7 @@ def test__optimize(file_name):
             cx = deform_coeff[0]
             cy = deform_coeff[1]
             cz = deform_coeff[2]
-            print(
-                f"{i:4d}, {cx:8.5f}, {cy:8.5f}, {cz:8.5f}, {cost:.5e}")
+            logger.info(f"{i:4d}, {cx:8.5f}, {cy:8.5f}, {cz:8.5f}, {cost:.5e}")
             mesh.dict_point_tensor.update(
                 {"deformation": deformation}, overwrite=True)
             mesh.save(
@@ -272,7 +273,7 @@ def test__optimize_ball(file_name):
         return points + deformation
 
     # Optimization loop
-    print("\n   i,         cost")
+    logger.info("\n   i,         cost")
     for i in range(1, n_optimization + 1):
         optimizer.zero_grad()
 
@@ -283,8 +284,7 @@ def test__optimize_ball(file_name):
         cost = cost_function(deformed_points, surface_deformed_points)
 
         if i % print_period == 0:
-            print(
-                f"{i:4d}, {cost:.5e}")
+            logger.info(f"{i:4d}, {cost:.5e}")
             mesh.dict_point_tensor.update(
                 {"deformation": deformed_points - initial_points},
                 overwrite=True)

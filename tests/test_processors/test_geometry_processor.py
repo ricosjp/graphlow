@@ -7,7 +7,9 @@ import pyvista as pv
 import torch
 
 import graphlow
+from graphlow.util.logger import get_logger
 
+logger = get_logger(__name__)
 
 def tetrahedralize_cell_for_test(cell):
     pid_map = {
@@ -369,8 +371,8 @@ def test__optimize_area_volume(
             overwrite_file=True, overwrite_features=True)
 
     # Optimization loop
-    print(f"\ninitial volume: {initial_total_volume:.5f}")
-    print("     i,        area, volume ratio,        cost")
+    logger.info(f"\ninitial volume: {initial_total_volume:.5f}")
+    logger.info("     i,        area, volume ratio,        cost")
     for i in range(1, n_optimization + 1):
         optimizer.zero_grad()
 
@@ -382,12 +384,12 @@ def test__optimize_area_volume(
             deformed_points, surface_deformed_points)
         if cost is None:
             deformation_factor = deformation_factor * .9
-            print(f"update deformation_factor: {deformation_factor}")
+            logger.info(f"update deformation_factor: {deformation_factor}")
             continue
 
         if i % print_period == 0:
             volume_ratio = volume / initial_total_volume
-            print(f"{i:6d}, {area:.5e},  {volume_ratio:.5e}, {cost:.5e}")
+            logger.info(f"{i:6d}, {area:.5e},  {volume_ratio:.5e}, {cost:.5e}")
             mesh.dict_point_tensor.update(
                 {"deformation": deformed_points - initial_points},
                 overwrite=True)
