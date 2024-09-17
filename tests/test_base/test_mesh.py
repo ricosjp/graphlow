@@ -298,3 +298,17 @@ def test__optimize_ball(file_name):
     actual_radius = torch.mean(
         torch.norm(surface_deformed_points, dim=1)).detach().numpy()
     np.testing.assert_almost_equal(actual_radius, desired_radius, decimal=3)
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        pathlib.Path("tests/data/vtk/hex/mesh.vtk"),
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+    ],
+)
+def test__use_cache(file_name):
+    mesh = graphlow.read(file_name)
+    cell_point_incidence = mesh.compute_cell_point_incidence()
+    cached_cell_point_incidence = mesh.compute_cell_point_incidence()
+    np.testing.assert_array_equal(cell_point_incidence.to_dense().numpy(),
+                                  cached_cell_point_incidence.to_dense().numpy())
