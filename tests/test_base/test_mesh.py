@@ -1,5 +1,6 @@
 import pathlib
 import shutil
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -7,6 +8,7 @@ import pyvista as pv
 import torch
 
 import graphlow
+from graphlow.processors.graph_processor import GraphProcessor
 from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -308,7 +310,8 @@ def test__optimize_ball(file_name):
 )
 def test__use_cache(file_name):
     mesh = graphlow.read(file_name)
-    cell_point_incidence = mesh.compute_cell_point_incidence()
-    cached_cell_point_incidence = mesh.compute_cell_point_incidence()
-    np.testing.assert_array_equal(cell_point_incidence.to_dense().numpy(),
-                                  cached_cell_point_incidence.to_dense().numpy())
+    with mock.patch.object(GraphProcessor, "compute_cell_point_incidence") as mocked:
+        _ = mesh.compute_cell_point_incidence()
+        _ = mesh.compute_cell_point_incidence()
+
+        assert mocked.call_count == 1
