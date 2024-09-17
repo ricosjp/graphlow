@@ -6,10 +6,13 @@ from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
 
 class GeometryProcessor:
     """A class for geometry processing."""
+
     def __init__(self) -> None:
         pass
 
-    def compute_areas(self, mesh: IReadOnlyGraphlowMesh, raise_negative_area: bool = True) -> torch.Tensor:
+    def compute_areas(
+        self, mesh: IReadOnlyGraphlowMesh, raise_negative_area: bool = True
+    ) -> torch.Tensor:
         areas = torch.empty(mesh.n_cells)
         cell_type_to_function = {
             pv.CellType.TRIANGLE: self._tri_area,
@@ -33,7 +36,9 @@ class GeometryProcessor:
             raise ValueError(f"Negative volume found: cell indices: {indices}")
         return areas
 
-    def compute_volumes(self, mesh: IReadOnlyGraphlowMesh, raise_negative_volume: bool = True) -> torch.Tensor:
+    def compute_volumes(
+        self, mesh: IReadOnlyGraphlowMesh, raise_negative_volume: bool = True
+    ) -> torch.Tensor:
         volumes = torch.empty(mesh.n_cells)
         cell_type_to_function = {
             pv.CellType.TETRA: self._tet_volume,
@@ -78,7 +83,9 @@ class GeometryProcessor:
             face_points = points[face]
             face_center = torch.mean(face_points, dim=0)
             side_vec = face_points - face_center
-            cross = torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0))
+            cross = torch.linalg.cross(
+                side_vec, torch.roll(side_vec, shifts=-1, dims=0)
+            )
             normal = torch.mean(cross, dim=0)
             normals[fid] = normal / torch.norm(normal)
         return normals
@@ -86,14 +93,18 @@ class GeometryProcessor:
     #
     # Area function
     #
-    def _tri_area(self, pids: torch.Tensor, points: torch.Tensor) -> torch.Tensor:
+    def _tri_area(
+        self, pids: torch.Tensor, points: torch.Tensor
+    ) -> torch.Tensor:
         tri_points = points[pids]
         v10 = tri_points[1] - tri_points[0]
         v20 = tri_points[2] - tri_points[0]
         cross = torch.linalg.cross(v10, v20)
         return 0.5 * torch.linalg.vector_norm(cross)
 
-    def _poly_area(self, pids: torch.Tensor, points: torch.Tensor) -> torch.Tensor:
+    def _poly_area(
+        self, pids: torch.Tensor, points: torch.Tensor
+    ) -> torch.Tensor:
         v1 = points[pids]
         v2 = torch.roll(v1, shifts=-1, dims=0)
         signed_area = torch.sum(torch.linalg.cross(v1, v2), dim=0)
@@ -102,14 +113,18 @@ class GeometryProcessor:
     #
     # Volume function
     #
-    def _tet_volume(self, pids: torch.Tensor, points: torch.Tensor) -> torch.Tensor:
+    def _tet_volume(
+        self, pids: torch.Tensor, points: torch.Tensor
+    ) -> torch.Tensor:
         tet_points = points[pids]
         v10 = tet_points[1] - tet_points[0]
         v20 = tet_points[2] - tet_points[0]
         v30 = tet_points[3] - tet_points[0]
         return torch.abs(torch.dot(torch.linalg.cross(v10, v20), v30)) / 6.0
 
-    def _pyramid_volume(self, pids: torch.Tensor, points: torch.Tensor) -> torch.Tensor:
+    def _pyramid_volume(
+        self, pids: torch.Tensor, points: torch.Tensor
+    ) -> torch.Tensor:
         quad_idx = torch.tensor([0, 1, 2, 3], dtype=torch.int)
         quad_center = torch.mean(points[pids[quad_idx]], dim=0)
         top = points[pids[4]]
@@ -121,7 +136,9 @@ class GeometryProcessor:
         tet_volumes = torch.abs(torch.sum(cross * axis, dim=1)) / 6.0
         return torch.sum(tet_volumes)
 
-    def _wedge_volume(self, pids: torch.Tensor, points: torch.Tensor) -> torch.Tensor:
+    def _wedge_volume(
+        self, pids: torch.Tensor, points: torch.Tensor
+    ) -> torch.Tensor:
         # divide the wedge into 11 tets
         # This is a better solution than 3 tets because
         # if the wedge is twisted then the 3 quads will be twisted.
@@ -193,7 +210,9 @@ class GeometryProcessor:
         )
         return torch.sum(tet_volumes)
 
-    def _hex_volume(self, pids: torch.Tensor, points: torch.Tensor) -> torch.Tensor:
+    def _hex_volume(
+        self, pids: torch.Tensor, points: torch.Tensor
+    ) -> torch.Tensor:
         # divide the hex into 24 (=4*6) tets for the same reason as a wedge
         face_idx = torch.tensor(
             [
@@ -218,7 +237,9 @@ class GeometryProcessor:
         )
         return torch.sum(tet_volumes)
 
-    def _poly_volume(self, pids: torch.Tensor, points: torch.Tensor, faces: list[pv.Cell]) -> torch.Tensor:
+    def _poly_volume(
+        self, pids: torch.Tensor, points: torch.Tensor, faces: list[pv.Cell]
+    ) -> torch.Tensor:
         # Assume cell is convex
         volume = 0.0
         cell_center = torch.mean(points[pids], dim=0)

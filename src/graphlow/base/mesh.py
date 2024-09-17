@@ -38,16 +38,17 @@ def use_cache_decorator(method: Callable) -> Callable:
 
     return wrapper
 
-class GraphlowMesh(IReadOnlyGraphlowMesh):
 
+class GraphlowMesh(IReadOnlyGraphlowMesh):
     def __init__(
-            self, pvmesh: pv.UnstructuredGrid,
-            *,
-            dict_point_tensor: GraphlowDictTensor | None = None,
-            dict_cell_tensor: GraphlowDictTensor | None = None,
-            dict_sparse_tensor: GraphlowDictTensor | None = None,
-            device: torch.device | int = -1,
-            dtype: torch.dtype | type | None = None,
+        self,
+        pvmesh: pv.UnstructuredGrid,
+        *,
+        dict_point_tensor: GraphlowDictTensor | None = None,
+        dict_cell_tensor: GraphlowDictTensor | None = None,
+        dict_sparse_tensor: GraphlowDictTensor | None = None,
+        device: torch.device | int = -1,
+        dtype: torch.dtype | type | None = None,
     ):
         """Initialize GraphlowMesh object.
 
@@ -68,18 +69,23 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         self._cached = {}
 
         self._tensor_property = GraphlowTensorProperty(
-            device=device, dtype=dtype)
+            device=device, dtype=dtype
+        )
 
         self._pvmesh = pvmesh.cast_to_unstructured_grid()
         self._dict_point_tensor = dict_point_tensor or GraphlowDictTensor(
-            {}, length=self.n_points)
+            {}, length=self.n_points
+        )
         if FeatureName.POINTS not in self._dict_point_tensor:
             self._dict_point_tensor.update(
-                {FeatureName.POINTS: self.pvmesh.points})
+                {FeatureName.POINTS: self.pvmesh.points}
+            )
         self._dict_cell_tensor = dict_cell_tensor or GraphlowDictTensor(
-            {}, length=self.n_cells)
+            {}, length=self.n_cells
+        )
         self._dict_sparse_tensor = dict_sparse_tensor or GraphlowDictTensor(
-            {}, length=None)
+            {}, length=None
+        )
 
         self.send()
         return
@@ -130,12 +136,15 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         self._cached[method_name] = value
 
     def save(
-            self, file_name: pathlib.Path | str, *,
-            binary: bool = True,
-            cast: bool = True,
-            remove_time: bool = True,
-            overwrite_features: bool = False,
-            overwrite_file: bool = False):
+        self,
+        file_name: pathlib.Path | str,
+        *,
+        binary: bool = True,
+        cast: bool = True,
+        remove_time: bool = True,
+        overwrite_features: bool = False,
+        overwrite_file: bool = False,
+    ):
         """Save mesh data. On writing, dict_point_tensor and dict_cell_tensor
         will be copied to pyvista mesh.
 
@@ -170,7 +179,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         if remove_time:
             self.pvmesh.field_data.pop(FeatureName.TIME_VALUE, None)
 
-        ext = file_path.suffix.lstrip('.')
+        ext = file_path.suffix.lstrip(".")
         if ext in constants.UNSTRUCTURED_GRID_EXTENSIONS:
             unstructured_grid = self.pvmesh.cast_to_unstructured_grid()
             unstructured_grid.save(file_name, binary=binary)
@@ -189,9 +198,11 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         raise ValueError(f"Unexpected extension: {ext}")
 
     def send(
-            self, *,
-            device: torch.device | int | None = None,
-            dtype: torch.dtype | type | None = None):
+        self,
+        *,
+        device: torch.device | int | None = None,
+        dtype: torch.dtype | type | None = None,
+    ):
         """Convert features to the specified device and dtype. It does not
         modify pyvista mesh.
 
@@ -215,9 +226,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             If True, allow overwriting exsiting items. The default is False.
         """
         self.dict_point_tensor.update(
-            self.pvmesh.point_data, overwrite=overwrite)
-        self.dict_cell_tensor.update(
-            self.pvmesh.cell_data, overwrite=overwrite)
+            self.pvmesh.point_data, overwrite=overwrite
+        )
+        self.dict_cell_tensor.update(self.pvmesh.cell_data, overwrite=overwrite)
         return
 
     def copy_features_to_pyvista(self, *, overwrite: bool = False):
@@ -227,16 +238,20 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             If True, allow overwriting exsiting items. The default is False.
         """
         self.update_pyvista_data(
-            self.dict_point_tensor, self.pvmesh.point_data, overwrite=overwrite)
+            self.dict_point_tensor, self.pvmesh.point_data, overwrite=overwrite
+        )
         self.update_pyvista_data(
-            self.dict_cell_tensor, self.pvmesh.cell_data, overwrite=overwrite)
+            self.dict_cell_tensor, self.pvmesh.cell_data, overwrite=overwrite
+        )
         return
 
     def update_pyvista_data(
-            self,
-            dict_tensor: GraphlowDictTensor,
-            pyvista_dataset: pv.DataSetAttributes, *,
-            overwrite: bool = False):
+        self,
+        dict_tensor: GraphlowDictTensor,
+        pyvista_dataset: pv.DataSetAttributes,
+        *,
+        overwrite: bool = False,
+    ):
         """Update PyVista dataset with the specified GraphlowDictTensor.
 
         Parameters
@@ -261,9 +276,11 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         vtkOriginalPointIds and vtkOriginalCellIds because they are hidden.
         """
         self.pvmesh.point_data[FeatureName.ORIGINAL_INDEX] = np.arange(
-            self.pvmesh.n_points)
+            self.pvmesh.n_points
+        )
         self.pvmesh.cell_data[FeatureName.ORIGINAL_INDEX] = np.arange(
-            self.pvmesh.n_cells)
+            self.pvmesh.n_cells
+        )
         return
 
     def extract_surface(self, add_original_index: bool = True) -> GraphlowMesh:
@@ -279,7 +296,8 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             self.add_original_index()
 
         surface_mesh = self.pvmesh.extract_surface(
-            pass_pointid=False, pass_cellid=False).cast_to_unstructured_grid()
+            pass_pointid=False, pass_cellid=False
+        ).cast_to_unstructured_grid()
         return GraphlowMesh(surface_mesh, device=self.device, dtype=self.dtype)
 
     def extract_facets(self) -> tuple[GraphlowMesh, sp.csr_array]:
@@ -287,7 +305,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         with (n_faces, n_cells)-shaped sparse signed incidence matrix
         """
         poly, scipy_fc_inc = self._extract_facets_impl()
-        return GraphlowMesh(poly, device=self.device, dtype=self.dtype), scipy_fc_inc
+        return GraphlowMesh(
+            poly, device=self.device, dtype=self.dtype
+        ), scipy_fc_inc
 
     def _extract_facets_impl(self) -> tuple[pv.PolyData, sp.csr_array]:
         """Implementation of `extract_facets`
@@ -309,7 +329,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
         n_facets = 0
         n_cells = vol.n_cells
-        cell_centers = torch.from_numpy(self.pvmesh.cell_centers().points.astype(np.float32)).clone()
+        cell_centers = torch.from_numpy(
+            self.pvmesh.cell_centers().points.astype(np.float32)
+        ).clone()
 
         facet_idmap = {}
 
@@ -324,7 +346,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
                 face_center = torch.mean(face_points, dim=0)
                 side_vec = face_points - face_center
                 cc2fc = face_center - cell_center
-                cross = torch.linalg.cross(side_vec, torch.roll(side_vec, shifts=-1, dims=0))
+                cross = torch.linalg.cross(
+                    side_vec, torch.roll(side_vec, shifts=-1, dims=0)
+                )
                 normal = torch.mean(cross, dim=0)
                 dot = torch.dot(cc2fc, normal)
                 sign_value = 0
@@ -361,8 +385,12 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         return val
 
     @functools.wraps(GeometryProcessor.compute_volumes)
-    def compute_volumes(self, raise_negative_volume: bool = True) -> torch.Tensor:
-        val = self._geometry_processor.compute_volumes(self, raise_negative_volume)
+    def compute_volumes(
+        self, raise_negative_volume: bool = True
+    ) -> torch.Tensor:
+        val = self._geometry_processor.compute_volumes(
+            self, raise_negative_volume
+        )
         return val
 
     @functools.wraps(GeometryProcessor.compute_normals)
@@ -390,12 +418,20 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
     @functools.wraps(GraphProcessor.compute_point_relative_incidence)
     @use_cache_decorator
-    def compute_point_relative_incidence(self, other_mesh: GraphlowMesh) -> torch.Tensor:
-        val = self._graph_processor.compute_point_relative_incidence(self, other_mesh)
+    def compute_point_relative_incidence(
+        self, other_mesh: GraphlowMesh
+    ) -> torch.Tensor:
+        val = self._graph_processor.compute_point_relative_incidence(
+            self, other_mesh
+        )
         return val
 
     @functools.wraps(GraphProcessor.compute_cell_relative_incidence)
     @use_cache_decorator
-    def compute_cell_relative_incidence(self, other_mesh: GraphlowMesh) -> torch.Tensor:
-        val = self._graph_processor.compute_cell_relative_incidence(self, other_mesh)
+    def compute_cell_relative_incidence(
+        self, other_mesh: GraphlowMesh
+    ) -> torch.Tensor:
+        val = self._graph_processor.compute_cell_relative_incidence(
+            self, other_mesh
+        )
         return val

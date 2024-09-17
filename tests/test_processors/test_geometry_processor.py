@@ -11,7 +11,8 @@ from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
 
-def tetrahedralize_cell_for_test(cell):
+
+def tetrahedralize_cell_for_test(cell: pv.Cell) -> pv.UnstructuredGrid:
     pid_map = {
         global_pid: local_pid
         for local_pid, global_pid in enumerate(cell.point_ids)
@@ -105,7 +106,12 @@ def tetrahedralize_cell_for_test(cell):
         )
     ],
 )
-def test__tetrahedralize_cell(points, unit_cell, unit_celltype, desired_cells):
+def test__tetrahedralize_cell(
+    points: np.ndarray,
+    unit_cell: np.ndarray,
+    unit_celltype: np.ndarray,
+    desired_cells: np.ndarray,
+):
     desired_celltypes = np.full(desired_cells.shape[0], pv.CellType.TETRA)
     desired_grid = pv.UnstructuredGrid(desired_cells, desired_celltypes, points)
 
@@ -129,7 +135,7 @@ def test__tetrahedralize_cell(points, unit_cell, unit_celltype, desired_cells):
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__compute_areas(file_name):
+def test__compute_areas(file_name: pathlib.Path):
     volmesh = graphlow.read(file_name)
     surfmesh = volmesh.extract_surface()
     cell_areas = surfmesh.compute_areas()
@@ -153,16 +159,17 @@ def test__compute_areas(file_name):
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__compute_volumes(file_name):
+def test__compute_volumes(file_name: pathlib.Path):
     volmesh = graphlow.read(file_name)
     cell_volumes = volmesh.compute_volumes()
 
-    # See below for why `compute_cell_quality` is used instead of `compute_cell_sizes`
+    # See below for why `compute_cell_quality`is used
+    # instead of `compute_cell_sizes`
     # https://colab.research.google.com/drive/1ZkMbVfN-74ZXbDFO2ocva-JEYin6Ux4b?usp=sharing
     desired = np.abs(
-        volmesh.pvmesh
-        .compute_cell_quality(quality_measure="volume")
-        .cell_data["CellQuality"]
+        volmesh.pvmesh.compute_cell_quality(quality_measure="volume").cell_data[
+            "CellQuality"
+        ]
     )
 
     # fix desired for polyhedron cell
@@ -173,9 +180,9 @@ def test__compute_volumes(file_name):
         if celltype == pv.CellType.POLYHEDRON:
             tet_cell_grid = tetrahedralize_cell_for_test(cell)
             tet_cell_volumes = np.abs(
-                tet_cell_grid
-                .compute_cell_quality(quality_measure="volume")
-                .cell_data["CellQuality"]
+                tet_cell_grid.compute_cell_quality(
+                    quality_measure="volume"
+                ).cell_data["CellQuality"]
             )
             desired[i] = np.sum(tet_cell_volumes)
     np.testing.assert_almost_equal(
@@ -197,7 +204,7 @@ def test__compute_volumes(file_name):
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__compute_normals(file_name):
+def test__compute_normals(file_name: pathlib.Path):
     volmesh = graphlow.read(file_name)
     surf = volmesh.extract_surface()
     facets, _ = volmesh.extract_facets()
@@ -219,7 +226,8 @@ def test__compute_normals(file_name):
         facets.pvmesh.extract_surface()
         .compute_normals(
             cell_normals=True,
-            consistent_normals=False,  # consistent_normals is invalid for internal face
+            # consistent_normals is invalid for internal face
+            consistent_normals=False,
         )
         .cell_data["Normals"]
     )
@@ -240,7 +248,7 @@ def test__compute_normals(file_name):
         pathlib.Path("tests/data/vtu/primitive_cell/cuboid.vtu"),
     ],
 )
-def test__volume_gradient(file_name):
+def test__volume_gradient(file_name: pathlib.Path):
     volmesh = graphlow.read(file_name)
     volmesh.points.requires_grad_(True)
     cell_volumes = volmesh.compute_volumes()
@@ -271,42 +279,50 @@ def test__volume_gradient(file_name):
             pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
             1000,
             False,
-            1.,
+            1.0,
         ),
         (
             pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
             10000,
             False,
-            .05,
+            0.05,
         ),
         (
             pathlib.Path("tests/data/vts/cube/mesh.vts"),
             2000,
             False,
-            .05,
+            0.05,
         ),
     ],
 )
 def test__optimize_area_volume(
-        file_name, n_optimization, use_bias, threshold, pytestconfig):
+    file_name: pathlib.Path,
+    n_optimization: int,
+    use_bias: bool,
+    threshold: float,
+    pytestconfig: pytest.Config,
+):
     # Optimization setting
     print_period = int(n_optimization / 100)
-    weight_norm_constraint = 1.
-    weight_volume_constraint = 10.
+    weight_norm_constraint = 1.0
+    weight_volume_constraint = 10.0
     n_hidden = 64
-    deformation_factor = 1.
+    deformation_factor = 1.0
     lr = 1e-2
     output_activation = torch.nn.Identity()
 
-    output_directory = pathlib.Path("tests/outputs/geometry_optimization") \
+    output_directory = (
+        pathlib.Path("tests/outputs/geometry_optimization")
         / file_name.parent.name
+    )
     if output_directory.exists():
         shutil.rmtree(output_directory)
 
     # Initialize
     pv_mesh = pv.read(file_name)
     pv_mesh.points = pv_mesh.points - np.mean(
-        pv_mesh.points, axis=0, keepdims=True)  # Center mesh position
+        pv_mesh.points, axis=0, keepdims=True
+    )  # Center mesh position
 
     mesh = graphlow.GraphlowMesh(pv_mesh)
     initial_volumes = mesh.compute_volumes().clone()
@@ -318,23 +334,27 @@ def test__optimize_area_volume(
     surface_initial_total_area = torch.sum(surface_initial_areas)
     surface_initial_points = surface.points.clone()
 
-    w1 = torch.nn.Parameter(torch.randn(3, n_hidden) / n_hidden**.5)
-    w2 = torch.nn.Parameter(torch.randn(n_hidden, 3) / n_hidden**.5)
+    w1 = torch.nn.Parameter(torch.randn(3, n_hidden) / n_hidden**0.5)
+    w2 = torch.nn.Parameter(torch.randn(n_hidden, 3) / n_hidden**0.5)
     if use_bias:
         b1 = torch.nn.Parameter(torch.randn(n_hidden) / n_hidden)
         b2 = torch.nn.Parameter(torch.randn(3) / 3)
         params = [w1, b1, w2, b2]
     else:
-        b1 = 0.
-        b2 = 0.
+        b1 = 0.0
+        b2 = 0.0
         params = [w1, w2]
     optimizer = torch.optim.Adam(params, lr=lr)
 
-    def cost_function(deformed_points, surface_deformed_points):
-        mesh.dict_point_tensor.update({
-            'points': deformed_points}, overwrite=True)
-        surface.dict_point_tensor.update({
-            'points': surface_deformed_points}, overwrite=True)
+    def cost_function(
+        deformed_points: torch.Tensor, surface_deformed_points: torch.Tensor
+    ) -> torch.Tensor:
+        mesh.dict_point_tensor.update(
+            {"points": deformed_points}, overwrite=True
+        )
+        surface.dict_point_tensor.update(
+            {"points": surface_deformed_points}, overwrite=True
+        )
 
         volumes = mesh.compute_volumes()
         total_volume = torch.sum(volumes)
@@ -347,28 +367,39 @@ def test__optimize_area_volume(
 
         cost_area = total_area / surface_initial_total_area
         volume_constraint = (
-            (total_volume - initial_total_volume) / initial_total_volume)**2
-        norm_constraint = torch.exp(torch.mean(
-            deformation * deformation / initial_total_volume**(2/3)))
+            (total_volume - initial_total_volume) / initial_total_volume
+        ) ** 2
+        norm_constraint = torch.exp(
+            torch.mean(
+                deformation * deformation / initial_total_volume ** (2 / 3)
+            )
+        )
 
-        return cost_area + weight_volume_constraint * volume_constraint \
-            + weight_norm_constraint * norm_constraint, \
-            total_area, total_volume
+        return (
+            cost_area
+            + weight_volume_constraint * volume_constraint
+            + weight_norm_constraint * norm_constraint,
+            total_area,
+            total_volume,
+        )
 
-    def compute_deformed_points(points):
-        hidden = torch.tanh(torch.einsum('np,pq->nq', points, w1) + b1)
+    def compute_deformed_points(points: torch.Tensor) -> torch.Tensor:
+        hidden = torch.tanh(torch.einsum("np,pq->nq", points, w1) + b1)
         deformation = output_activation(
-            torch.einsum('np,pq->nq', hidden, w2) + b2)
+            torch.einsum("np,pq->nq", hidden, w2) + b2
+        )
         return points + deformation * deformation_factor
 
     deformed_points = compute_deformed_points(initial_points)
     mesh.dict_point_tensor.update(
-        {"deformation": deformed_points - initial_points},
-        overwrite=True)
-    if pytestconfig.getoption('save'):
+        {"deformation": deformed_points - initial_points}, overwrite=True
+    )
+    if pytestconfig.getoption("save"):
         mesh.save(
             output_directory / f"mesh.{0:08d}.vtu",
-            overwrite_file=True, overwrite_features=True)
+            overwrite_file=True,
+            overwrite_features=True,
+        )
 
     # Optimization loop
     logger.info(f"\ninitial volume: {initial_total_volume:.5f}")
@@ -378,12 +409,14 @@ def test__optimize_area_volume(
 
         deformed_points = compute_deformed_points(initial_points)
         surface_deformed_points = compute_deformed_points(
-            surface_initial_points)
+            surface_initial_points
+        )
 
         cost, area, volume = cost_function(
-            deformed_points, surface_deformed_points)
+            deformed_points, surface_deformed_points
+        )
         if cost is None:
-            deformation_factor = deformation_factor * .9
+            deformation_factor = deformation_factor * 0.9
             logger.info(f"update deformation_factor: {deformation_factor}")
             continue
 
@@ -392,17 +425,21 @@ def test__optimize_area_volume(
             logger.info(f"{i:6d}, {area:.5e},  {volume_ratio:.5e}, {cost:.5e}")
             mesh.dict_point_tensor.update(
                 {"deformation": deformed_points - initial_points},
-                overwrite=True)
-            if pytestconfig.getoption('save'):
+                overwrite=True,
+            )
+            if pytestconfig.getoption("save"):
                 mesh.save(
                     output_directory / f"mesh.{i:08d}.vtu",
-                    overwrite_file=True, overwrite_features=True)
+                    overwrite_file=True,
+                    overwrite_features=True,
+                )
 
         cost.backward()
         optimizer.step()
 
-    actual_radius = torch.mean(
-        torch.norm(surface_deformed_points, dim=1)).detach().numpy()
-    desired_radius = (initial_total_volume.numpy() * 3 / 4 / np.pi)**(1/3)
+    actual_radius = (
+        torch.mean(torch.norm(surface_deformed_points, dim=1)).detach().numpy()
+    )
+    desired_radius = (initial_total_volume.numpy() * 3 / 4 / np.pi) ** (1 / 3)
     relative_error = (actual_radius - desired_radius) ** 2 / desired_radius**2
     assert relative_error < threshold

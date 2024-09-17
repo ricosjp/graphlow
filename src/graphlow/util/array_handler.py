@@ -6,8 +6,8 @@ from graphlow.util import typing
 
 
 def convert_to_numpy_scipy(
-        array: typing.ArrayDataType,
-        torch_dtype: torch.dtype = torch.float32) -> np.ndarray | sp.sparray:
+    array: typing.ArrayDataType, torch_dtype: torch.dtype = torch.float32
+) -> np.ndarray | sp.sparray:
     """Convert input array to numpy array or scipy sparse array.
 
     Parameters
@@ -21,12 +21,12 @@ def convert_to_numpy_scipy(
     numpy.ndarray | sp.sparray
     """
     if isinstance(array, torch.Tensor):
-        return array.to('cpu', torch_dtype).detach().to_dense().numpy()
+        return array.to("cpu", torch_dtype).detach().to_dense().numpy()
     elif isinstance(array, sp.sparray):
         return array
     elif isinstance(array, np.ndarray):
         return array
-    elif hasattr(array, 'data'):
+    elif hasattr(array, "data"):
         return convert_to_numpy_scipy(array.data)
     else:
         raise TypeError(f"Unexpected input type: {array.__class__}")
@@ -80,9 +80,11 @@ def convert_to_scipy_sparse_csr(array: typing.ArrayDataType) -> sp.csr_array:
 
 
 def send(
-        tensor: torch.Tensor, *,
-        device: torch.device | None = None,
-        dtype: torch.dtype | None = None) -> torch.Tensor:
+    tensor: torch.Tensor,
+    *,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None,
+) -> torch.Tensor:
     """Convert input torch tensor to desired device and dtype.
 
     Parameters
@@ -97,7 +99,7 @@ def send(
     -------
     torch.Tensor
     """
-    if 'float' in str(tensor.dtype):
+    if "float" in str(tensor.dtype):
         return tensor.to(device=device, dtype=dtype)
     else:
         # NOTE: Preserve type if int or bool
@@ -105,9 +107,11 @@ def send(
 
 
 def convert_to_torch_tensor(
-        array: typing.ArrayDataType, *,
-        device: torch.device | None = None,
-        dtype: torch.dtype | None = None) -> torch.Tensor:
+    array: typing.ArrayDataType,
+    *,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None,
+) -> torch.Tensor:
     """Convert input array to torch tensor. If the input is sparse, output
     tensor will be also sparse.
 
@@ -129,7 +133,7 @@ def convert_to_torch_tensor(
         tensor = array
     elif isinstance(array, sp.sparray):
         tensor = convert_to_torch_sparse_csr(array)
-    elif hasattr(array, 'data'):
+    elif hasattr(array, "data"):
         tensor = convert_to_torch_tensor(array.data)
     else:
         raise TypeError(f"Unexpected input type: {array.__class__}")
@@ -138,9 +142,11 @@ def convert_to_torch_tensor(
 
 
 def convert_to_torch_sparse_csr(
-        array: typing.ArrayDataType, *,
-        device: torch.device | None = None,
-        dtype: torch.dtype | None = None) -> torch.Tensor:
+    array: typing.ArrayDataType,
+    *,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None,
+) -> torch.Tensor:
     """Convert input array to torch CSR tensor.
 
     Parameters
