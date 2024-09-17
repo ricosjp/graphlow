@@ -1,8 +1,6 @@
-
-import logging
 import pathlib
 import shutil
-import sys
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -10,15 +8,10 @@ import pyvista as pv
 import torch
 
 import graphlow
+from graphlow.processors.graph_processor import GraphProcessor
+from graphlow.util.logger import get_logger
 
-LOG_STDOUT = False
-
-if LOG_STDOUT:
-    logger = graphlow.util.logger.get_graphlow_logger()
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(sys.stdout)
-    logger.addHandler(handler)
-
+logger = get_logger(__name__)
 
 @pytest.mark.parametrize(
     "input_file_name",
@@ -66,8 +59,8 @@ def test__extract_surface(file_name, desired_file):
 
     surface = mesh.extract_surface()
     desired = graphlow.read(desired_file)
-    np.testing.assert_almost_equal(surface.mesh.points, desired.mesh.points)
-    np.testing.assert_array_equal(surface.mesh.cells, desired.mesh.cells)
+    np.testing.assert_almost_equal(surface.pvmesh.points, desired.pvmesh.points)
+    np.testing.assert_array_equal(surface.pvmesh.cells, desired.pvmesh.cells)
 
 
 @pytest.mark.parametrize(
@@ -205,7 +198,7 @@ def test__optimize(file_name):
     optimizer = torch.optim.Adam([deform_coeff], lr=1e-2)
 
     # Optimization loop
-    print("\n   i,       cx,       cy,       cz,        cost")
+    logger.info("\n   i,       cx,       cy,       cz,        cost")
     for i in range(1, n_optimization + 1):
         optimizer.zero_grad()
 
@@ -218,8 +211,7 @@ def test__optimize(file_name):
             cx = deform_coeff[0]
             cy = deform_coeff[1]
             cz = deform_coeff[2]
-            print(
-                f"{i:4d}, {cx:8.5f}, {cy:8.5f}, {cz:8.5f}, {cost:.5e}")
+            logger.info(f"{i:4d}, {cx:8.5f}, {cy:8.5f}, {cz:8.5f}, {cost:.5e}")
             mesh.dict_point_tensor.update(
                 {"deformation": deformation}, overwrite=True)
             mesh.save(
@@ -283,7 +275,7 @@ def test__optimize_ball(file_name):
         return points + deformation
 
     # Optimization loop
-    print("\n   i,         cost")
+    logger.info("\n   i,         cost")
     for i in range(1, n_optimization + 1):
         optimizer.zero_grad()
 
@@ -294,8 +286,7 @@ def test__optimize_ball(file_name):
         cost = cost_function(deformed_points, surface_deformed_points)
 
         if i % print_period == 0:
-            print(
-                f"{i:4d}, {cost:.5e}")
+            logger.info(f"{i:4d}, {cost:.5e}")
             mesh.dict_point_tensor.update(
                 {"deformation": deformed_points - initial_points},
                 overwrite=True)
@@ -309,3 +300,21 @@ def test__optimize_ball(file_name):
     actual_radius = torch.mean(
         torch.norm(surface_deformed_points, dim=1)).detach().numpy()
     np.testing.assert_almost_equal(actual_radius, desired_radius, decimal=3)
+
+@pytest.mark.parametrize(
+    "func_name",
+    [
+        "compute_cell_point_incidence",
+        "compute_cell_adjacency",
+        "compute_point_adjacency",
+    ],
+)
+def test__use_cache(func_name):
+    file_name = pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu")
+    mesh = graphlow.read(file_name)
+    func = getattr(mesh, func_name)
+    with mock.patch.object(GraphProcessor, func_name) as mocked:
+        _ = func()
+        _ = func()
+
+        assert mocked.call_count == 1
