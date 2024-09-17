@@ -100,6 +100,8 @@ suppress-none-returning = true
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+"src/graphlow/base/**/*.py" = ["ANN401"]
+"tests/conftest.py" = ["ANN001"]
 
 [tool.ruff.format]
 # Like Black, use double quotes for strings.
