@@ -64,6 +64,7 @@ def test__extract_surface(file_name: pathlib.Path, desired_file: pathlib.Path):
     np.testing.assert_array_equal(surface.pvmesh.cells, desired.pvmesh.cells)
 
 
+# fmt: off
 @pytest.mark.parametrize(
     "file_name, desired_facets, desired_fc_inc",
     [
@@ -158,6 +159,7 @@ def test___extract_facets_impl(
     np.testing.assert_array_equal(
         scipy_fc_inc.toarray().astype(int), desired_fc_inc
     )
+# fmt: on
 
 
 @pytest.mark.parametrize(
