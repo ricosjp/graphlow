@@ -302,16 +302,19 @@ def test__optimize_ball(file_name):
     np.testing.assert_almost_equal(actual_radius, desired_radius, decimal=3)
 
 @pytest.mark.parametrize(
-    "file_name",
+    "func_name",
     [
-        pathlib.Path("tests/data/vtk/hex/mesh.vtk"),
-        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+        "compute_cell_point_incidence",
+        "compute_cell_adjacency",
+        "compute_point_adjacency",
     ],
 )
-def test__use_cache(file_name):
+def test__use_cache(func_name):
+    file_name = pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu")
     mesh = graphlow.read(file_name)
-    with mock.patch.object(GraphProcessor, "compute_cell_point_incidence") as mocked:
-        _ = mesh.compute_cell_point_incidence()
-        _ = mesh.compute_cell_point_incidence()
+    func = getattr(mesh, func_name)
+    with mock.patch.object(GraphProcessor, func_name) as mocked:
+        _ = func()
+        _ = func()
 
         assert mocked.call_count == 1
