@@ -1,15 +1,14 @@
-
 import torch
 
 
 class GraphlowTensorProperty:
-
     DEFAULT_FLOAT_TYPE = torch.float32
 
     def __init__(
-            self,
-            device: torch.device | int = -1,
-            dtype: torch.dtype | type | None = None):
+        self,
+        device: torch.device | int = -1,
+        dtype: torch.dtype | type | None = None,
+    ):
         self.device = device
         self.dtype: torch.dtype = dtype
         return
@@ -22,7 +21,7 @@ class GraphlowTensorProperty:
     def device(self, device: torch.device | int):
         if isinstance(device, int):
             if device < 0:
-                self._device = torch.device('cpu')
+                self._device = torch.device("cpu")
                 return
             self._device = torch.device(device)
             return
@@ -43,13 +42,13 @@ class GraphlowTensorProperty:
             return
 
         str_type = dtype.__name__
-        if str_type == 'float':
+        if str_type == "float":
             self._dtype = torch.float
             return
-        elif str_type == 'int':
+        elif str_type == "int":
             self._dtype = torch.int
             return
-        elif str_type == 'bool':
+        elif str_type == "bool":
             self._dtype = torch.bool
             return
         else:

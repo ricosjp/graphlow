@@ -1,4 +1,3 @@
-
 from collections import abc
 
 import numpy as np
@@ -11,15 +10,14 @@ from graphlow.util import typing
 
 
 class GraphlowDictTensor:
-
     def __init__(
-            self,
-            dict_tensor: Self | dict[typing.KeyType, typing.ArrayDataType],
-            length: int | None = None,
-            *,
-            time_series: bool | list[bool] = False,
-            device: torch.device | int = -1,
-            dtype: torch.dtype | type | None = None,
+        self,
+        dict_tensor: Self | dict[typing.KeyType, typing.ArrayDataType],
+        length: int | None = None,
+        *,
+        time_series: bool | list[bool] = False,
+        device: torch.device | int = -1,
+        dtype: torch.dtype | type | None = None,
     ):
         """Initialize GraphlowDictTensor object.
 
@@ -39,16 +37,18 @@ class GraphlowDictTensor:
             Data type.
         """
         self._tensor_property = GraphlowTensorProperty(
-            device=device, dtype=dtype)
+            device=device, dtype=dtype
+        )
 
         if isinstance(time_series, bool):
             time_series = [time_series] * len(dict_tensor)
 
         self._dict_tensor: dict[typing.KeyType, GraphlowTensor] = {
             k: GraphlowTensor(
-                v, time_series=ts, device=self.device, dtype=self.dtype)
-            for ts, (k, v) in zip(
-                time_series, dict_tensor.items(), strict=True)}
+                v, time_series=ts, device=self.device, dtype=self.dtype
+            )
+            for ts, (k, v) in zip(time_series, dict_tensor.items(), strict=True)
+        }
 
         self.length = length
         self.validate_length_if_needed()
@@ -88,9 +88,11 @@ class GraphlowDictTensor:
         return self._dict_tensor.pop(key)
 
     def send(
-            self, *,
-            device: torch.device | int | None = None,
-            dtype: torch.dtype | type | None = None):
+        self,
+        *,
+        device: torch.device | int | None = None,
+        dtype: torch.dtype | type | None = None,
+    ):
         """Convert features to the specified device and dtype.
 
         Parameters
@@ -115,13 +117,15 @@ class GraphlowDictTensor:
         -------
         bool
         """
-        return np.any([
-            v.time_series for v in self.values()])
+        return np.any([v.time_series for v in self.values()])
 
     def update(
-            self, dict_tensor: dict[str, typing.ArrayDataType] | Self, *,
-            time_series: bool | list[bool] = False,
-            overwrite: bool = False):
+        self,
+        dict_tensor: dict[str, typing.ArrayDataType] | Self,
+        *,
+        time_series: bool | list[bool] = False,
+        overwrite: bool = False,
+    ):
         """Update GraphlowDictTensor with input dict.
 
         Parameters
@@ -134,15 +138,16 @@ class GraphlowDictTensor:
             time_series = [time_series] * len(dict_tensor)
 
         for ts, (key, value) in zip(
-                time_series, dict_tensor.items(), strict=True):
+            time_series, dict_tensor.items(), strict=True
+        ):
             if key in self.dict_tensor:
                 if not overwrite:
                     keys = list(self.keys())
                     raise ValueError(f"{key} already exists in {keys}")
 
             self._dict_tensor[key] = GraphlowTensor(
-                value, device=self.device, dtype=self.dtype,
-                time_series=ts)
+                value, device=self.device, dtype=self.dtype, time_series=ts
+            )
 
         self.validate_length_if_needed()
         return
@@ -155,11 +160,11 @@ class GraphlowDictTensor:
             if len(value) != self.length:
                 raise ValueError(
                     f"Invalid length for: {key} "
-                    f"(expected: {self.length}, given: {len(value)})")
+                    f"(expected: {self.length}, given: {len(value)})"
+                )
         return
 
-    def convert_to_numpy_scipy(self) -> dict[
-            typing.KeyType, typing.NumpyScipyArray]:
-        return {
-            k: v.convert_to_numpy_scipy()
-            for k, v in self.items()}
+    def convert_to_numpy_scipy(
+        self,
+    ) -> dict[typing.KeyType, typing.NumpyScipyArray]:
+        return {k: v.convert_to_numpy_scipy() for k, v in self.items()}

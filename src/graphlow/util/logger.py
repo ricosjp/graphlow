@@ -1,4 +1,3 @@
-
 import logging
 
 
@@ -6,11 +5,11 @@ class DefaultLoggerFactory:
     _is_propagate: bool = False
 
     @classmethod
-    def _get_graphlow_root_logger(cls):
+    def _get_graphlow_root_logger(cls) -> logging.Logger:
         return logging.getLogger("graphlow")
 
     @classmethod
-    def _get_library_logger(cls):
+    def _get_library_logger(cls) -> logging.Logger:
         _graphlow_root_logger = logging.getLogger("graphlow")
         _graphlow_root_logger.propagate = cls._is_propagate
         return _graphlow_root_logger

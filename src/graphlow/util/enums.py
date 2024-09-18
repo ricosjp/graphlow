@@ -1,4 +1,3 @@
-
 from enum import Enum
 
 
@@ -16,9 +15,9 @@ class FeatureName(str, Enum):
 
 
 class Extension(str, Enum):
-    VTK = 'vtk'
-    VTM = 'vtm'
-    VTU = 'vtu'
-    VTP = 'vtp'
+    VTK = "vtk"
+    VTM = "vtm"
+    VTU = "vtu"
+    VTP = "vtp"
 
-    STL = 'stl'
+    STL = "stl"
