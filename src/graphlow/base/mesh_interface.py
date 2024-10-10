@@ -54,3 +54,29 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def dtype(self) -> torch.Tensor:
         pass
+
+    @abc.abstractmethod
+    def compute_areas(self, raise_negative_area: bool = True) -> torch.Tensor:
+        pass
+
+    @abc.abstractmethod
+    def compute_volumes(
+        self, raise_negative_volume: bool = True
+    ) -> torch.Tensor:
+        pass
+
+    @abc.abstractmethod
+    def compute_normals(self) -> torch.Tensor:
+        pass
+
+    @abc.abstractmethod
+    def compute_cell_point_incidence(self) -> torch.Tensor:
+        pass
+
+    @abc.abstractmethod
+    def compute_cell_adjacency(self) -> torch.Tensor:
+        pass
+
+    @abc.abstractmethod
+    def compute_point_adjacency(self) -> torch.Tensor:
+        pass
