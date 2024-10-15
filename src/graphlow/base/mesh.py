@@ -300,10 +300,14 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         ).cast_to_unstructured_grid()
         return GraphlowMesh(surface_mesh, device=self.device, dtype=self.dtype)
 
-    def extract_facets(self) -> tuple[GraphlowMesh, sp.csr_array]:
+    def extract_facets(
+        self, add_original_index: bool = True,
+    ) -> tuple[GraphlowMesh, sp.csr_array]:
         """Extract all internal/external facets of the volume mesh
         with (n_faces, n_cells)-shaped sparse signed incidence matrix
         """
+        if add_original_index:
+            self.add_original_index()
         poly, scipy_fc_inc = self._extract_facets_impl()
         return GraphlowMesh(
             poly, device=self.device, dtype=self.dtype
@@ -372,7 +376,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
                 row_indices.append(facet_id)
                 col_indices.append(cell_id)
 
-        poly = pv.PolyData(self.points.numpy(), polygon_cells)
+        poly = pv.PolyData(self.points.detach().numpy(), polygon_cells)
         scipy_fc_inc = sp.csr_array(
             (sign_values, (row_indices, col_indices)),
             shape=(n_facets, n_cells),
@@ -429,9 +433,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     @functools.wraps(GraphProcessor.compute_cell_relative_incidence)
     @use_cache_decorator
     def compute_cell_relative_incidence(
-        self, other_mesh: GraphlowMesh
+        self, other_mesh: GraphlowMesh, minimum_n_sharing: int | None = None,
     ) -> torch.Tensor:
         val = self._graph_processor.compute_cell_relative_incidence(
-            self, other_mesh
+            self, other_mesh, minimum_n_sharing=minimum_n_sharing,
         )
         return val
