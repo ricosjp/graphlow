@@ -70,6 +70,10 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def compute_isoAM(self, moment_matrix: bool) -> torch.Tensor:
+        pass
+
+    @abc.abstractmethod
     def compute_cell_point_incidence(self) -> torch.Tensor:
         pass
 

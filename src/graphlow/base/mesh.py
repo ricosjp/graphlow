@@ -398,6 +398,11 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         val = self._geometry_processor.compute_normals(self)
         return val
 
+    @functools.wraps(GeometryProcessor.compute_isoAM)
+    def compute_isoAM(self, moment_matrix: bool = True) -> torch.Tensor:
+        val = self._geometry_processor.compute_isoAM(self, moment_matrix)
+        return val
+
     @functools.wraps(GraphProcessor.compute_cell_point_incidence)
     @use_cache_decorator
     def compute_cell_point_incidence(self) -> torch.Tensor:

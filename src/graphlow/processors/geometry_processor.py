@@ -2,6 +2,9 @@ import pyvista as pv
 import torch
 
 from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
+from graphlow.util.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class GeometryProcessor:
@@ -89,6 +92,89 @@ class GeometryProcessor:
             normal = torch.mean(cross, dim=0)
             normals[fid] = normal / torch.norm(normal)
         return normals
+
+    def compute_isoAM(
+        self, mesh: IReadOnlyGraphlowMesh, moment_matrix: bool
+    ) -> torch.Tensor:
+        """Compute (dims, n_points, n_points)-shaped isoAM:
+
+        Returns
+        -------
+        torch.Tensor[float]
+            (dims, n_points, n_points)-shaped isoAM
+        """
+        points = mesh.points
+        adj = mesh.compute_point_adjacency()
+        # Extract indices from sparse adjacency matrix
+        n_points, dim = points.shape
+        adj_indices = adj.to_sparse_coo().indices()
+
+        # remove diag elements to avoid division by zero
+        adj_indices = adj_indices[:, adj_indices[0, :] != adj_indices[1, :]]
+        rows, cols = adj_indices
+
+        # calculate differences between points
+        diff_xj_xi = points[cols] - points[rows]
+        dim_idx = torch.repeat_interleave(
+            torch.arange(dim), adj_indices.shape[1]
+        )
+        diff_indices = torch.cat(
+            (dim_idx.unsqueeze(0), adj_indices.repeat(1, dim))
+        )
+        diff_vals = diff_xj_xi.T.flatten()
+        diff_kij = torch.sparse_coo_tensor(
+            diff_indices, diff_vals, size=(dim, *adj.shape)
+        ).coalesce()
+
+        # calculate inverse norm
+        norm_diff = torch.sum(diff_kij.pow(2), dim=0).pow(1 / 2)
+        inv_norm_diff = norm_diff.pow(-1)
+        if torch.isinf(inv_norm_diff.values()).any():
+            raise AssertionError("The input contains duplicate points.")
+
+        # calculate unit vector of x_j - x_i
+        unit_vals = diff_kij.values() * inv_norm_diff.values().repeat(dim)
+        unit_kij = torch.sparse_coo_tensor(
+            diff_indices, unit_vals, diff_kij.shape
+        )
+        unit_ikj = unit_kij.permute((1, 0, 2))
+
+        # compute moment matrix for each point
+        if moment_matrix:
+            M = torch.stack(
+                [unit_kj.mm(unit_kj.T) for unit_kj in unit_ikj]
+            ).to_dense()
+
+            try:
+                Dkij = torch.stack(
+                    [
+                        M[i].inverse() @ unit_ikj[i] * inv_norm_diff[i]
+                        for i in range(n_points)
+                    ]
+                ).permute((1, 0, 2))
+            except Exception as e:
+                print("Some moment matrices are not full rank")
+                raise e
+        else:
+            Dkij = torch.stack(
+                [
+                    unit_ikj[i] * inv_norm_diff[i].to_dense()
+                    for i in range(n_points)
+                ]
+            ).permute((1, 0, 2))
+
+        L_values = torch.sum(Dkij, dim=2).values().reshape(-1, n_points)
+        L_indices = torch.arange(n_points).expand(2, -1)
+        Dhat = torch.stack(
+            [
+                Dkij[k]
+                - torch.sparse_coo_tensor(
+                    L_indices, L_values[k], size=(n_points, n_points)
+                )
+                for k in range(dim)
+            ]
+        ).coalesce()
+        return Dhat
 
     #
     # Area function
