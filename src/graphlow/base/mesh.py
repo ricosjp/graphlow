@@ -303,7 +303,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     def extract_facets(
         self,
         add_original_index: bool = True,
-    ) -> tuple[GraphlowMesh, sp.csr_array]:
+    ) -> tuple[GraphlowMesh, torch.Tensor]:
         """Extract all internal/external facets of the volume mesh
         with (n_faces, n_cells)-shaped sparse signed incidence matrix
         """
