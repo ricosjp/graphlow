@@ -9,6 +9,7 @@ import torch
 
 import graphlow
 from graphlow.processors.graph_processor import GraphProcessor
+from graphlow.util import array_handler
 from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -160,6 +161,22 @@ def test___extract_facets_impl(
         scipy_fc_inc.toarray().astype(int), desired_fc_inc
     )
 # fmt: on
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        pathlib.Path("tests/data/vtk/hex/mesh.vtk"),
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+    ],
+)
+def test__extract_facets(file_name: pathlib.Path):
+    mesh = graphlow.read(file_name)
+    _, scipy_fc_inc = mesh._extract_facets_impl()
+    _, torch_fc_inc = mesh.extract_facets()
+    desired = array_handler.convert_to_dense_numpy(scipy_fc_inc)
+    actual = array_handler.convert_to_dense_numpy(torch_fc_inc)
+    np.testing.assert_almost_equal(actual, desired)
 
 
 @pytest.mark.parametrize(
@@ -352,3 +369,18 @@ def test__use_cache(func_name: str):
         _ = func()
 
         assert mocked.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        pathlib.Path("tests/data/vtk/hex/mesh.vtk"),
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+    ],
+)
+def test__compute_cell_relative_incidence(file_name: pathlib.Path):
+    mesh = graphlow.read(file_name)
+    surface = mesh.extract_surface()
+
+    # Check only if it runs since the main part is in graph_processor
+    mesh.compute_cell_relative_incidence(surface, minimum_n_sharing=3)

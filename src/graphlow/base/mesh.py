@@ -15,7 +15,7 @@ from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
 from graphlow.base.tensor_property import GraphlowTensorProperty
 from graphlow.processors.geometry_processor import GeometryProcessor
 from graphlow.processors.graph_processor import GraphProcessor
-from graphlow.util import constants
+from graphlow.util import array_handler, constants
 from graphlow.util.enums import FeatureName
 from graphlow.util.logger import get_logger
 
@@ -300,14 +300,19 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         ).cast_to_unstructured_grid()
         return GraphlowMesh(surface_mesh, device=self.device, dtype=self.dtype)
 
-    def extract_facets(self) -> tuple[GraphlowMesh, sp.csr_array]:
+    def extract_facets(
+        self,
+        add_original_index: bool = True,
+    ) -> tuple[GraphlowMesh, torch.Tensor]:
         """Extract all internal/external facets of the volume mesh
         with (n_faces, n_cells)-shaped sparse signed incidence matrix
         """
+        if add_original_index:
+            self.add_original_index()
         poly, scipy_fc_inc = self._extract_facets_impl()
         return GraphlowMesh(
             poly, device=self.device, dtype=self.dtype
-        ), scipy_fc_inc
+        ), array_handler.convert_to_torch_sparse_csr(scipy_fc_inc)
 
     def _extract_facets_impl(self) -> tuple[pv.PolyData, sp.csr_array]:
         """Implementation of `extract_facets`
@@ -372,7 +377,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
                 row_indices.append(facet_id)
                 col_indices.append(cell_id)
 
-        poly = pv.PolyData(self.points.numpy(), polygon_cells)
+        poly = pv.PolyData(self.points.detach().numpy(), polygon_cells)
         scipy_fc_inc = sp.csr_array(
             (sign_values, (row_indices, col_indices)),
             shape=(n_facets, n_cells),
@@ -429,9 +434,13 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     @functools.wraps(GraphProcessor.compute_cell_relative_incidence)
     @use_cache_decorator
     def compute_cell_relative_incidence(
-        self, other_mesh: GraphlowMesh
+        self,
+        other_mesh: GraphlowMesh,
+        minimum_n_sharing: int | None = None,
     ) -> torch.Tensor:
         val = self._graph_processor.compute_cell_relative_incidence(
-            self, other_mesh
+            self,
+            other_mesh,
+            minimum_n_sharing=minimum_n_sharing,
         )
         return val
