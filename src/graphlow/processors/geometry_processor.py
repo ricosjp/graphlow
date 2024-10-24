@@ -188,7 +188,7 @@ class GeometryProcessor:
                     ]
                 )
             except Exception as e:
-                print("Some moment matrices are not full rank")
+                logger.error("Some moment matrices are not full rank")
                 raise e
             Dkij = torch.stack(
                 [
