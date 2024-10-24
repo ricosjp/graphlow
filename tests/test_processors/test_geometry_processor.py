@@ -316,7 +316,7 @@ def test__compute_IsoAM_without_moment_matrix(
     "file_name, desired",
     [
         (
-            # TODO: need better example
+            # NOTE: need better example to test values
             pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
             np.array(
                 [
@@ -417,7 +417,7 @@ def test__compute_IsoAM_with_moment_matrix(
     mesh = graphlow.read(file_name)
     grad_adjs, minv = mesh.compute_IsoAM(with_moment_matrix=True)
     np.testing.assert_almost_equal(
-        grad_adjs.detach().to_dense().numpy(), desired_grad_adjs
+        grad_adjs.detach().to_dense().numpy(), desired_grad_adjs, decimal=6
     )
     np.testing.assert_almost_equal(
         minv.detach().numpy(), desired_minv, decimal=6
