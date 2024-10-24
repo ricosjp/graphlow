@@ -398,9 +398,13 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         val = self._geometry_processor.compute_normals(self)
         return val
 
-    @functools.wraps(GeometryProcessor.compute_isoAM)
-    def compute_isoAM(self, moment_matrix: bool = True) -> torch.Tensor:
-        val = self._geometry_processor.compute_isoAM(self, moment_matrix)
+    @functools.wraps(GeometryProcessor.compute_IsoAM)
+    def compute_IsoAM(
+        self, with_moment_matrix: bool = True, consider_volume: bool = False
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        val = self._geometry_processor.compute_IsoAM(
+            self, with_moment_matrix, consider_volume
+        )
         return val
 
     @functools.wraps(GraphProcessor.compute_cell_point_incidence)

@@ -70,7 +70,9 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def compute_isoAM(self, moment_matrix: bool) -> torch.Tensor:
+    def compute_IsoAM(
+        self, with_moment_matrix: bool, consider_volume: bool
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         pass
 
     @abc.abstractmethod

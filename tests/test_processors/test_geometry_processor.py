@@ -302,11 +302,11 @@ def test__volume_gradient(file_name: pathlib.Path):
         )
     ],
 )
-def test__compute_isoAM_without_moment_matrix(
+def test__compute_IsoAM_without_moment_matrix(
     file_name: pathlib.Path, desired: np.ndarray
 ):
     mesh = graphlow.read(file_name)
-    grad_adjs = mesh.compute_isoAM(moment_matrix=False)
+    grad_adjs = mesh.compute_IsoAM(with_moment_matrix=False)
     np.testing.assert_almost_equal(
         grad_adjs.detach().to_dense().numpy(), desired
     )
@@ -314,6 +314,49 @@ def test__compute_isoAM_without_moment_matrix(
 
 @pytest.mark.parametrize(
     "file_name, desired",
+    [
+        (
+            # TODO: need better example
+            pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
+            np.array(
+                [
+                    [
+                        [-1.0, 1.0, 0.0, 0.0],  #  0
+                        [-1.0, 2.0, -0.5, -0.5],  #  1
+                        [0.0, 0.5, -0.5, 0.0],  #  2
+                        [0.0, 0.5, 0.0, -0.5],  #  3
+                    ],
+                    [
+                        [-1.0, 0.0, 1.0, 0.0],  #  0
+                        [0.0, -0.5, 0.5, 0.0],  #  1
+                        [-1.0, -0.5, 2.0, -0.5],  #  2
+                        [0.0, 0.0, 0.5, -0.5],  #  3
+                    ],
+                    [
+                        [-1.0, 0.0, 0.0, 1.0],  #  0
+                        [0.0, -0.5, 0.0, 0.5],  #  1
+                        [0.0, 0.0, -0.5, 0.5],  #  2
+                        [-1.0, -0.5, -0.5, 2.0],  #  3
+                    ],
+                ]
+            ),
+        )
+    ],
+)
+def test__compute_IsoAM_consider_volume(
+    file_name: pathlib.Path, desired: np.ndarray
+):
+    mesh = graphlow.read(file_name)
+    grad_adjs = mesh.compute_IsoAM(
+        with_moment_matrix=False, consider_volume=True
+    )
+    np.testing.assert_almost_equal(
+        grad_adjs.detach().to_dense().numpy(), desired
+    )
+
+
+@pytest.mark.parametrize(
+    "file_name, desired_grad_adjs, desired_minv",
     [
         (
             pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
@@ -339,16 +382,45 @@ def test__compute_isoAM_without_moment_matrix(
                     ],
                 ]
             ),
+            np.array(
+                [
+                    [
+                        [1.0, 0.0, 0.0],  #  0
+                        [0.0, 1.0, 0.0],  #  1
+                        [0.0, 0.0, 1.0],  #  2
+                    ],
+                    [
+                        [1.0, 1.0, 1.0],  #  0
+                        [1.0, 3.0, 1.0],  #  1
+                        [1.0, 1.0, 3.0],  #  2
+                    ],
+                    [
+                        [3.0, 1.0, 1.0],  #  0
+                        [1.0, 1.0, 1.0],  #  1
+                        [1.0, 1.0, 3.0],  #  2
+                    ],
+                    [
+                        [3.0, 1.0, 1.0],  #  0
+                        [1.0, 3.0, 1.0],  #  1
+                        [1.0, 1.0, 1.0],  #  2
+                    ],
+                ]
+            ),
         )
     ],
 )
-def test__compute_isoAM_with_moment_matrix(
-    file_name: pathlib.Path, desired: np.ndarray
+def test__compute_IsoAM_with_moment_matrix(
+    file_name: pathlib.Path,
+    desired_grad_adjs: np.ndarray,
+    desired_minv: np.ndarray,
 ):
     mesh = graphlow.read(file_name)
-    grad_adjs = mesh.compute_isoAM(moment_matrix=True)
+    grad_adjs, minv = mesh.compute_IsoAM(with_moment_matrix=True)
     np.testing.assert_almost_equal(
-        grad_adjs.detach().to_dense().numpy(), desired
+        grad_adjs.detach().to_dense().numpy(), desired_grad_adjs
+    )
+    np.testing.assert_almost_equal(
+        minv.detach().numpy(), desired_minv, decimal=6
     )
 
 
@@ -360,11 +432,12 @@ def test__compute_isoAM_with_moment_matrix(
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__compute_isoAM_shapes(file_name: pathlib.Path):
+def test__compute_IsoAM_shapes(file_name: pathlib.Path):
     mesh = graphlow.read(file_name)
     N, d = mesh.points.shape
-    grad_adjs = mesh.compute_isoAM()
+    grad_adjs, minv = mesh.compute_IsoAM(with_moment_matrix=True)
     np.testing.assert_array_equal(grad_adjs.shape, (d, N, N))
+    np.testing.assert_array_equal(minv.shape, (N, d, d))
 
 
 @pytest.mark.parametrize(

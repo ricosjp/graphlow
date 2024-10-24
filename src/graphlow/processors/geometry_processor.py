@@ -93,15 +93,31 @@ class GeometryProcessor:
             normals[fid] = normal / torch.norm(normal)
         return normals
 
-    def compute_isoAM(
-        self, mesh: IReadOnlyGraphlowMesh, moment_matrix: bool
-    ) -> torch.Tensor:
-        """Compute (dims, n_points, n_points)-shaped isoAM:
+    def compute_IsoAM(
+        self,
+        mesh: IReadOnlyGraphlowMesh,
+        with_moment_matrix: bool = True,
+        consider_volume: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        """Compute (dims, n_points, n_points)-shaped IsoAM.
 
-        Returns
-        -------
-        torch.Tensor[float]
-            (dims, n_points, n_points)-shaped isoAM
+        Parameters
+        ----------
+        with_moment_matrix: bool, optional [True]
+            If True, scale the matrix with moment matrices, which are
+            tensor products of relative position tensors.
+        consider_volume: bool, optional [False]
+            If True, consider effective volume of each vertex.
+
+        Returns:
+        --------
+        If `with_moment_matrix` is True, returns a tuple of two tensors,
+            (IsoAM, Minv).
+        If `with_moment_matrix` is False, returns a single tensor,
+            IsoAM.
+
+        IsoAM: (dims, n_points, n_points)-shaped sparse coo tensor
+        Minv : (n_points, dims, dims)-shaped tensor
         """
         points = mesh.points
         adj = mesh.compute_point_adjacency()
@@ -115,9 +131,7 @@ class GeometryProcessor:
 
         # calculate differences between points
         diff_xj_xi = points[cols] - points[rows]
-        dim_idx = torch.repeat_interleave(
-            torch.arange(dim), adj_indices.shape[1]
-        )
+        dim_idx = torch.arange(dim).repeat_interleave(adj_indices.shape[1])
         diff_indices = torch.cat(
             (dim_idx.unsqueeze(0), adj_indices.repeat(1, dim))
         )
@@ -126,55 +140,69 @@ class GeometryProcessor:
             diff_indices, diff_vals, size=(dim, *adj.shape)
         ).coalesce()
 
-        # calculate inverse norm
-        norm_diff = torch.sum(diff_kij.pow(2), dim=0).pow(1 / 2)
-        inv_norm_diff = norm_diff.pow(-1)
-        if torch.isinf(inv_norm_diff.values()).any():
+        # calculate inverse-square norm
+        weight_by_squarenorm_ij = diff_kij.pow(2).sum(dim=0).pow(-1)
+        if torch.isinf(weight_by_squarenorm_ij.values()).any():
             raise AssertionError("The input contains duplicate points.")
 
-        # calculate unit vector of x_j - x_i
-        unit_vals = diff_kij.values() * inv_norm_diff.values().repeat(dim)
-        unit_kij = torch.sparse_coo_tensor(
-            diff_indices, unit_vals, diff_kij.shape
+        # consider effective volumes as weight
+        if consider_volume:
+            cell_volumes = mesh.compute_volumes()
+            effective_volumes = self._convert_elemental2nodal(
+                mesh, cell_volumes
+            )
+            W_vals = effective_volumes[cols] / effective_volumes[rows]
+            Wij = torch.sparse_coo_tensor(adj_indices, W_vals, size=adj.shape)
+            weight_by_squarenorm_ij *= Wij
+
+        weighted_diff_kij = torch.stack(
+            [diff_kij[k] * weight_by_squarenorm_ij for k in range(dim)]
         )
-        unit_ikj = unit_kij.permute((1, 0, 2))
+
+        # a function to create a grad operator from the given matrix
+        def create_grad_operator_from(Dkij: torch.Tensor) -> torch.Tensor:
+            L_values = torch.sum(Dkij, dim=2).values().reshape(-1, n_points)
+            L_indices = torch.arange(n_points).expand(2, -1)
+            Dhat = torch.stack(
+                [
+                    Dkij[k]
+                    - torch.sparse_coo_tensor(
+                        L_indices, L_values[k], size=(n_points, n_points)
+                    )
+                    for k in range(dim)
+                ]
+            )
+            return Dhat
 
         # compute moment matrix for each point
-        if moment_matrix:
-            M = torch.stack(
-                [unit_kj.mm(unit_kj.T) for unit_kj in unit_ikj]
-            ).to_dense()
-
+        if with_moment_matrix:
+            diff_ijk = diff_kij.permute((1, 2, 0))
+            weighted_diff_ikj = weighted_diff_kij.permute(1, 0, 2)
             try:
-                Dkij = torch.stack(
+                inversed_moment_tensors = torch.stack(
                     [
-                        M[i].inverse() @ unit_ikj[i] * inv_norm_diff[i]
+                        torch.inverse(
+                            weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
+                        )
                         for i in range(n_points)
                     ]
-                ).permute((1, 0, 2))
+                )
             except Exception as e:
                 print("Some moment matrices are not full rank")
                 raise e
-        else:
             Dkij = torch.stack(
                 [
-                    unit_ikj[i] * inv_norm_diff[i].to_dense()
+                    (
+                        inversed_moment_tensors[i] @ weighted_diff_ikj[i]
+                    ).to_sparse_coo()
                     for i in range(n_points)
                 ]
             ).permute((1, 0, 2))
-
-        L_values = torch.sum(Dkij, dim=2).values().reshape(-1, n_points)
-        L_indices = torch.arange(n_points).expand(2, -1)
-        Dhat = torch.stack(
-            [
-                Dkij[k]
-                - torch.sparse_coo_tensor(
-                    L_indices, L_values[k], size=(n_points, n_points)
-                )
-                for k in range(dim)
-            ]
-        ).coalesce()
-        return Dhat
+            isoAM = create_grad_operator_from(Dkij).coalesce()
+            return isoAM, inversed_moment_tensors
+        else:
+            isoAM = create_grad_operator_from(weighted_diff_kij).coalesce()
+            return isoAM
 
     #
     # Area function
@@ -340,3 +368,15 @@ class GeometryProcessor:
             tet_volumes = torch.abs(torch.sum(cross * cc2fc, dim=1)) / 6.0
             volume += torch.sum(tet_volumes)
         return volume
+
+    #
+    # data conversion between elements and nodes
+    #
+    def _convert_elemental2nodal(
+        self, mesh: IReadOnlyGraphlowMesh, elemental_data: torch.Tensor
+    ) -> torch.Tensor:
+        pc_inc = mesh.compute_cell_point_incidence().to_sparse_coo().T
+        n_points_in_cells = pc_inc.sum(dim=0).to_dense().pow(-1)
+        weighted_pc_inc = pc_inc.multiply(n_points_in_cells)
+        nodal_data = weighted_pc_inc @ elemental_data
+        return nodal_data
