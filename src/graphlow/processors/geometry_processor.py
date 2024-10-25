@@ -174,35 +174,35 @@ class GeometryProcessor:
             )
             return Dhat
 
-        # compute moment matrix for each point
-        if with_moment_matrix:
-            diff_ijk = diff_kij.permute((1, 2, 0))
-            weighted_diff_ikj = weighted_diff_kij.permute(1, 0, 2)
-            try:
-                inversed_moment_tensors = torch.stack(
-                    [
-                        torch.inverse(
-                            weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
-                        )
-                        for i in range(n_points)
-                    ]
-                )
-            except Exception as e:
-                logger.error("Some moment matrices are not full rank")
-                raise e
-            Dkij = torch.stack(
-                [
-                    (
-                        inversed_moment_tensors[i] @ weighted_diff_ikj[i]
-                    ).to_sparse_coo()
-                    for i in range(n_points)
-                ]
-            ).permute((1, 0, 2))
-            isoAM = create_grad_operator_from(Dkij).coalesce()
-            return isoAM, inversed_moment_tensors
-        else:
+        if not with_moment_matrix:
             isoAM = create_grad_operator_from(weighted_diff_kij).coalesce()
             return isoAM, None
+
+        # compute moment matrix for each point
+        diff_ijk = diff_kij.permute((1, 2, 0))
+        weighted_diff_ikj = weighted_diff_kij.permute(1, 0, 2)
+        try:
+            inversed_moment_tensors = torch.stack(
+                [
+                    torch.inverse(
+                        weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
+                    )
+                    for i in range(n_points)
+                ]
+            )
+        except Exception as e:
+            logger.error("Some moment matrices are not full rank")
+            raise e
+        Dkij = torch.stack(
+            [
+                (
+                    inversed_moment_tensors[i] @ weighted_diff_ikj[i]
+                ).to_sparse_coo()
+                for i in range(n_points)
+            ]
+        ).permute((1, 0, 2))
+        isoAM = create_grad_operator_from(Dkij).coalesce()
+        return isoAM, inversed_moment_tensors
 
     #
     # Area function
