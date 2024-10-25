@@ -306,7 +306,7 @@ def test__compute_IsoAM_without_moment_matrix(
     file_name: pathlib.Path, desired: np.ndarray
 ):
     mesh = graphlow.read(file_name)
-    grad_adjs = mesh.compute_IsoAM(with_moment_matrix=False)
+    grad_adjs, _ = mesh.compute_IsoAM(with_moment_matrix=False)
     np.testing.assert_almost_equal(
         grad_adjs.detach().to_dense().numpy(), desired
     )

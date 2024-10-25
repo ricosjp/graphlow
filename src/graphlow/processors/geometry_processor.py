@@ -98,7 +98,7 @@ class GeometryProcessor:
         mesh: IReadOnlyGraphlowMesh,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, None | torch.Tensor]:
         """Compute (dims, n_points, n_points)-shaped IsoAM.
 
         Parameters
@@ -113,8 +113,8 @@ class GeometryProcessor:
         --------
         If `with_moment_matrix` is True, returns a tuple of two tensors,
             (IsoAM, Minv).
-        If `with_moment_matrix` is False, returns a single tensor,
-            IsoAM.
+        If `with_moment_matrix` is False, returns,
+            (IsoAM, None).
 
         IsoAM: (dims, n_points, n_points)-shaped sparse coo tensor
         Minv : (n_points, dims, dims)-shaped tensor
@@ -202,7 +202,7 @@ class GeometryProcessor:
             return isoAM, inversed_moment_tensors
         else:
             isoAM = create_grad_operator_from(weighted_diff_kij).coalesce()
-            return isoAM
+            return isoAM, None
 
     #
     # Area function

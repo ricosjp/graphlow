@@ -401,7 +401,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     @functools.wraps(GeometryProcessor.compute_IsoAM)
     def compute_IsoAM(
         self, with_moment_matrix: bool = True, consider_volume: bool = False
-    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, None | torch.Tensor]:
         val = self._geometry_processor.compute_IsoAM(
             self, with_moment_matrix, consider_volume
         )
