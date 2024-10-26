@@ -143,7 +143,7 @@ class GeometryProcessor:
         # calculate inverse-square norm
         weight_by_squarenorm_ij = diff_kij.pow(2).sum(dim=0).pow(-1)
         if torch.isinf(weight_by_squarenorm_ij.values()).any():
-            raise AssertionError("The input contains duplicate points.")
+            raise ZeroDivisionError("The input contains duplicate points.")
 
         # consider effective volumes as weight
         if consider_volume:
