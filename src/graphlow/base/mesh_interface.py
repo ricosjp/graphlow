@@ -56,6 +56,20 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def convert_elemental2nodal(
+        self,
+        elemental_data: torch.Tensor,
+        mode: str,
+    ) -> torch.Tensor:
+        pass
+
+    @abc.abstractmethod
+    def convert_nodal2elemental(
+        self, nodal_data: torch.Tensor, mode: str
+    ) -> torch.Tensor:
+        pass
+
+    @abc.abstractmethod
     def compute_areas(self, raise_negative_area: bool = True) -> torch.Tensor:
         pass
 
@@ -70,7 +84,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def compute_IsoAM(
+    def compute_isoAM(
         self, with_moment_matrix: bool, consider_volume: bool
     ) -> tuple[torch.Tensor, None | torch.Tensor]:
         pass

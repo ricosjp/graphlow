@@ -15,6 +15,7 @@ from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
 from graphlow.base.tensor_property import GraphlowTensorProperty
 from graphlow.processors.geometry_processor import GeometryProcessor
 from graphlow.processors.graph_processor import GraphProcessor
+from graphlow.processors.isoAM_processor import IsoAMProcessor
 from graphlow.util import constants
 from graphlow.util.enums import FeatureName
 from graphlow.util.logger import get_logger
@@ -66,6 +67,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         """
         self._geometry_processor = GeometryProcessor()
         self._graph_processor = GraphProcessor()
+        self._isoAM_processor = IsoAMProcessor()
         self._cached = {}
 
         self._tensor_property = GraphlowTensorProperty(
@@ -379,6 +381,24 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         )
         return poly, scipy_fc_inc
 
+    @functools.wraps(GeometryProcessor.convert_elemental2nodal)
+    def convert_elemental2nodal(
+        self, elemental_data: torch.Tensor, mode: str = "mean"
+    ) -> torch.Tensor:
+        val = self._geometry_processor.convert_elemental2nodal(
+            self, elemental_data, mode
+        )
+        return val
+
+    @functools.wraps(GeometryProcessor.convert_nodal2elemental)
+    def convert_nodal2elemental(
+        self, nodal_data: torch.Tensor, mode: str = "mean"
+    ) -> torch.Tensor:
+        val = self._geometry_processor.convert_nodal2elemental(
+            self, nodal_data, mode
+        )
+        return val
+
     @functools.wraps(GeometryProcessor.compute_areas)
     def compute_areas(self, raise_negative_area: bool = True) -> torch.Tensor:
         val = self._geometry_processor.compute_areas(self, raise_negative_area)
@@ -398,11 +418,11 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         val = self._geometry_processor.compute_normals(self)
         return val
 
-    @functools.wraps(GeometryProcessor.compute_IsoAM)
-    def compute_IsoAM(
+    @functools.wraps(IsoAMProcessor.compute_isoAM)
+    def compute_isoAM(
         self, with_moment_matrix: bool = True, consider_volume: bool = False
     ) -> tuple[torch.Tensor, None | torch.Tensor]:
-        val = self._geometry_processor.compute_IsoAM(
+        val = self._isoAM_processor.compute_isoAM(
             self, with_moment_matrix, consider_volume
         )
         return val
