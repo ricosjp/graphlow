@@ -70,13 +70,11 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def compute_areas(self, raise_negative_area: bool = True) -> torch.Tensor:
+    def compute_areas(self, raise_negative_area: bool) -> torch.Tensor:
         pass
 
     @abc.abstractmethod
-    def compute_volumes(
-        self, raise_negative_volume: bool = True
-    ) -> torch.Tensor:
+    def compute_volumes(self, raise_negative_volume: bool) -> torch.Tensor:
         pass
 
     @abc.abstractmethod
