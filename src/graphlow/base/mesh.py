@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 import pathlib
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pyvista as pv
@@ -388,7 +388,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
     @functools.wraps(GeometryProcessor.convert_elemental2nodal)
     def convert_elemental2nodal(
-        self, elemental_data: torch.Tensor, mode: str = "mean"
+        self,
+        elemental_data: torch.Tensor,
+        mode: Literal["mean", "effective"] = "mean",
     ) -> torch.Tensor:
         val = self._geometry_processor.convert_elemental2nodal(
             self, elemental_data, mode
@@ -397,7 +399,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
     @functools.wraps(GeometryProcessor.convert_nodal2elemental)
     def convert_nodal2elemental(
-        self, nodal_data: torch.Tensor, mode: str = "mean"
+        self,
+        nodal_data: torch.Tensor,
+        mode: Literal["mean", "effective"] = "mean",
     ) -> torch.Tensor:
         val = self._geometry_processor.convert_nodal2elemental(
             self, nodal_data, mode

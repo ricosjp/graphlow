@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+from typing import Literal
 
 import pyvista as pv
 import torch
@@ -59,13 +60,13 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     def convert_elemental2nodal(
         self,
         elemental_data: torch.Tensor,
-        mode: str,
+        mode: Literal["mean", "effective"],
     ) -> torch.Tensor:
         pass
 
     @abc.abstractmethod
     def convert_nodal2elemental(
-        self, nodal_data: torch.Tensor, mode: str
+        self, nodal_data: torch.Tensor, mode: Literal["mean", "effective"]
     ) -> torch.Tensor:
         pass
 

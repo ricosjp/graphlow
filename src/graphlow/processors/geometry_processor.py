@@ -17,7 +17,7 @@ class GeometryProcessor:
         self,
         mesh: IReadOnlyGraphlowMesh,
         elemental_data: torch.Tensor,
-        mode: str = "mean",
+        mode: Literal["mean", "effective"] = "mean",
     ) -> torch.Tensor:
         pc_inc = mesh.compute_cell_point_incidence().to_sparse_coo().T
         if mode == "mean":
@@ -37,7 +37,7 @@ class GeometryProcessor:
         self,
         mesh: IReadOnlyGraphlowMesh,
         nodal_data: torch.Tensor,
-        mode: str = "mean",
+        mode: Literal["mean", "effective"] = "mean",
     ) -> torch.Tensor:
         cp_inc = mesh.compute_cell_point_incidence().to_sparse_coo()
         if mode == "mean":
