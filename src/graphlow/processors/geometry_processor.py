@@ -1,3 +1,5 @@
+from typing import Literal
+
 import pyvista as pv
 import torch
 
@@ -25,13 +27,12 @@ class GeometryProcessor:
             mean_pc_inc = pc_inc.multiply(n_connected_cells.pow(-1).view(-1, 1))
             nodal_data = mean_pc_inc @ elemental_data
             return nodal_data
-        elif mode == "effective":
+        if mode == "effective":
             n_points_in_cells = pc_inc.sum(dim=0).to_dense()
             effective_pc_inc = pc_inc.multiply(n_points_in_cells.pow(-1))
             nodal_data = effective_pc_inc @ elemental_data
             return nodal_data
-        else:
-            raise ValueError(f"Invalid mode: {mode}")
+        raise ValueError(f"Invalid mode: {mode}")
 
     def convert_nodal2elemental(
         self,
@@ -45,13 +46,12 @@ class GeometryProcessor:
             mean_cp_inc = cp_inc.multiply(n_points_in_cells.pow(-1).view(-1, 1))
             nodal_data = mean_cp_inc @ nodal_data
             return nodal_data
-        elif mode == "effective":
+        if mode == "effective":
             n_connected_cells = cp_inc.sum(dim=0).to_dense()
             effective_cp_inc = cp_inc.multiply(n_connected_cells.pow(-1))
             nodal_data = effective_cp_inc @ nodal_data
             return nodal_data
-        else:
-            raise ValueError(f"Invalid mode: {mode}")
+        raise ValueError(f"Invalid mode: {mode}")
 
     def compute_areas(
         self, mesh: IReadOnlyGraphlowMesh, raise_negative_area: bool = True
