@@ -1,7 +1,12 @@
+from typing import Literal
+
 import pyvista as pv
 import torch
 
 from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
+from graphlow.util.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class GeometryProcessor:
@@ -9,6 +14,44 @@ class GeometryProcessor:
 
     def __init__(self) -> None:
         pass
+
+    def convert_elemental2nodal(
+        self,
+        mesh: IReadOnlyGraphlowMesh,
+        elemental_data: torch.Tensor,
+        mode: Literal["mean", "effective"] = "mean",
+    ) -> torch.Tensor:
+        pc_inc = mesh.compute_cell_point_incidence().to_sparse_coo().T
+        if mode == "mean":
+            n_connected_cells = pc_inc.sum(dim=1).to_dense()
+            mean_pc_inc = pc_inc.multiply(n_connected_cells.pow(-1).view(-1, 1))
+            nodal_data = mean_pc_inc @ elemental_data
+            return nodal_data
+        if mode == "effective":
+            n_points_in_cells = pc_inc.sum(dim=0).to_dense()
+            effective_pc_inc = pc_inc.multiply(n_points_in_cells.pow(-1))
+            nodal_data = effective_pc_inc @ elemental_data
+            return nodal_data
+        raise ValueError(f"Invalid mode: {mode}")
+
+    def convert_nodal2elemental(
+        self,
+        mesh: IReadOnlyGraphlowMesh,
+        nodal_data: torch.Tensor,
+        mode: Literal["mean", "effective"] = "mean",
+    ) -> torch.Tensor:
+        cp_inc = mesh.compute_cell_point_incidence().to_sparse_coo()
+        if mode == "mean":
+            n_points_in_cells = cp_inc.sum(dim=1).to_dense()
+            mean_cp_inc = cp_inc.multiply(n_points_in_cells.pow(-1).view(-1, 1))
+            nodal_data = mean_cp_inc @ nodal_data
+            return nodal_data
+        if mode == "effective":
+            n_connected_cells = cp_inc.sum(dim=0).to_dense()
+            effective_cp_inc = cp_inc.multiply(n_connected_cells.pow(-1))
+            nodal_data = effective_cp_inc @ nodal_data
+            return nodal_data
+        raise ValueError(f"Invalid mode: {mode}")
 
     def compute_areas(
         self, mesh: IReadOnlyGraphlowMesh, raise_negative_area: bool = True
