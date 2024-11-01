@@ -436,6 +436,18 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         )
         return val
 
+    @functools.wraps(IsoAMProcessor.compute_isoAM_with_Neumann)
+    def compute_isoAM_with_Neumann(
+        self,
+        normal_weight: float = 10.0,
+        with_moment_matrix: bool = True,
+        consider_volume: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None | torch.Tensor]:
+        val = self._isoAM_processor.compute_isoAM_with_Neumann(
+            self, normal_weight, with_moment_matrix, consider_volume
+        )
+        return val
+
     @functools.wraps(GraphProcessor.compute_cell_point_incidence)
     @use_cache_decorator
     def compute_cell_point_incidence(self) -> torch.Tensor:

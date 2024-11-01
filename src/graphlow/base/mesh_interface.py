@@ -57,6 +57,18 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def extract_surface(
+        self, add_original_index: bool
+    ) -> IReadOnlyGraphlowMesh:
+        pass
+
+    @abc.abstractmethod
+    def extract_facets(
+        self, add_original_index: bool
+    ) -> tuple[IReadOnlyGraphlowMesh, torch.Tensor]:
+        pass
+
+    @abc.abstractmethod
     def convert_elemental2nodal(
         self,
         elemental_data: torch.Tensor,
@@ -89,6 +101,16 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def compute_isoAM_with_Neumann(
+        self,
+        mesh: IReadOnlyGraphlowMesh,
+        normal_weight: float,
+        with_moment_matrix: bool,
+        consider_volume: bool,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None | torch.Tensor]:
+        pass
+
+    @abc.abstractmethod
     def compute_cell_point_incidence(self) -> torch.Tensor:
         pass
 
@@ -98,4 +120,16 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def compute_point_adjacency(self) -> torch.Tensor:
+        pass
+
+    @abc.abstractmethod
+    def compute_point_relative_incidence(
+        self, other_mesh: IReadOnlyGraphlowMesh
+    ) -> torch.Tensor:
+        pass
+
+    @abc.abstractmethod
+    def compute_cell_relative_incidence(
+        self, other_mesh: IReadOnlyGraphlowMesh, minimum_n_sharing: int | None
+    ) -> torch.Tensor:
         pass
