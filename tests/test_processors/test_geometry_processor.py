@@ -124,6 +124,74 @@ def test__tetrahedralize_cell(
 @pytest.mark.parametrize(
     "file_name",
     [
+        pathlib.Path("tests/data/vtu/primitive_cell/cube.vtu"),
+    ],
+)
+def test__convert_elemental2nodal_mean(file_name: pathlib.Path):
+    volmesh = graphlow.read(file_name)
+    cell_volumes = volmesh.compute_volumes()
+    nodal_vols = volmesh.convert_elemental2nodal(cell_volumes)
+    desired = (
+        volmesh.pvmesh.compute_cell_quality(quality_measure="volume")
+        .cell_data_to_point_data()
+        .point_data["CellQuality"]
+    )
+    np.testing.assert_almost_equal(nodal_vols.detach().numpy(), desired)
+
+
+@pytest.mark.parametrize(
+    "file_name, desired",
+    [
+        (
+            pathlib.Path("tests/data/vtu/primitive_cell/cube.vtu"),
+            0.125 * np.ones(8),
+        )
+    ],
+)
+def test__convert_elemental2nodal_effective(
+    file_name: pathlib.Path, desired: np.ndarray
+):
+    volmesh = graphlow.read(file_name)
+    cell_volumes = volmesh.compute_volumes()
+    nodal_vols = volmesh.convert_elemental2nodal(cell_volumes, mode="effective")
+    np.testing.assert_almost_equal(nodal_vols.detach().numpy(), desired)
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        pathlib.Path("tests/data/vtu/primitive_cell/cube.vtu"),
+    ],
+)
+def test__convert_nodal2elemental_mean(file_name: pathlib.Path):
+    volmesh = graphlow.read(file_name)
+    elem_points = volmesh.convert_nodal2elemental(volmesh.points)
+    desired = volmesh.pvmesh.cell_centers().points
+    np.testing.assert_almost_equal(elem_points.detach().numpy(), desired)
+
+
+@pytest.mark.parametrize(
+    "file_name, desired",
+    [
+        (
+            pathlib.Path("tests/data/vtu/primitive_cell/cube.vtu"),
+            np.full((1, 3), 4.0),
+        )
+    ],
+)
+def test__convert_nodal2elemental_effective(
+    file_name: pathlib.Path, desired: np.ndarray
+):
+    volmesh = graphlow.read(file_name)
+    elem_points = volmesh.convert_nodal2elemental(
+        volmesh.points, mode="effective"
+    )
+    np.testing.assert_almost_equal(elem_points.detach().numpy(), desired)
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
         # primitives
         pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
         pathlib.Path("tests/data/vtu/primitive_cell/pyramid.vtu"),
