@@ -101,7 +101,8 @@ class IsoAMProcessor:
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None | torch.Tensor]:
-        """Compute (dims, n_points, n_points)-shaped Neumann boundary model IsoAM.
+        """Compute (dims, n_points, n_points)-shaped \
+            Neumann boundary model IsoAM.
 
         Parameters
         ----------

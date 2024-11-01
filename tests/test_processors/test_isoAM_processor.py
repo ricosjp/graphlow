@@ -422,7 +422,8 @@ def test__compute_isoAM_shapes(file_name: pathlib.Path):
 
 
 @pytest.mark.parametrize(
-    "file_name, normal_weight, desired_grad_adjs, desired_normals, desired_minv",
+    "file_name, normal_weight, \
+    desired_grad_adjs, desired_normals, desired_minv",
     [
         (
             pathlib.Path("tests/data/vtu/primitive_cell/cube.vtu"),
