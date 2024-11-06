@@ -436,14 +436,14 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         )
         return val
 
-    @functools.wraps(IsoAMProcessor.compute_isoAM_with_Neumann)
-    def compute_isoAM_with_Neumann(
+    @functools.wraps(IsoAMProcessor.compute_isoAM_with_neumann)
+    def compute_isoAM_with_neumann(
         self,
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None | torch.Tensor]:
-        val = self._isoAM_processor.compute_isoAM_with_Neumann(
+        val = self._isoAM_processor.compute_isoAM_with_neumann(
             self, normal_weight, with_moment_matrix, consider_volume
         )
         return val

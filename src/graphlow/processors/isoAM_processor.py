@@ -94,7 +94,7 @@ class IsoAMProcessor:
         isoAM = self._create_grad_operator_from(Dkij).coalesce()
         return isoAM, inversed_moment_tensors
 
-    def compute_isoAM_with_Neumann(
+    def compute_isoAM_with_neumann(
         self,
         mesh: IReadOnlyGraphlowMesh,
         normal_weight: float = 10.0,
@@ -102,7 +102,7 @@ class IsoAMProcessor:
         consider_volume: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None | torch.Tensor]:
         """Compute (dims, n_points, n_points)-shaped \
-            Neumann boundary model IsoAM.
+            neumann boundary model IsoAM.
 
         Parameters
         ----------

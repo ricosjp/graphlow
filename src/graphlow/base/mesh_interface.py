@@ -101,7 +101,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def compute_isoAM_with_Neumann(
+    def compute_isoAM_with_neumann(
         self,
         mesh: IReadOnlyGraphlowMesh,
         normal_weight: float,
