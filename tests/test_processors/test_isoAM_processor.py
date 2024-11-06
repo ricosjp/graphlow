@@ -224,6 +224,40 @@ def test___create_grad_operator_from(np_Akij: np.ndarray, desired: np.ndarray):
     "file_name, desired",
     [
         (
+            pathlib.Path("tests/data/vtk/hex/mesh.vtk"),
+            np.array(
+                [
+                    [-1 / np.sqrt(3), -1 / np.sqrt(3), -1 / np.sqrt(3)],
+                    [1 / np.sqrt(3), -1 / np.sqrt(3), -1 / np.sqrt(3)],
+                    [1 / np.sqrt(3), 1 / np.sqrt(3), -1 / np.sqrt(3)],
+                    [-1 / np.sqrt(3), 1 / np.sqrt(3), -1 / np.sqrt(3)],
+                    [-1 / np.sqrt(2), -1 / np.sqrt(2), 0.0],
+                    [1 / np.sqrt(2), -1 / np.sqrt(2), 0.0],
+                    [1 / np.sqrt(2), 1 / np.sqrt(2), 0.0],
+                    [-1 / np.sqrt(2), 1 / np.sqrt(2), 0.0],
+                    [-1 / np.sqrt(3), -1 / np.sqrt(3), 1 / np.sqrt(3)],
+                    [1 / np.sqrt(3), -1 / np.sqrt(3), 1 / np.sqrt(3)],
+                    [1 / np.sqrt(3), 1 / np.sqrt(3), 1 / np.sqrt(3)],
+                    [-1 / np.sqrt(3), 1 / np.sqrt(3), 1 / np.sqrt(3)],
+                ]
+            ),
+        )
+    ],
+)
+def test___compute_normals_on_surface_points(
+    file_name: pathlib.Path, desired: np.ndarray
+):
+    mesh = graphlow.read(file_name)
+    isoAM_processor = IsoAMProcessor()
+
+    normals = isoAM_processor._compute_normals_on_surface_points(mesh)
+    np.testing.assert_almost_equal(normals.detach().numpy(), desired)
+
+
+@pytest.mark.parametrize(
+    "file_name, desired",
+    [
+        (
             pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
             np.array(
                 [
@@ -384,4 +418,150 @@ def test__compute_isoAM_shapes(file_name: pathlib.Path):
     N, d = mesh.points.shape
     grad_adjs, minv = mesh.compute_isoAM(with_moment_matrix=True)
     np.testing.assert_array_equal(grad_adjs.shape, (d, N, N))
+    np.testing.assert_array_equal(minv.shape, (N, d, d))
+
+
+@pytest.mark.parametrize(
+    "file_name, normal_weight, \
+    desired_grad_adjs, desired_normals, desired_minv",
+    [
+        (
+            pathlib.Path("tests/data/vtu/primitive_cell/cube.vtu"),
+            2.0,
+            (1.0 / 18.0)
+            * np.array(
+                [
+                    [
+                        [-7.0, 9.0, 3.0, -3.0, -3.0, 3.0, 1.0, -3.0],
+                        [-9.0, 7.0, 3.0, -3.0, -3.0, 3.0, 3.0, -1.0],
+                        [-3.0, 3.0, 7.0, -9.0, -1.0, 3.0, 3.0, -3.0],
+                        [-3.0, 3.0, 9.0, -7.0, -3.0, 1.0, 3.0, -3.0],
+                        [-3.0, 3.0, 1.0, -3.0, -7.0, 9.0, 3.0, -3.0],
+                        [-3.0, 3.0, 3.0, -1.0, -9.0, 7.0, 3.0, -3.0],
+                        [-1.0, 3.0, 3.0, -3.0, -3.0, 3.0, 7.0, -9.0],
+                        [-3.0, 1.0, 3.0, -3.0, -3.0, 3.0, 9.0, -7.0],
+                    ],
+                    [
+                        [-7.0, -3.0, 3.0, 9.0, -3.0, -3.0, 1.0, 3.0],
+                        [-3.0, -7.0, 9.0, 3.0, -3.0, -3.0, 3.0, 1.0],
+                        [-3.0, -9.0, 7.0, 3.0, -1.0, -3.0, 3.0, 3.0],
+                        [-9.0, -3.0, 3.0, 7.0, -3.0, -1.0, 3.0, 3.0],
+                        [-3.0, -3.0, 1.0, 3.0, -7.0, -3.0, 3.0, 9.0],
+                        [-3.0, -3.0, 3.0, 1.0, -3.0, -7.0, 9.0, 3.0],
+                        [-1.0, -3.0, 3.0, 3.0, -3.0, -9.0, 7.0, 3.0],
+                        [-3.0, -1.0, 3.0, 3.0, -9.0, -3.0, 3.0, 7.0],
+                    ],
+                    [
+                        [-7.0, -3.0, -3.0, -3.0, 9.0, 3.0, 1.0, 3.0],
+                        [-3.0, -7.0, -3.0, -3.0, 3.0, 9.0, 3.0, 1.0],
+                        [-3.0, -3.0, -7.0, -3.0, 1.0, 3.0, 9.0, 3.0],
+                        [-3.0, -3.0, -3.0, -7.0, 3.0, 1.0, 3.0, 9.0],
+                        [-9.0, -3.0, -1.0, -3.0, 7.0, 3.0, 3.0, 3.0],
+                        [-3.0, -9.0, -3.0, -1.0, 3.0, 7.0, 3.0, 3.0],
+                        [-1.0, -3.0, -9.0, -3.0, 3.0, 3.0, 7.0, 3.0],
+                        [-3.0, -1.0, -3.0, -9.0, 3.0, 3.0, 3.0, 7.0],
+                    ],
+                ]
+            ),
+            (1.0 / np.sqrt(3.0))
+            * np.array(
+                [
+                    [-1.0, -1.0, -1.0],
+                    [1.0, -1.0, -1.0],
+                    [1.0, 1.0, -1.0],
+                    [-1.0, 1.0, -1.0],
+                    [-1.0, -1.0, 1.0],
+                    [1.0, -1.0, 1.0],
+                    [1.0, 1.0, 1.0],
+                    [-1.0, 1.0, 1.0],
+                ]
+            ),
+            (1.0 / 6.0)
+            * np.array(
+                [
+                    [  # 0
+                        [3.0, -1.0, -1.0],
+                        [-1.0, 3.0, -1.0],
+                        [-1.0, -1.0, 3.0],
+                    ],
+                    [  # 1
+                        [3.0, 1.0, 1.0],
+                        [1.0, 3.0, -1.0],
+                        [1.0, -1.0, 3.0],
+                    ],
+                    [  # 2
+                        [3.0, -1.0, 1.0],
+                        [-1.0, 3.0, 1.0],
+                        [1.0, 1.0, 3.0],
+                    ],
+                    [  # 3
+                        [3.0, 1.0, -1.0],
+                        [1.0, 3.0, 1.0],
+                        [-1.0, 1.0, 3.0],
+                    ],
+                    [  # 4
+                        [3.0, -1.0, 1.0],
+                        [-1.0, 3.0, 1.0],
+                        [1.0, 1.0, 3.0],
+                    ],
+                    [  # 5
+                        [3.0, 1.0, -1.0],
+                        [1.0, 3.0, 1.0],
+                        [-1.0, 1.0, 3.0],
+                    ],
+                    [  # 6
+                        [3.0, -1.0, -1.0],
+                        [-1.0, 3.0, -1.0],
+                        [-1.0, -1.0, 3.0],
+                    ],
+                    [  # 7
+                        [3.0, 1.0, 1.0],
+                        [1.0, 3.0, -1.0],
+                        [1.0, -1.0, 3.0],
+                    ],
+                ]
+            ),
+        )
+    ],
+)
+def test__compute_isoAM_with_neumann(
+    file_name: pathlib.Path,
+    normal_weight: float,
+    desired_grad_adjs: np.ndarray,
+    desired_normals: np.ndarray,
+    desired_minv: np.ndarray,
+):
+    mesh = graphlow.read(file_name)
+    desired_wnormals = normal_weight * desired_normals
+
+    grad_adjs, wnormals, minv = mesh.compute_isoAM_with_neumann(
+        normal_weight=normal_weight, with_moment_matrix=True
+    )
+    np.testing.assert_almost_equal(
+        grad_adjs.detach().to_dense().numpy(), desired_grad_adjs, decimal=6
+    )
+    np.testing.assert_almost_equal(
+        wnormals.detach().numpy(), desired_wnormals, decimal=6
+    )
+    np.testing.assert_almost_equal(
+        minv.detach().numpy(), desired_minv, decimal=6
+    )
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        pathlib.Path("tests/data/vtk/hex/mesh.vtk"),
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
+    ],
+)
+def test__compute_isoAM_with_neumann_shapes(file_name: pathlib.Path):
+    mesh = graphlow.read(file_name)
+    N, d = mesh.points.shape
+    grad_adjs, wnormals, minv = mesh.compute_isoAM_with_neumann(
+        with_moment_matrix=True
+    )
+    np.testing.assert_array_equal(grad_adjs.shape, (d, N, N))
+    np.testing.assert_array_equal(wnormals.shape, (N, d))
     np.testing.assert_array_equal(minv.shape, (N, d, d))
