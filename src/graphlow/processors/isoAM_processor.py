@@ -100,7 +100,7 @@ class IsoAMProcessor:
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None | torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, None | torch.Tensor]:
         """Compute (dims, n_points, n_points)-shaped \
             neumann boundary model IsoAM.
 
@@ -116,13 +116,12 @@ class IsoAMProcessor:
 
         Returns:
         --------
-        If `with_moment_matrix` is True, returns a tuple of 4 tensors,
-            (NIsoAM, normals, weighted_normals, Minv).
+        If `with_moment_matrix` is True, returns a tuple of 3 tensors,
+            (NIsoAM, weighted_normals, Minv).
         If `with_moment_matrix` is False, returns a tuple,
-            (NIsoAM, normals, weighted_normals, None).
+            (NIsoAM, weighted_normals, None).
 
         NIsoAM: (dims, n_points, n_points)-shaped sparse coo tensor
-        normals: (n_points, dims)-shaped tensor
         weighted_normals: (n_points, dims)-shaped tensor
         Minv : (n_points, dims, dims)-shaped tensor
         """
@@ -154,7 +153,7 @@ class IsoAMProcessor:
             isoAM = self._create_grad_operator_from(
                 weighted_diff_kij
             ).coalesce()
-            return isoAM, normals, weighted_normals, None
+            return isoAM, weighted_normals, None
 
         # compute inversed moment matrix for each point
         diff_ijk = diff_kij.permute((1, 2, 0))
@@ -183,7 +182,7 @@ class IsoAMProcessor:
             ]
         ).permute((1, 0, 2))
         isoAM = self._create_grad_operator_from(Dkij).coalesce()
-        return isoAM, normals, weighted_normals, inversed_moment_tensors
+        return isoAM, weighted_normals, inversed_moment_tensors
 
     def _compute_differences(
         self, points: torch.Tensor, adj: torch.Tensor

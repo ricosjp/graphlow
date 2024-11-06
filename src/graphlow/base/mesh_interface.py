@@ -107,7 +107,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         normal_weight: float,
         with_moment_matrix: bool,
         consider_volume: bool,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None | torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, None | torch.Tensor]:
         pass
 
     @abc.abstractmethod

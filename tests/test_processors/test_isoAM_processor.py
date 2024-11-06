@@ -534,14 +534,11 @@ def test__compute_isoAM_with_neumann(
     mesh = graphlow.read(file_name)
     desired_wnormals = normal_weight * desired_normals
 
-    grad_adjs, normals, wnormals, minv = mesh.compute_isoAM_with_neumann(
+    grad_adjs, wnormals, minv = mesh.compute_isoAM_with_neumann(
         normal_weight=normal_weight, with_moment_matrix=True
     )
     np.testing.assert_almost_equal(
         grad_adjs.detach().to_dense().numpy(), desired_grad_adjs, decimal=6
-    )
-    np.testing.assert_almost_equal(
-        normals.detach().numpy(), desired_normals, decimal=6
     )
     np.testing.assert_almost_equal(
         wnormals.detach().numpy(), desired_wnormals, decimal=6
@@ -562,10 +559,9 @@ def test__compute_isoAM_with_neumann(
 def test__compute_isoAM_with_neumann_shapes(file_name: pathlib.Path):
     mesh = graphlow.read(file_name)
     N, d = mesh.points.shape
-    grad_adjs, normals, wnormals, minv = mesh.compute_isoAM_with_neumann(
+    grad_adjs, wnormals, minv = mesh.compute_isoAM_with_neumann(
         with_moment_matrix=True
     )
     np.testing.assert_array_equal(grad_adjs.shape, (d, N, N))
-    np.testing.assert_array_equal(normals.shape, (N, d))
     np.testing.assert_array_equal(wnormals.shape, (N, d))
     np.testing.assert_array_equal(minv.shape, (N, d, d))
