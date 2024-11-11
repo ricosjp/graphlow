@@ -1,5 +1,6 @@
 from typing import Literal
 
+import numpy as np
 import pyvista as pv
 import torch
 
@@ -53,30 +54,51 @@ class GeometryProcessor:
             return nodal_data
         raise ValueError(f"Invalid mode: {mode}")
 
+    def compute_area_vecs(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
+        available_celltypes = {
+            pv.CellType.TRIANGLE,
+            pv.CellType.QUAD,
+            pv.CellType.POLYGON,
+        }
+        area_vecs = torch.empty((mesh.n_cells, mesh.points.shape[1]))
+        celltypes = mesh.pvmesh.celltypes
+        points = mesh.points
+
+        # non-polygon cells
+        nonpoly_mask = celltypes != pv.CellType.POLYGON
+        if np.any(nonpoly_mask):
+            nonpolys = mesh.extract_cells(nonpoly_mask)
+            mesh2nonpolys_rel_inc = mesh.compute_point_relative_incidence(
+                nonpolys
+            )
+            nonpolys_points = mesh2nonpolys_rel_inc @ points
+            nonpolys_dict = nonpolys.pvmesh.cells_dict
+            for celltype, cells in nonpolys_dict.items():
+                if celltype not in available_celltypes:
+                    raise KeyError(
+                        f"Unavailable celltype: {pv.CellType(celltype).name}"
+                    )
+                mask = celltypes == celltype
+                cell_points = nonpolys_points[cells]
+                area_vecs[mask] = self._non_poly_area_vecs(cell_points)
+
+        # polygon cells
+        poly_mask = celltypes == pv.CellType.POLYGON
+        if np.any(poly_mask):
+            polys = mesh.extract_cells(poly_mask)
+            mesh2polys_rel_inc = mesh.compute_point_relative_incidence(polys)
+            polys_points = mesh2polys_rel_inc @ points
+            area_vecs[poly_mask] = self._poly_area_vecs(polys_points, polys)
+        return area_vecs
+
     def compute_areas(
         self, mesh: IReadOnlyGraphlowMesh, raise_negative_area: bool = True
     ) -> torch.Tensor:
-        areas = torch.empty(mesh.n_cells)
-        cell_type_to_function = {
-            pv.CellType.TRIANGLE: self._tri_area,
-            pv.CellType.QUAD: self._poly_area,
-            pv.CellType.POLYGON: self._poly_area,
-        }
-        points = mesh.points
-        for i in range(mesh.n_cells):
-            cell = mesh.pvmesh.get_cell(i)
-            celltype = cell.type
-            if celltype not in cell_type_to_function:
-                raise KeyError(
-                    f"Unavailable cell type for area computation: cell[{i}]"
-                )
-
-            pids = torch.tensor(cell.point_ids, dtype=torch.int)
-            areas[i] = cell_type_to_function[celltype](pids, points)
-
+        area_vecs = mesh.compute_area_vecs()
+        areas = torch.norm(area_vecs, dim=1)
         if raise_negative_area and torch.any(areas < 0.0):
             indices = (areas < 0).nonzero(as_tuple=True)
-            raise ValueError(f"Negative volume found: cell indices: {indices}")
+            raise ValueError(f"Negative area found: cell indices: {indices}")
         return areas
 
     def compute_volumes(
@@ -118,40 +140,32 @@ class GeometryProcessor:
         -------
         torch.Tensor[float]
         """
-        points = mesh.points
-        n_faces = mesh.n_cells
-        normals = torch.empty(size=(n_faces, 3))
-        for fid in range(n_faces):
-            face = mesh.pvmesh.get_cell(fid).point_ids
-            face_points = points[face]
-            face_center = torch.mean(face_points, dim=0)
-            side_vec = face_points - face_center
-            cross = torch.linalg.cross(
-                side_vec, torch.roll(side_vec, shifts=-1, dims=0)
-            )
-            normal = torch.mean(cross, dim=0)
-            normals[fid] = normal / torch.norm(normal)
+        area_vecs = mesh.compute_area_vecs()
+        areas = torch.norm(area_vecs, dim=1, keepdim=True)
+        normals = area_vecs / areas
         return normals
 
     #
     # Area function
     #
-    def _tri_area(
-        self, pids: torch.Tensor, points: torch.Tensor
-    ) -> torch.Tensor:
-        tri_points = points[pids]
-        v10 = tri_points[1] - tri_points[0]
-        v20 = tri_points[2] - tri_points[0]
-        cross = torch.linalg.cross(v10, v20)
-        return 0.5 * torch.linalg.vector_norm(cross)
+    def _non_poly_area_vecs(self, cell_points: torch.Tensor) -> torch.Tensor:
+        v1 = cell_points
+        v2 = torch.roll(v1, shifts=-1, dims=1)
+        cross = torch.linalg.cross(v1, v2)
+        return 0.5 * torch.sum(cross, dim=1)
 
-    def _poly_area(
-        self, pids: torch.Tensor, points: torch.Tensor
+    def _poly_area_vecs(
+        self, points: torch.Tensor, polys: IReadOnlyGraphlowMesh
     ) -> torch.Tensor:
-        v1 = points[pids]
-        v2 = torch.roll(v1, shifts=-1, dims=0)
-        signed_area = torch.sum(torch.linalg.cross(v1, v2), dim=0)
-        return 0.5 * torch.linalg.vector_norm(signed_area)
+        area_vecs = torch.empty((polys.n_cells, points.shape[1]))
+        for i in range(polys.n_cells):
+            cell = polys.pvmesh.get_cell(i)
+            face = torch.tensor(cell.point_ids, dtype=torch.int)
+            v1 = points[face]
+            v2 = torch.roll(v1, shifts=-1, dims=0)
+            cross = torch.linalg.cross(v1, v2)
+            area_vecs[i] = 0.5 * torch.sum(cross, dim=0)
+        return area_vecs
 
     #
     # Volume function

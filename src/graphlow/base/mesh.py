@@ -302,6 +302,29 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         ).cast_to_unstructured_grid()
         return GraphlowMesh(surface_mesh, device=self.device, dtype=self.dtype)
 
+    def extract_cells(
+        self, ind: Any, invert: bool = False, add_original_index: bool = True
+    ) -> GraphlowMesh:
+        """Extract cells by indices.
+
+        Parameters
+        ----------
+        ind : sequence[int]
+            Numpy array of cell indices to be extracted.
+        invert : bool, default: False
+            Invert the selection.
+        add_original_index: bool, default: True
+            If True, add original index feature to enable relative incidence
+            matrix computation.
+        """
+        if add_original_index:
+            self.add_original_index()
+
+        extracted = self.pvmesh.extract_cells(
+            ind, invert=invert
+        ).cast_to_unstructured_grid()
+        return GraphlowMesh(extracted, device=self.device, dtype=self.dtype)
+
     def extract_facets(
         self,
         add_original_index: bool = True,
@@ -414,6 +437,11 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         )
         return val
 
+    @functools.wraps(GeometryProcessor.compute_area_vecs)
+    def compute_area_vecs(self) -> torch.Tensor:
+        val = self._geometry_processor.compute_area_vecs(self)
+        return val
+
     @functools.wraps(GeometryProcessor.compute_areas)
     def compute_areas(self, raise_negative_area: bool = True) -> torch.Tensor:
         val = self._geometry_processor.compute_areas(self, raise_negative_area)
@@ -473,7 +501,6 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         return val
 
     @functools.wraps(GraphProcessor.compute_point_relative_incidence)
-    @use_cache_decorator
     def compute_point_relative_incidence(
         self, other_mesh: GraphlowMesh
     ) -> torch.Tensor:
@@ -483,7 +510,6 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         return val
 
     @functools.wraps(GraphProcessor.compute_cell_relative_incidence)
-    @use_cache_decorator
     def compute_cell_relative_incidence(
         self,
         other_mesh: GraphlowMesh,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-from typing import Literal
+from typing import Any, Literal
 
 import pyvista as pv
 import torch
@@ -63,6 +63,12 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def extract_cells(
+        self, ind: Any, invert: bool, add_original_index: bool
+    ) -> IReadOnlyGraphlowMesh:
+        pass
+
+    @abc.abstractmethod
     def extract_facets(
         self, add_original_index: bool
     ) -> tuple[IReadOnlyGraphlowMesh, torch.Tensor]:
@@ -80,6 +86,10 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     def convert_nodal2elemental(
         self, nodal_data: torch.Tensor, mode: Literal["mean", "effective"]
     ) -> torch.Tensor:
+        pass
+
+    @abc.abstractmethod
+    def compute_area_vecs(self) -> torch.Tensor:
         pass
 
     @abc.abstractmethod
