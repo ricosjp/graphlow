@@ -290,9 +290,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
         Parameters
         ----------
-        add_original_index: bool
+        add_original_index: bool, optional [True]
             If True, add original index feature to enable relative incidence
-            matrix computation. The default is True.
+            matrix computation.
         """
         if add_original_index:
             self.add_original_index()
@@ -308,6 +308,12 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     ) -> tuple[GraphlowMesh, torch.Tensor]:
         """Extract all internal/external facets of the volume mesh
         with (n_faces, n_cells)-shaped sparse signed incidence matrix
+
+        Parameters
+        ----------
+        add_original_index: bool, optional [True]
+            If True, add original index feature to enable relative incidence
+            matrix computation.
         """
         if add_original_index:
             self.add_original_index()
