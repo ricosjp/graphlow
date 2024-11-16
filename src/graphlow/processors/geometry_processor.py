@@ -62,16 +62,11 @@ class GeometryProcessor:
         }
         area_vecs = torch.empty((mesh.n_cells, mesh.points.shape[1]))
         celltypes = mesh.pvmesh.celltypes
-        points = mesh.points
 
         # non-polygon cells
         nonpoly_mask = celltypes != pv.CellType.POLYGON
         if np.any(nonpoly_mask):
-            nonpolys = mesh.extract_cells(nonpoly_mask)
-            mesh2nonpolys_rel_inc = mesh.compute_point_relative_incidence(
-                nonpolys
-            )
-            nonpolys_points = mesh2nonpolys_rel_inc @ points
+            nonpolys = mesh.extract_cells(nonpoly_mask, pass_points=True)
             nonpolys_dict = nonpolys.pvmesh.cells_dict
             for celltype, cells in nonpolys_dict.items():
                 if celltype not in available_celltypes:
@@ -79,16 +74,15 @@ class GeometryProcessor:
                         f"Unavailable celltype: {pv.CellType(celltype).name}"
                     )
                 mask = celltypes == celltype
-                cell_points = nonpolys_points[cells]
-                area_vecs[mask] = self._non_poly_area_vecs(cell_points)
+                area_vecs[mask] = self._non_poly_area_vecs(
+                    nonpolys.points[cells]
+                )
 
         # polygon cells
         poly_mask = celltypes == pv.CellType.POLYGON
         if np.any(poly_mask):
-            polys = mesh.extract_cells(poly_mask)
-            mesh2polys_rel_inc = mesh.compute_point_relative_incidence(polys)
-            polys_points = mesh2polys_rel_inc @ points
-            area_vecs[poly_mask] = self._poly_area_vecs(polys_points, polys)
+            polys = mesh.extract_cells(poly_mask, pass_points=True)
+            area_vecs[poly_mask] = self._poly_area_vecs(polys.points, polys)
         return area_vecs
 
     def compute_areas(

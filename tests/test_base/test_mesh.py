@@ -58,11 +58,47 @@ def test__save(input_file_name: pathlib.Path, output_file_name: pathlib.Path):
 )
 def test__extract_surface(file_name: pathlib.Path, desired_file: pathlib.Path):
     mesh = graphlow.read(file_name)
-
-    surface = mesh.extract_surface()
     desired = graphlow.read(desired_file)
+
+    mesh.points.requires_grad_()
+    assert mesh.points.requires_grad
+
+    surface = mesh.extract_surface(pass_points=False)
+    assert not surface.points.requires_grad
+
+    surface = mesh.extract_surface(pass_points=True)
+    assert surface.points.requires_grad
+
     np.testing.assert_almost_equal(surface.pvmesh.points, desired.pvmesh.points)
     np.testing.assert_array_equal(surface.pvmesh.cells, desired.pvmesh.cells)
+
+
+@pytest.mark.parametrize(
+    "file_name, cellids_to_extract",
+    [
+        (pathlib.Path("tests/data/vtu/complex/mesh.vtu"), np.array([0, 1])),
+    ],
+)
+def test__extract_cells(
+    file_name: pathlib.Path, cellids_to_extract: np.ndarray
+):
+    mesh = graphlow.read(file_name)
+    desired = mesh.pvmesh.extract_cells(
+        cellids_to_extract
+    ).cast_to_unstructured_grid()
+
+    mesh.points.requires_grad_()
+    assert mesh.points.requires_grad
+
+    cells = mesh.extract_cells(cellids_to_extract, pass_points=False)
+    assert not cells.points.requires_grad
+
+    cells = mesh.extract_cells(cellids_to_extract, pass_points=True)
+    assert cells.points.requires_grad
+
+    np.testing.assert_almost_equal(
+        cells.pvmesh.cast_to_unstructured_grid().cells, desired.cells
+    )
 
 
 # fmt: off

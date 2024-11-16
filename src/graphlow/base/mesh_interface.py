@@ -58,19 +58,23 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def extract_surface(
-        self, add_original_index: bool
+        self, add_original_index: bool, pass_points: bool
     ) -> IReadOnlyGraphlowMesh:
         pass
 
     @abc.abstractmethod
     def extract_cells(
-        self, ind: Any, invert: bool, add_original_index: bool
+        self,
+        ind: Any,
+        invert: bool,
+        add_original_index: bool,
+        pass_points: bool,
     ) -> IReadOnlyGraphlowMesh:
         pass
 
     @abc.abstractmethod
     def extract_facets(
-        self, add_original_index: bool
+        self, add_original_index: bool, pass_points: bool
     ) -> tuple[IReadOnlyGraphlowMesh, torch.Tensor]:
         pass
 

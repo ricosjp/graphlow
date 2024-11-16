@@ -292,7 +292,7 @@ class IsoAMProcessor:
     def _compute_normals_on_surface_points(
         self, mesh: IReadOnlyGraphlowMesh
     ) -> torch.Tensor:
-        surf = mesh.extract_surface(add_original_index=True)
+        surf = mesh.extract_surface(pass_points=True)
         surf_vol_rel_inc = (
             mesh.compute_point_relative_incidence(surf).to_sparse_coo().T
         )
