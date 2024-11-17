@@ -211,19 +211,22 @@ def test__convert_nodal2elemental_effective(
     )
     np.testing.assert_almost_equal(elem_points.detach().numpy(), desired)
 
+
 @pytest.mark.parametrize(
     "file_name, desired",
     [
         (
             pathlib.Path("tests/data/vtu/primitive_cell/cuboid.vtu"),
-            np.array([
-                [ 0.0, -3.0,  0.0],
-                [ 0.0,  0.0, -6.0],
-                [-2.0,  0.0,  0.0],
-                [ 2.0,  0.0,  0.0],
-                [ 0.0,  3.0,  0.0],
-                [ 0.0,  0.0,  6.0]
-            ])
+            np.array(
+                [
+                    [0.0, -3.0, 0.0],
+                    [0.0, 0.0, -6.0],
+                    [-2.0, 0.0, 0.0],
+                    [2.0, 0.0, 0.0],
+                    [0.0, 3.0, 0.0],
+                    [0.0, 0.0, 6.0],
+                ]
+            ),
         )
     ],
 )
@@ -232,6 +235,7 @@ def test__compute_area_vecs(file_name: pathlib.Path, desired: np.ndarray):
     surfmesh = volmesh.extract_surface()
     area_vecs = surfmesh.compute_area_vecs()
     np.testing.assert_almost_equal(area_vecs.detach().numpy(), desired)
+
 
 @pytest.mark.parametrize(
     "file_name",
