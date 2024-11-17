@@ -86,17 +86,17 @@ class GeometryProcessor:
         return area_vecs
 
     def compute_areas(
-        self, mesh: IReadOnlyGraphlowMesh, raise_negative_area: bool = True
+        self, mesh: IReadOnlyGraphlowMesh, allow_negative_area: bool = False
     ) -> torch.Tensor:
         area_vecs = mesh.compute_area_vecs()
         areas = torch.norm(area_vecs, dim=1)
-        if raise_negative_area and torch.any(areas < 0.0):
+        if not allow_negative_area and torch.any(areas < 0.0):
             indices = (areas < 0).nonzero(as_tuple=True)
             raise ValueError(f"Negative area found: cell indices: {indices}")
         return areas
 
     def compute_volumes(
-        self, mesh: IReadOnlyGraphlowMesh, raise_negative_volume: bool = True
+        self, mesh: IReadOnlyGraphlowMesh, allow_negative_volume: bool = True
     ) -> torch.Tensor:
         volumes = torch.empty(mesh.n_cells)
         cell_type_to_function = {
@@ -122,7 +122,7 @@ class GeometryProcessor:
             else:
                 volumes[i] = func(pids, points)
 
-        if raise_negative_volume and torch.any(volumes < 0.0):
+        if not allow_negative_volume and torch.any(volumes < 0.0):
             indices = (volumes < 0).nonzero(as_tuple=True)
             raise ValueError(f"Negative volume found: cell indices: {indices}")
         return volumes

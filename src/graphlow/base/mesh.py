@@ -518,16 +518,16 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         return val
 
     @functools.wraps(GeometryProcessor.compute_areas)
-    def compute_areas(self, raise_negative_area: bool = True) -> torch.Tensor:
-        val = self._geometry_processor.compute_areas(self, raise_negative_area)
+    def compute_areas(self, allow_negative_area: bool = False) -> torch.Tensor:
+        val = self._geometry_processor.compute_areas(self, allow_negative_area)
         return val
 
     @functools.wraps(GeometryProcessor.compute_volumes)
     def compute_volumes(
-        self, raise_negative_volume: bool = True
+        self, allow_negative_volume: bool = True
     ) -> torch.Tensor:
         val = self._geometry_processor.compute_volumes(
-            self, raise_negative_volume
+            self, allow_negative_volume
         )
         return val
 
