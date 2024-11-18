@@ -55,6 +55,14 @@ class GeometryProcessor:
         raise ValueError(f"Invalid mode: {mode}")
 
     def compute_area_vecs(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
+        """Compute (n_elements, dims)-shaped area vectors.
+        Available celltypes are:
+        VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
+
+        Returns:
+        --------
+        torch.Tensor[float]
+        """
         available_celltypes = {
             pv.CellType.TRIANGLE,
             pv.CellType.QUAD,
@@ -88,6 +96,18 @@ class GeometryProcessor:
     def compute_areas(
         self, mesh: IReadOnlyGraphlowMesh, allow_negative_area: bool = False
     ) -> torch.Tensor:
+        """Compute (n_elements,)-shaped areas.
+        Available celltypes are:
+        VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
+
+        Parameters
+        ----------
+        allow_negative_area: bool, optional [False]
+
+        Returns:
+        --------
+        torch.Tensor[float]
+        """
         area_vecs = mesh.compute_area_vecs()
         areas = torch.norm(area_vecs, dim=1)
         if not allow_negative_area and torch.any(areas < 0.0):
@@ -98,6 +118,19 @@ class GeometryProcessor:
     def compute_volumes(
         self, mesh: IReadOnlyGraphlowMesh, allow_negative_volume: bool = True
     ) -> torch.Tensor:
+        """Compute (n_elements,)-shaped volumes.
+        Available celltypes are:
+        VTK_TETRA, VTK_PYRAMID, VTK_WEDGE, VTK_HEXAHEDRON, VTK_POLYHEDRON
+
+        Parameters
+        ----------
+        allow_negative_area: bool, optional [True]
+            If True, compute the signed volume.
+
+        Returns:
+        --------
+        torch.Tensor[float]
+        """
         volumes_by_celltype = {
             pv.CellType.TETRA: self._tet_volumes,
             pv.CellType.PYRAMID: self._pyramid_volumes,
@@ -136,7 +169,9 @@ class GeometryProcessor:
         return volumes
 
     def compute_normals(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
-        """Compute the normals of PolyData
+        """Compute (n_elements, dims)-shaped normals
+        Available celltypes are:
+        VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
 
         Returns
         -------
