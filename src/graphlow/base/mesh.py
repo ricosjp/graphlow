@@ -381,6 +381,11 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         if add_original_index or pass_points:
             self.add_original_index()
         poly, scipy_fc_inc = self._extract_facets_impl()
+        fc_inc = array_handler.convert_to_torch_sparse_csr(
+            scipy_fc_inc.toarray().astype(float),
+            device=self.device,
+            dtype=self.dtype,
+        )
 
         if pass_points:
             return GraphlowMesh(
@@ -388,11 +393,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
                 dict_point_tensor=self.dict_point_tensor,
                 device=self.device,
                 dtype=self.dtype,
-            ), array_handler.convert_to_torch_sparse_csr(scipy_fc_inc)
+            ), fc_inc
 
-        return GraphlowMesh(
-            poly, device=self.device, dtype=self.dtype
-        ), array_handler.convert_to_torch_sparse_csr(scipy_fc_inc)
+        return GraphlowMesh(poly, device=self.device, dtype=self.dtype), fc_inc
 
     def _extract_facets_impl(self) -> tuple[pv.PolyData, sp.csr_array]:
         """Implementation of `extract_facets`

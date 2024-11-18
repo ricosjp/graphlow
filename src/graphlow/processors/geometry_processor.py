@@ -98,29 +98,37 @@ class GeometryProcessor:
     def compute_volumes(
         self, mesh: IReadOnlyGraphlowMesh, allow_negative_volume: bool = True
     ) -> torch.Tensor:
-        volumes = torch.empty(mesh.n_cells)
-        cell_type_to_function = {
-            pv.CellType.TETRA: self._tet_volume,
-            pv.CellType.PYRAMID: self._pyramid_volume,
-            pv.CellType.WEDGE: self._wedge_volume,
-            pv.CellType.HEXAHEDRON: self._hex_volume,
-            pv.CellType.POLYHEDRON: self._poly_volume,
+        volumes_by_celltype = {
+            pv.CellType.TETRA: self._tet_volumes,
+            pv.CellType.PYRAMID: self._pyramid_volumes,
+            pv.CellType.WEDGE: self._wedge_volumes,
+            pv.CellType.HEXAHEDRON: self._hex_volumes,
+            pv.CellType.POLYHEDRON: self._poly_volumes,
         }
-        points = mesh.points
-        for i in range(mesh.n_cells):
-            cell = mesh.pvmesh.get_cell(i)
-            celltype = cell.type
-            if celltype not in cell_type_to_function:
-                raise KeyError(
-                    f"Unavailable cell type for area computation: cell[{i}]"
-                )
+        volumes = torch.empty(mesh.n_cells)
+        celltypes = mesh.pvmesh.celltypes
 
-            pids = torch.tensor(cell.point_ids, dtype=torch.int)
-            func = cell_type_to_function[celltype]
-            if celltype == pv.CellType.POLYHEDRON:
-                volumes[i] = func(pids, points, cell.faces)
-            else:
-                volumes[i] = func(pids, points)
+        # non-polyhedron cells
+        nonpoly_mask = celltypes != pv.CellType.POLYHEDRON
+        if np.any(nonpoly_mask):
+            nonpolys = mesh.extract_cells(nonpoly_mask, pass_points=True)
+            nonpolys_dict = nonpolys.pvmesh.cells_dict
+            for celltype, cells in nonpolys_dict.items():
+                if celltype not in volumes_by_celltype:
+                    raise KeyError(
+                        f"Unavailable celltype: {pv.CellType(celltype).name}"
+                    )
+                mask = celltypes == celltype
+                cell_points = nonpolys.points[cells]
+                volumes[mask] = volumes_by_celltype[celltype](cell_points)
+
+        # polyhedron cells
+        poly_mask = celltypes == pv.CellType.POLYHEDRON
+        if np.any(poly_mask):
+            polys: IReadOnlyGraphlowMesh = mesh.extract_cells(
+                poly_mask, pass_points=True
+            )
+            volumes[poly_mask] = self._poly_volumes(polys)
 
         if not allow_negative_volume and torch.any(volumes < 0.0):
             indices = (volumes < 0).nonzero(as_tuple=True)
@@ -164,144 +172,106 @@ class GeometryProcessor:
     #
     # Volume function
     #
-    def _tet_volume(
-        self, pids: torch.Tensor, points: torch.Tensor
-    ) -> torch.Tensor:
-        tet_points = points[pids]
-        v10 = tet_points[1] - tet_points[0]
-        v20 = tet_points[2] - tet_points[0]
-        v30 = tet_points[3] - tet_points[0]
-        return torch.abs(torch.dot(torch.linalg.cross(v10, v20), v30)) / 6.0
+    def _tet_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+        v10 = cell_points[:, 1] - cell_points[:, 0]
+        v20 = cell_points[:, 2] - cell_points[:, 0]
+        v30 = cell_points[:, 3] - cell_points[:, 0]
+        cross = torch.linalg.cross(v10, v20)
+        return torch.sum(cross * v30, dim=1) / 6.0
 
-    def _pyramid_volume(
-        self, pids: torch.Tensor, points: torch.Tensor
-    ) -> torch.Tensor:
+    def _pyramid_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
         quad_idx = torch.tensor([0, 1, 2, 3], dtype=torch.int)
-        quad_center = torch.mean(points[pids[quad_idx]], dim=0)
-        top = points[pids[4]]
-        axis = quad_center - top
-        side_vec = points[pids[quad_idx]] - top
-        cross = torch.linalg.cross(
-            side_vec, torch.roll(side_vec, shifts=-1, dims=0)
-        )
-        tet_volumes = torch.abs(torch.sum(cross * axis, dim=1)) / 6.0
-        return torch.sum(tet_volumes)
+        quad_centers = torch.mean(cell_points[:, quad_idx], dim=1)
+        tops = cell_points[:, 4]
+        center2top = tops - quad_centers
+        v1 = cell_points[:, quad_idx] - tops
+        v2 = torch.roll(v1, shifts=-1, dims=1)
+        cross = torch.linalg.cross(v1, v2)
+        return torch.sum(cross * center2top) / 6.0
 
-    def _wedge_volume(
-        self, pids: torch.Tensor, points: torch.Tensor
-    ) -> torch.Tensor:
-        # divide the wedge into 11 tets
+    def _wedge_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+        # divide the wedge into 2 tets + 3 pyramids
         # This is a better solution than 3 tets because
         # if the wedge is twisted then the 3 quads will be twisted.
+        tops = torch.mean(cell_points, dim=1, keepdim=True)  # n_cell, 1, dim
+        quad_tops = tops.repeat(1, 3, 1)
+        tet_tops = tops.repeat(1, 2, 1)
+
+        # pyramid
         quad_idx = torch.tensor(
             [[0, 3, 4, 1], [1, 4, 5, 2], [0, 2, 5, 3]], dtype=torch.int
         )
-        quad_centers = torch.mean(points[pids[quad_idx]], dim=1)
+        quads = cell_points[:, quad_idx]  # n_cell, n_face, n_point, dim
+        quad_centers = torch.mean(quads, dim=2)  # n_cell, n_face, dim
 
-        sub_tet_points = torch.empty(11, 4, 3)
-        sub_tet_points[0][0] = points[pids[0]]
-        sub_tet_points[0][1] = quad_centers[0]
-        sub_tet_points[0][2] = points[pids[3]]
-        sub_tet_points[0][3] = quad_centers[2]
-
-        sub_tet_points[1][0] = points[pids[1]]
-        sub_tet_points[1][1] = quad_centers[1]
-        sub_tet_points[1][2] = points[pids[4]]
-        sub_tet_points[1][3] = quad_centers[0]
-
-        sub_tet_points[2][0] = points[pids[2]]
-        sub_tet_points[2][1] = quad_centers[2]
-        sub_tet_points[2][2] = points[pids[5]]
-        sub_tet_points[2][3] = quad_centers[1]
-
-        sub_tet_points[3][0] = quad_centers[0]
-        sub_tet_points[3][1] = quad_centers[1]
-        sub_tet_points[3][2] = quad_centers[2]
-        sub_tet_points[3][3] = points[pids[0]]
-
-        sub_tet_points[4][0] = points[pids[1]]
-        sub_tet_points[4][1] = quad_centers[1]
-        sub_tet_points[4][2] = quad_centers[0]
-        sub_tet_points[4][3] = points[pids[0]]
-
-        sub_tet_points[5][0] = points[pids[2]]
-        sub_tet_points[5][1] = quad_centers[1]
-        sub_tet_points[5][2] = points[pids[1]]
-        sub_tet_points[5][3] = points[pids[0]]
-
-        sub_tet_points[6][0] = points[pids[2]]
-        sub_tet_points[6][1] = quad_centers[2]
-        sub_tet_points[6][2] = quad_centers[1]
-        sub_tet_points[6][3] = points[pids[0]]
-
-        sub_tet_points[7][0] = quad_centers[0]
-        sub_tet_points[7][1] = quad_centers[2]
-        sub_tet_points[7][2] = quad_centers[1]
-        sub_tet_points[7][3] = points[pids[3]]
-
-        sub_tet_points[8][0] = points[pids[5]]
-        sub_tet_points[8][1] = quad_centers[1]
-        sub_tet_points[8][2] = quad_centers[2]
-        sub_tet_points[8][3] = points[pids[3]]
-
-        sub_tet_points[9][0] = points[pids[4]]
-        sub_tet_points[9][1] = quad_centers[1]
-        sub_tet_points[9][2] = points[pids[5]]
-        sub_tet_points[9][3] = points[pids[3]]
-
-        sub_tet_points[10][0] = points[pids[4]]
-        sub_tet_points[10][1] = quad_centers[0]
-        sub_tet_points[10][2] = quad_centers[1]
-        sub_tet_points[10][3] = points[pids[3]]
-
-        sub_tet_vec = sub_tet_points[:, 1:] - sub_tet_points[:, 0].unsqueeze(1)
-        cross = torch.linalg.cross(sub_tet_vec[:, 0], sub_tet_vec[:, 1])
-        tet_volumes = (
-            torch.abs(torch.sum(cross * sub_tet_vec[:, 2], dim=1)) / 6.0
+        center2top_quads = quad_tops - quad_centers  # n_cell, n_face, dim
+        v1_quads = quads - tops.unsqueeze(1)
+        v2_quads = torch.roll(v1_quads, shifts=-1, dims=2)
+        cross_quads = torch.linalg.cross(
+            v1_quads, v2_quads
+        )  # n_cell, n_face, n_point, dim
+        pyramid_volumes = (
+            torch.sum(
+                cross_quads * center2top_quads.unsqueeze(2), dim=(1, 2, 3)
+            )
+            / 6.0
         )
-        return torch.sum(tet_volumes)
 
-    def _hex_volume(
-        self, pids: torch.Tensor, points: torch.Tensor
-    ) -> torch.Tensor:
-        # divide the hex into 24 (=4*6) tets for the same reason as a wedge
-        face_idx = torch.tensor(
+        # tetra
+        tri_idx = torch.tensor([[0, 1, 2], [3, 5, 4]], dtype=torch.int)
+        tris = cell_points[:, tri_idx]  # n_cell, n_face, n_point, dim
+        tri_centers = torch.mean(tris, dim=2)  # n_cell, n_face, dim
+
+        center2top_tris = tet_tops - tri_centers  # n_cell, n_face, dim
+        v1_tris = tris - tops.unsqueeze(1)
+        v2_tris = torch.roll(v1_tris, shifts=-1, dims=2)
+        cross_tris = torch.linalg.cross(
+            v1_tris, v2_tris
+        )  # n_cell, n_face, n_point, dim
+        tet_volumes = (
+            torch.sum(cross_tris * center2top_tris.unsqueeze(2), dim=(1, 2, 3))
+            / 6.0
+        )
+
+        return pyramid_volumes + tet_volumes
+
+    def _hex_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+        # divide the hex into 6 pyramids
+        tops = torch.mean(cell_points, dim=1, keepdim=True)  # n_cell, 1, dim
+        quad_tops = tops.repeat(1, 6, 1)
+
+        quad_idx = torch.tensor(
             [
-                [0, 1, 5, 4],
-                [1, 2, 6, 5],
-                [2, 3, 7, 6],
-                [3, 0, 4, 7],
-                [3, 2, 1, 0],
-                [4, 5, 6, 7],
+                [0, 4, 5, 1],
+                [3, 2, 6, 7],
+                [0, 3, 7, 4],
+                [4, 7, 6, 5],
+                [5, 6, 2, 1],
+                [1, 2, 3, 0],
             ],
             dtype=torch.int,
         )
-        face_centers = torch.mean(points[pids[face_idx]], dim=1)
-        cell_center = torch.mean(points[pids], dim=0)
-        cc2fc = face_centers - cell_center
-        side_vec = points[pids[face_idx]] - cell_center
-        cross = torch.linalg.cross(
-            side_vec, torch.roll(side_vec, shifts=-1, dims=1)
-        )
-        tet_volumes = (
-            torch.abs(torch.sum(cross * cc2fc.unsqueeze(1), dim=2)) / 6.0
-        )
-        return torch.sum(tet_volumes)
-
-    def _poly_volume(
-        self, pids: torch.Tensor, points: torch.Tensor, faces: list[pv.Cell]
-    ) -> torch.Tensor:
-        # Assume cell is convex
-        volume = 0.0
-        cell_center = torch.mean(points[pids], dim=0)
-        for face in faces:
-            face_pids = face.point_ids
-            face_centers = torch.mean(points[face_pids], dim=0)
-            cc2fc = face_centers - cell_center
-            side_vec = points[face_pids] - cell_center
-            cross = torch.linalg.cross(
-                side_vec, torch.roll(side_vec, shifts=-1, dims=0)
+        quads = cell_points[:, quad_idx]  # n_cell, n_face, n_point, dim
+        quad_centers = torch.mean(quads, dim=2)  # n_cell, n_face, dim
+        center2top_quads = quad_tops - quad_centers  # n_cell, n_face, dim
+        v1_quads = quads - tops.unsqueeze(1)
+        v2_quads = torch.roll(v1_quads, shifts=-1, dims=2)
+        cross_quads = torch.linalg.cross(
+            v1_quads, v2_quads
+        )  # n_cell, n_face, n_point, dim
+        pyramid_volumes = (
+            torch.sum(
+                cross_quads * center2top_quads.unsqueeze(2), dim=(1, 2, 3)
             )
-            tet_volumes = torch.abs(torch.sum(cross * cc2fc, dim=1)) / 6.0
-            volume += torch.sum(tet_volumes)
-        return volume
+            / 6.0
+        )
+        return pyramid_volumes
+
+    def _poly_volumes(self, polys: IReadOnlyGraphlowMesh) -> torch.Tensor:
+        facets, fc_inc = polys.extract_facets(pass_points=True)
+        facet_centers = facets.convert_nodal2elemental(facets.points)
+        area_vecs = facets.compute_area_vecs()
+        tet_volumes = torch.sum(area_vecs * facet_centers, dim=1) / 3.0
+        cf_inc = fc_inc.to_sparse_coo().T
+        cell_volumes = cf_inc @ tet_volumes
+        return cell_volumes

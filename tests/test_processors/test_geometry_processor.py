@@ -324,6 +324,50 @@ def test__compute_volumes(file_name: pathlib.Path):
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
+def test__compute_signed_volumes(file_name: pathlib.Path):
+    volmesh = graphlow.read(file_name)
+    cell_volumes = volmesh.compute_volumes()
+
+    # See below for why `compute_cell_quality`is used
+    # instead of `compute_cell_sizes`
+    # https://colab.research.google.com/drive/1ZkMbVfN-74ZXbDFO2ocva-JEYin6Ux4b?usp=sharing
+    desired = volmesh.pvmesh.compute_cell_quality(
+        quality_measure="volume"
+    ).cell_data["CellQuality"]
+
+    # fix desired for polyhedron cell
+    # because vtkCellQuality doesn't support vtkPolyhedron
+    celltypes = volmesh.pvmesh.celltypes
+    poly_mask = celltypes == pv.CellType.POLYHEDRON
+    if np.any(poly_mask):
+        polys = volmesh.pvmesh.extract_cells(
+            poly_mask
+        ).cast_to_unstructured_grid()
+        # HACK `compute_cell_quality` should be used here,
+        # but since it would follow the same implementation as we developed,
+        # `compute_cell_sizes` is being used instead.
+        # `compute_cell_sizes` returns correct results for non-twisted cells,
+        # so there is generally no issue.
+        desired[poly_mask] = polys.compute_cell_sizes().cell_data["Volume"]
+    np.testing.assert_almost_equal(
+        cell_volumes.detach().numpy(), desired, decimal=4
+    )
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        # primitives
+        pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
+        pathlib.Path("tests/data/vtu/primitive_cell/pyramid.vtu"),
+        pathlib.Path("tests/data/vtu/primitive_cell/wedge.vtu"),
+        pathlib.Path("tests/data/vtu/primitive_cell/hex.vtu"),
+        pathlib.Path("tests/data/vtu/primitive_cell/poly.vtu"),
+        pathlib.Path("tests/data/vts/cube/mesh.vts"),
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
+    ],
+)
 def test__compute_normals(file_name: pathlib.Path):
     volmesh = graphlow.read(file_name)
     surf = volmesh.extract_surface()
