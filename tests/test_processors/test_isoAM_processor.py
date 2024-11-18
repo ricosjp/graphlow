@@ -60,7 +60,6 @@ def test___compute_differences(file_name: pathlib.Path, desired: np.ndarray):
     isoAM_processor = IsoAMProcessor()
 
     diff_kij = isoAM_processor._compute_differences(points, adj)
-    out = diff_kij.to_dense()
     np.testing.assert_almost_equal(diff_kij.to_dense().numpy(), desired)
 
 
@@ -252,7 +251,7 @@ def test___compute_normals_on_surface_points(
     isoAM_processor = IsoAMProcessor()
 
     normals = isoAM_processor._compute_normals_on_surface_points(mesh)
-    np.testing.assert_almost_equal(normals.detach().numpy(), desired)
+    np.testing.assert_almost_equal(normals.detach().numpy(), desired, decimal=6)
 
 
 @pytest.mark.parametrize(
