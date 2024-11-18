@@ -306,7 +306,7 @@ class GeometryProcessor:
         facets, fc_inc = polys.extract_facets(pass_points=True)
         facet_centers = facets.convert_nodal2elemental(facets.points)
         area_vecs = facets.compute_area_vecs()
-        tet_volumes = torch.sum(area_vecs * facet_centers, dim=1) / 3.0
+        cone_volumes = torch.sum(area_vecs * facet_centers, dim=1) / 3.0
         cf_inc = fc_inc.to_sparse_coo().T
-        cell_volumes = cf_inc @ tet_volumes
+        cell_volumes = cf_inc @ cone_volumes
         return cell_volumes
