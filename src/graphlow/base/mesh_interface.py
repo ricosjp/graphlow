@@ -58,7 +58,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def extract_surface(
-        self, add_original_index: bool, pass_points: bool
+        self, add_original_index: bool = True, pass_points: bool = False
     ) -> IReadOnlyGraphlowMesh:
         pass
 
@@ -66,15 +66,15 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     def extract_cells(
         self,
         ind: Any,
-        invert: bool,
-        add_original_index: bool,
-        pass_points: bool,
+        invert: bool = False,
+        add_original_index: bool = True,
+        pass_points: bool = False,
     ) -> IReadOnlyGraphlowMesh:
         pass
 
     @abc.abstractmethod
     def extract_facets(
-        self, add_original_index: bool, pass_points: bool
+        self, add_original_index: bool = True, pass_points: bool = False
     ) -> tuple[IReadOnlyGraphlowMesh, torch.Tensor]:
         pass
 
@@ -82,13 +82,15 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     def convert_elemental2nodal(
         self,
         elemental_data: torch.Tensor,
-        mode: Literal["mean", "effective"],
+        mode: Literal["mean", "effective"] = "mean",
     ) -> torch.Tensor:
         pass
 
     @abc.abstractmethod
     def convert_nodal2elemental(
-        self, nodal_data: torch.Tensor, mode: Literal["mean", "effective"]
+        self,
+        nodal_data: torch.Tensor,
+        mode: Literal["mean", "effective"] = "mean",
     ) -> torch.Tensor:
         pass
 
@@ -97,11 +99,13 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def compute_areas(self, allow_negative_area: bool) -> torch.Tensor:
+    def compute_areas(self, allow_negative_area: bool = False) -> torch.Tensor:
         pass
 
     @abc.abstractmethod
-    def compute_volumes(self, allow_negative_volume: bool) -> torch.Tensor:
+    def compute_volumes(
+        self, allow_negative_volume: bool = True
+    ) -> torch.Tensor:
         pass
 
     @abc.abstractmethod
@@ -110,7 +114,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def compute_isoAM(
-        self, with_moment_matrix: bool, consider_volume: bool
+        self, with_moment_matrix: bool = True, consider_volume: bool = False
     ) -> tuple[torch.Tensor, None | torch.Tensor]:
         pass
 
@@ -118,9 +122,9 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     def compute_isoAM_with_neumann(
         self,
         mesh: IReadOnlyGraphlowMesh,
-        normal_weight: float,
-        with_moment_matrix: bool,
-        consider_volume: bool,
+        normal_weight: float = 10.0,
+        with_moment_matrix: bool = True,
+        consider_volume: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, None | torch.Tensor]:
         pass
 
@@ -144,6 +148,8 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def compute_cell_relative_incidence(
-        self, other_mesh: IReadOnlyGraphlowMesh, minimum_n_sharing: int | None
+        self,
+        other_mesh: IReadOnlyGraphlowMesh,
+        minimum_n_sharing: int | None = None,
     ) -> torch.Tensor:
         pass
