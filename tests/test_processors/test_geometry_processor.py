@@ -1,7 +1,5 @@
 import pathlib
 import shutil
-import time
-from contextlib import contextmanager
 
 import numpy as np
 import pytest
@@ -12,27 +10,6 @@ import graphlow
 from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-@contextmanager
-def time_log(msg: str):
-    """Log the elapsed time for the operation
-
-    Parameters
-    ----------
-    msg: str
-        Name of the process for which you want to measure time
-
-    Examples
-    --------
-    >>> with time_log("sleep"):
-            sleep(1)
-    """
-    logger.info(f"{msg}-start")
-    s: float = time.time()
-    yield
-    e: float = time.time()
-    logger.info(f"{msg}-end: time {e-s:.3f} [s]")
 
 
 def tetrahedralize_cell_for_test(cell: pv.Cell) -> pv.UnstructuredGrid:
@@ -255,9 +232,6 @@ def test__compute_area_vecs(file_name: pathlib.Path, desired: np.ndarray):
 def test__compute_areas(file_name: pathlib.Path):
     volmesh = graphlow.read(file_name)
     surfmesh = volmesh.extract_surface()
-    # with time_log("compute_areas"):
-    #     for _ in range(100):
-    #         cell_areas = surfmesh.compute_areas()
     cell_areas = surfmesh.compute_areas()
     desired = surfmesh.pvmesh.compute_cell_sizes().cell_data["Area"]
     np.testing.assert_almost_equal(
@@ -283,9 +257,6 @@ def test__compute_areas(file_name: pathlib.Path):
 def test__compute_volumes(file_name: pathlib.Path):
     volmesh = graphlow.read(file_name)
     cell_volumes = volmesh.compute_volumes()
-    # with time_log("compute_volumes"):
-    #     for _ in range(100):
-    #         cell_volumes = volmesh.compute_volumes()
 
     # See below for why `compute_cell_quality`is used
     # instead of `compute_cell_sizes`
