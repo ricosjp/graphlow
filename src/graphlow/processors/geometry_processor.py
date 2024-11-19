@@ -208,21 +208,22 @@ class GeometryProcessor:
     # Volume function
     #
     def _tet_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
-        v10 = cell_points[:, 1] - cell_points[:, 0]
-        v20 = cell_points[:, 2] - cell_points[:, 0]
-        v30 = cell_points[:, 3] - cell_points[:, 0]
-        cross = torch.linalg.cross(v10, v20)
-        return torch.sum(cross * v30, dim=1) / 6.0
+        v01 = cell_points[:, 1] - cell_points[:, 0]  # n_cell, dim
+        v02 = cell_points[:, 2] - cell_points[:, 0]
+        v03 = cell_points[:, 3] - cell_points[:, 0]
+        cross = torch.linalg.cross(v01, v02)  # n_cell, dim
+        return torch.sum(cross * v03, dim=1) / 6.0
 
     def _pyramid_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
         quad_idx = torch.tensor([0, 1, 2, 3], dtype=torch.int)
-        quad_centers = torch.mean(cell_points[:, quad_idx], dim=1)
-        tops = cell_points[:, 4]
-        center2top = tops - quad_centers
-        v1 = cell_points[:, quad_idx] - tops
+        quads = cell_points[:, quad_idx]  # n_cell, n_point, dim
+        quad_centers = torch.mean(quads, dim=1)  # n_cell, dim
+        tops = cell_points[:, 4]  # n_cell, dim
+        center2top = tops - quad_centers  # n_cell, dim
+        v1 = quads - tops.unsqueeze(1)
         v2 = torch.roll(v1, shifts=-1, dims=1)
-        cross = torch.linalg.cross(v1, v2)
-        return torch.sum(cross * center2top) / 6.0
+        cross = torch.linalg.cross(v1, v2)  # n_cell, n_point, dim
+        return torch.sum(cross * center2top.unsqueeze(1), dim=(1, 2)) / 6.0
 
     def _wedge_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
         # divide the wedge into 2 tets + 3 pyramids
