@@ -63,10 +63,10 @@ class GeometryProcessor:
         --------
         torch.Tensor[float]
         """
-        available_celltypes = {
-            pv.CellType.TRIANGLE,
-            pv.CellType.QUAD,
-            pv.CellType.POLYGON,
+        area_vecs_by_celltype = {
+            pv.CellType.TRIANGLE: self._tri_area_vecs,
+            pv.CellType.QUAD: self._quad_area_vecs,
+            pv.CellType.POLYGON: self._poly_area_vecs,
         }
         area_vecs = torch.empty((mesh.n_cells, mesh.points.shape[1]))
         celltypes = mesh.pvmesh.celltypes
@@ -77,14 +77,13 @@ class GeometryProcessor:
             nonpolys = mesh.extract_cells(nonpoly_mask, pass_points=True)
             nonpolys_dict = nonpolys.pvmesh.cells_dict
             for celltype, cells in nonpolys_dict.items():
-                if celltype not in available_celltypes:
+                if celltype not in area_vecs_by_celltype:
                     raise KeyError(
                         f"Unavailable celltype: {pv.CellType(celltype).name}"
                     )
                 mask = celltypes == celltype
-                area_vecs[mask] = self._non_poly_area_vecs(
-                    nonpolys.points[cells]
-                )
+                cell_points = nonpolys.points[cells]
+                area_vecs[mask] = area_vecs_by_celltype[celltype](cell_points)
 
         # polygon cells
         poly_mask = celltypes == pv.CellType.POLYGON
@@ -186,7 +185,13 @@ class GeometryProcessor:
     #
     # Area function
     #
-    def _non_poly_area_vecs(self, cell_points: torch.Tensor) -> torch.Tensor:
+    def _tri_area_vecs(self, cell_points: torch.Tensor) -> torch.Tensor:
+        v01 = cell_points[:, 1] - cell_points[:, 0]  # n_cell, dim
+        v02 = cell_points[:, 2] - cell_points[:, 0]
+        cross = torch.linalg.cross(v01, v02)  # n_cell, dim
+        return 0.5 * cross
+
+    def _quad_area_vecs(self, cell_points: torch.Tensor) -> torch.Tensor:
         v1 = cell_points
         v2 = torch.roll(v1, shifts=-1, dims=1)
         cross = torch.linalg.cross(v1, v2)
