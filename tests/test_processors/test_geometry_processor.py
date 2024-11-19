@@ -277,11 +277,15 @@ def test__compute_areas(file_name: pathlib.Path):
         pathlib.Path("tests/data/vts/cube/mesh.vts"),
         pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
+        pathlib.Path("tests/data/vtu/cube/large.vtu"),
     ],
 )
 def test__compute_volumes(file_name: pathlib.Path):
     volmesh = graphlow.read(file_name)
     cell_volumes = volmesh.compute_volumes()
+    # with time_log("compute_volumes"):
+    #     for _ in range(100):
+    #         cell_volumes = volmesh.compute_volumes()
 
     # See below for why `compute_cell_quality`is used
     # instead of `compute_cell_sizes`

@@ -135,6 +135,7 @@ class GeometryProcessor:
             pv.CellType.TETRA: self._tet_volumes,
             pv.CellType.PYRAMID: self._pyramid_volumes,
             pv.CellType.WEDGE: self._wedge_volumes,
+            pv.CellType.VOXEL: self._voxel_volumes,
             pv.CellType.HEXAHEDRON: self._hex_volumes,
             pv.CellType.POLYHEDRON: self._poly_volumes,
         }
@@ -271,6 +272,38 @@ class GeometryProcessor:
 
         return pyramid_volumes + tet_volumes
 
+    def _voxel_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+        # divide the voxel into 6 pyramids
+        tops = torch.mean(cell_points, dim=1, keepdim=True)  # n_cell, 1, dim
+        quad_tops = tops.repeat(1, 6, 1)
+
+        quad_idx = torch.tensor(
+            [
+                [0, 4, 5, 1],
+                [2, 3, 7, 6],
+                [0, 2, 6, 4],
+                [4, 6, 7, 5],
+                [5, 7, 3, 1],
+                [1, 3, 2, 0],
+            ],
+            dtype=torch.int,
+        )
+        quads = cell_points[:, quad_idx]  # n_cell, n_face, n_point, dim
+        quad_centers = torch.mean(quads, dim=2)  # n_cell, n_face, dim
+        center2top_quads = quad_tops - quad_centers  # n_cell, n_face, dim
+        v1_quads = quads - tops.unsqueeze(1)
+        v2_quads = torch.roll(v1_quads, shifts=-1, dims=2)
+        cross_quads = torch.linalg.cross(
+            v1_quads, v2_quads
+        )  # n_cell, n_face, n_point, dim
+        volumes = (
+            torch.sum(
+                cross_quads * center2top_quads.unsqueeze(2), dim=(1, 2, 3)
+            )
+            / 6.0
+        )
+        return volumes
+
     def _hex_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
         # divide the hex into 6 pyramids
         tops = torch.mean(cell_points, dim=1, keepdim=True)  # n_cell, 1, dim
@@ -295,13 +328,13 @@ class GeometryProcessor:
         cross_quads = torch.linalg.cross(
             v1_quads, v2_quads
         )  # n_cell, n_face, n_point, dim
-        pyramid_volumes = (
+        volumes = (
             torch.sum(
                 cross_quads * center2top_quads.unsqueeze(2), dim=(1, 2, 3)
             )
             / 6.0
         )
-        return pyramid_volumes
+        return volumes
 
     def _poly_volumes(self, polys: IReadOnlyGraphlowMesh) -> torch.Tensor:
         facets, fc_inc = polys.extract_facets(pass_points=True)
