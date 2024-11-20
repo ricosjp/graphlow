@@ -8,7 +8,7 @@
       </CellData>
       <Points>
         <DataArray type="Float64" Name="Points" NumberOfComponents="3" format="binary" RangeMin="1.2912542936486213" RangeMax="1.5207782704700905">
-          AQAAAACAAACQAAAAbQAAAA==eJxjYEAGH/bD6Cn7BIru/b+zv4YnbE7W2lf2277Zhbayvdm/TnPCzcgv7+1vTXxlvV/jg/3zvn/Tsy+ust8zbQJ/1bbX9qjmPLBPOdW+IKvk4f4X6a9Kuxs+2d9jnLelIPIVTP1+dPUAYxw7/A==
+          AQAAAACAAACQAAAAbgAAAA==eJxjYEAGH/bD6D3TJvBXbXu9H1X8gT1U3B5dfMo+gaJ7/+/sr+EJm5O19pX9tm92oa1sb/annGpfkFXycP+L9Fel3Q2f7O8xzttSEPnKfp3mhJuRX97b35r4ynq/xgf7533/pmdfXGUPAEcXO/w=
           <InformationKey name="L2_NORM_RANGE" location="vtkDataArray" length="2">
             <Value index="0">
               1.2912542936
@@ -21,7 +21,7 @@
       </Points>
       <Cells>
         <DataArray type="Int64" Name="connectivity" format="binary" RangeMin="0" RangeMax="5">
-          AQAAAACAAAAwAAAAGAAAAA==eJxjYIAAZijNCqUZoTQTlGaB0gABoAAQ
+          AQAAAACAAAAwAAAAGAAAAA==eJxjYIAARijNBKWZoTQLlGaF0gABSAAQ
         </DataArray>
         <DataArray type="Int64" Name="offsets" format="binary" RangeMin="6" RangeMax="6">
           AQAAAACAAAAIAAAACwAAAA==eJxjY4AAAAA4AAc=

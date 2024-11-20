@@ -8,7 +8,7 @@
       </CellData>
       <Points>
         <DataArray type="Float64" Name="Points" NumberOfComponents="3" format="binary" RangeMin="1" RangeMax="1.4142135623730951">
-          AQAAAACAAAB4AAAAGwAAAA==eJxjYEAGH/aj0faofHSASx1O9fYwFgBwFA2o
+          AQAAAACAAAB4AAAAIAAAAA==eJxjYACBD/YMKDQMfNhPQHw/mrg9dnF08MEeADd8DKg=
           <InformationKey name="L2_NORM_RANGE" location="vtkDataArray" length="2">
             <Value index="0">
               1
@@ -21,7 +21,7 @@
       </Points>
       <Cells>
         <DataArray type="Int64" Name="connectivity" format="binary" RangeMin="0" RangeMax="4">
-          AQAAAACAAAAoAAAAFgAAAA==eJxjYIAAZijNBKUZoTQLlAYAAOgACw==
+          AQAAAACAAAAoAAAAFgAAAA==eJxjYIAARijNBKWZoTQLlAYAAMgACw==
         </DataArray>
         <DataArray type="Int64" Name="offsets" format="binary" RangeMin="5" RangeMax="5">
           AQAAAACAAAAIAAAACwAAAA==eJxjZYAAAAAwAAY=
