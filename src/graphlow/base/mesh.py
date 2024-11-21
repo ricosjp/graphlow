@@ -382,7 +382,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             self.add_original_index()
         poly, scipy_fc_inc = self._extract_facets_impl()
         fc_inc = array_handler.convert_to_torch_sparse_csr(
-            scipy_fc_inc.toarray().astype(float),
+            scipy_fc_inc.astype(float),
             device=self.device,
             dtype=self.dtype,
         )
