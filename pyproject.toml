@@ -22,10 +22,18 @@ pytest = "^8.0.2"
 mypy = "^1.8.0"
 pytest-cov = "^4.1.0"
 sphinx = "^7.2.6"
+pytest-benchmark = "^5.1.0"
+pytest-memray = "^1.7.0"
 
 [tool.pytest.ini_options]
+markers = [
+    "with_benchmark: Run test with the --benchmark-autosave option",
+    "with_memray: Run test with the --memray option",
+]
 addopts = [
     "--import-mode=importlib",
+    "-m",
+    "not with_benchmark and not with_memray",
 ]
 
 [build-system]
