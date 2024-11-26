@@ -12,20 +12,29 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
+vtk = "9.3.1"
 pyvista = "^0.43"
-ruff = "^0.4.10"
 scipy = "^1.14.0"
 torch = "^2.3.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"
-mypy = "^1.8.0"
 pytest-cov = "^4.1.0"
+ruff = "^0.4.10"
+mypy = "^1.8.0"
 sphinx = "^7.2.6"
+pytest-benchmark = "^5.1.0"
+pytest-memray = "^1.7.0"
 
 [tool.pytest.ini_options]
+markers = [
+    "with_benchmark: Run test with the --benchmark-autosave option",
+    "with_memray: Run test with the --memray option",
+]
 addopts = [
     "--import-mode=importlib",
+    "-m",
+    "not with_benchmark and not with_memray",
 ]
 
 [build-system]
