@@ -20,8 +20,10 @@ def test_compute_areas_100x100_benchmark(
     benchmark: Generator, file_name: pathlib.Path
 ):
     surfmesh = graphlow.read(file_name)
+
     def compute_areas():
         _ = surfmesh.compute_areas()
+
     benchmark(compute_areas)
 
 
@@ -36,6 +38,8 @@ def test_compute_volumes_100x100_benchmark(
     benchmark: Generator, file_name: pathlib.Path
 ):
     volmesh = graphlow.read(file_name)
+
     def compute_volumes():
         _ = volmesh.compute_volumes()
+
     benchmark(compute_volumes)
