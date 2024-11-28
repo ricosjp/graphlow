@@ -23,15 +23,29 @@ from graphlow.util.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _make_key(
+    method_name: str, args: Any, kwds: Any, kwd_mark: tuple = (object(),)
+) -> functools._HashedSeq:
+    key = (method_name,)
+    key += args
+    if kwds:
+        key += kwd_mark
+        for item in kwds.items():
+            key += item
+    return functools._HashedSeq(key)
+
+
 def use_cache_decorator(method: Callable) -> Callable:
     @functools.wraps(method)
     def wrapper(self: GraphlowMesh, *args: Any, **kwargs: Any) -> Any:
+        key = _make_key(method.__name__, args, kwargs)
         logger.debug(method.__name__)
+        logger.debug(key)
 
-        cached = self.get_cached_results(method.__name__)
+        cached = self.get_cached_results(key)
         if cached is None:
             result = method(self, *args, **kwargs)
-            self.set_cached_results(method.__name__, result)
+            self.set_cached_results(key, result)
             return result
         else:
             logger.debug("use cached value")
@@ -128,14 +142,13 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     def dtype(self) -> torch.Tensor:
         return self._tensor_property.dtype
 
-    def get_cached_results(self, method_name: str) -> None:
-        if method_name not in self._cached:
+    def get_cached_results(self, key: Any) -> None:
+        if key not in self._cached:
             return None
-        return self._cached[method_name]
+        return self._cached[key]
 
-    def set_cached_results(self, method_name: str, value: Any) -> None:
-        # HACK: if necessary, check method name
-        self._cached[method_name] = value
+    def set_cached_results(self, key: Any, value: Any) -> None:
+        self._cached[key] = value
 
     def save(
         self,
@@ -361,6 +374,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             )
         return GraphlowMesh(extracted, device=self.device, dtype=self.dtype)
 
+    @use_cache_decorator
     def extract_facets(
         self, add_original_index: bool = True, pass_points: bool = False
     ) -> tuple[GraphlowMesh, torch.Tensor]:
@@ -578,7 +592,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         val = self._graph_processor.compute_point_adjacency(self)
         return val
 
-    @functools.wraps(GraphProcessor.compute_point_relative_incidence)
+    @use_cache_decorator
     def compute_point_relative_incidence(
         self, other_mesh: GraphlowMesh
     ) -> torch.Tensor:
@@ -587,7 +601,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         )
         return val
 
-    @functools.wraps(GraphProcessor.compute_cell_relative_incidence)
+    @use_cache_decorator
     def compute_cell_relative_incidence(
         self,
         other_mesh: GraphlowMesh,
