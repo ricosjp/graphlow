@@ -124,11 +124,11 @@ class GraphProcessor:
             other_mesh.pvmesh.point_data[FeatureName.ORIGINAL_INDEX]
         )
         row = torch.arange(len(col))
-        value = torch.ones(len(col))
+        values = torch.ones(len(col))
         indices = torch.stack([row, col], dim=0)
         size = (other_mesh.n_points, mesh.n_points)
         return array_handler.convert_to_torch_sparse_csr(
-            torch.sparse_coo_tensor(indices, value, size=size),
+            torch.sparse_coo_tensor(indices, values, size=size),
             device=mesh.device,
             dtype=mesh.dtype,
         )
