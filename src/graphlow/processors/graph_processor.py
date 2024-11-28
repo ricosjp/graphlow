@@ -54,7 +54,7 @@ class GraphProcessor:
             (n_cells, n_cells)-shaped sparse adjacency matrix.
         """
         scipy_cp_inc = array_handler.convert_to_scipy_sparse_csr(
-            self.compute_cell_point_incidence(mesh)
+            mesh.compute_cell_point_incidence()
         ).astype(bool)
         cell_adjacency = array_handler.convert_to_torch_sparse_csr(
             (scipy_cp_inc @ scipy_cp_inc.T).astype(float),
@@ -79,7 +79,7 @@ class GraphProcessor:
             (n_points, n_points)-shaped sparse adjacency matrix.
         """
         scipy_cp_inc = array_handler.convert_to_scipy_sparse_csr(
-            self.compute_cell_point_incidence(mesh)
+            mesh.compute_cell_point_incidence()
         ).astype(bool)
         point_adjacency = array_handler.convert_to_torch_sparse_csr(
             (scipy_cp_inc.T @ scipy_cp_inc).astype(float),
@@ -109,9 +109,9 @@ class GraphProcessor:
             (n_points_other, n_points_self)-shaped sparse adjacency matrix.
         """
         if other_mesh.n_points > mesh.n_points:
-            return self.compute_point_relative_incidence(
-                other_mesh, mesh
-            ).transpose(0, 1)
+            return other_mesh.compute_point_relative_incidence(mesh).transpose(
+                0, 1
+            )
 
         if FeatureName.ORIGINAL_INDEX not in other_mesh.pvmesh.point_data:
             raise ValueError(
@@ -156,21 +156,21 @@ class GraphProcessor:
             (n_cells_other, n_cells_self)-shaped sparse adjacency matrix.
         """
         if other_mesh.n_points > mesh.n_points:
-            return self.compute_cell_relative_incidence(
-                other_mesh, mesh, minimum_n_sharing=minimum_n_sharing
+            return other_mesh.compute_cell_relative_incidence(
+                mesh, minimum_n_sharing=minimum_n_sharing
             ).transpose(0, 1)
 
         other_self_point_incidence = array_handler.convert_to_scipy_sparse_csr(
-            self.compute_point_relative_incidence(mesh, other_mesh).to(bool)
+            mesh.compute_point_relative_incidence(other_mesh).to(bool)
         )
         other_incidence = (
             array_handler.convert_to_scipy_sparse_csr(
-                self.compute_cell_point_incidence(other_mesh).to(bool)
+                other_mesh.compute_cell_point_incidence().to(bool)
             )
             @ other_self_point_incidence
         ).astype(int)  # (n_cells_other, n_points_self)
         self_incidence = array_handler.convert_to_scipy_sparse_csr(
-            self.compute_cell_point_incidence(mesh).to(int)
+            mesh.compute_cell_point_incidence().to(int)
         ).T  # (n_points_self, n_cells_self)
 
         # (n_other_cells, n_self_cells)
