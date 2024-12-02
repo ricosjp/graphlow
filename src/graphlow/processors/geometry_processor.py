@@ -22,6 +22,23 @@ class GeometryProcessor:
         elemental_data: torch.Tensor,
         mode: Literal["mean", "effective"] = "mean",
     ) -> torch.Tensor:
+        """Convert elemental data to nodal data.
+
+        Parameters
+        ----------
+        elemental_data: torch.Tensor
+            elemental data to convert.
+        mode: "mean", or "effective", default: "mean"
+            The way to convert.
+            - "mean": averages the values of \
+                elements connected to each node. (default)
+            - "effective": distributes element information \
+                to the connected nodes, ensuring consistent volume.
+
+        Returns
+        -------
+        torch.Tensor
+        """
         pc_inc = mesh.compute_cell_point_incidence().to_sparse_coo().T
         if mode == "mean":
             n_connected_cells = pc_inc.sum(dim=1).to_dense()
@@ -41,6 +58,23 @@ class GeometryProcessor:
         nodal_data: torch.Tensor,
         mode: Literal["mean", "effective"] = "mean",
     ) -> torch.Tensor:
+        """Convert nodal data to elemental data.
+
+        Parameters
+        ----------
+        nodal_data: torch.Tensor
+            nodal data to convert.
+        mode: "mean", or "effective", default: "mean"
+            The way to convert.
+            - "mean": averages the values of \
+                nodes connected to each element. (default)
+            - "effective": distributes node information \
+                to the connected elements, ensuring consistent volume.
+
+        Returns
+        -------
+        torch.Tensor
+        """
         cp_inc = mesh.compute_cell_point_incidence().to_sparse_coo()
         if mode == "mean":
             n_points_in_cells = cp_inc.sum(dim=1).to_dense()
@@ -56,11 +90,12 @@ class GeometryProcessor:
 
     def compute_area_vecs(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
         """Compute (n_elements, dims)-shaped area vectors.
+
         Available celltypes are:
         VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
 
-        Returns:
-        --------
+        Return
+        -------
         torch.Tensor[float]
         """
         area_vecs_by_celltype = {
@@ -96,15 +131,16 @@ class GeometryProcessor:
         self, mesh: IReadOnlyGraphlowMesh, allow_negative_area: bool = False
     ) -> torch.Tensor:
         """Compute (n_elements,)-shaped areas.
+
         Available celltypes are:
         VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
 
         Parameters
         ----------
-        allow_negative_area: bool, optional [False]
+        allow_negative_area : bool, optional [False]
 
-        Returns:
-        --------
+        Returns
+        -------
         torch.Tensor[float]
         """
         area_vecs = mesh.compute_area_vecs()
@@ -118,16 +154,18 @@ class GeometryProcessor:
         self, mesh: IReadOnlyGraphlowMesh, allow_negative_volume: bool = True
     ) -> torch.Tensor:
         """Compute (n_elements,)-shaped volumes.
+
         Available celltypes are:
-        VTK_TETRA, VTK_PYRAMID, VTK_WEDGE, VTK_HEXAHEDRON, VTK_POLYHEDRON
+        VTK_TETRA, VTK_PYRAMID, VTK_WEDGE, VTK_VOXEL,
+        VTK_HEXAHEDRON, VTK_POLYHEDRON
 
         Parameters
         ----------
         allow_negative_area: bool, optional [True]
             If True, compute the signed volume.
 
-        Returns:
-        --------
+        Returns
+        -------
         torch.Tensor[float]
         """
         volumes_by_celltype = {
@@ -169,7 +207,8 @@ class GeometryProcessor:
         return volumes
 
     def compute_normals(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
-        """Compute (n_elements, dims)-shaped normals
+        """Compute (n_elements, dims)-shaped normals.
+
         Available celltypes are:
         VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
 

@@ -30,15 +30,15 @@ class IsoAMProcessor:
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
 
-        Returns:
-        --------
+        Returns
+        -------
         If `with_moment_matrix` is True, returns a tuple of 2 tensors,
             (isoAM, Minv).
         If `with_moment_matrix` is False, returns a tuple,
             (isoAM, None).
 
         isoAM: (dims, n_points, n_points)-shaped sparse coo tensor
-        Minv : (n_points, dims, dims)-shaped tensor
+        Minv: (n_points, dims, dims)-shaped tensor
         """
         points = mesh.points
         adj = mesh.compute_point_adjacency().to_sparse_coo()
@@ -101,8 +101,8 @@ class IsoAMProcessor:
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, None | torch.Tensor]:
-        """Compute (dims, n_points, n_points)-shaped \
-            neumann boundary model IsoAM.
+        """Compute (dims, n_points, n_points)-shaped
+        Neumann boundary model IsoAM.
 
         Parameters
         ----------
@@ -114,8 +114,8 @@ class IsoAMProcessor:
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
 
-        Returns:
-        --------
+        Returns
+        -------
         If `with_moment_matrix` is True, returns a tuple of 3 tensors,
             (NIsoAM, weighted_normals, Minv).
         If `with_moment_matrix` is False, returns a tuple,
@@ -123,7 +123,7 @@ class IsoAMProcessor:
 
         NIsoAM: (dims, n_points, n_points)-shaped sparse coo tensor
         weighted_normals: (n_points, dims)-shaped tensor
-        Minv : (n_points, dims, dims)-shaped tensor
+        Minv: (n_points, dims, dims)-shaped tensor
         """
         points = mesh.points
         adj = mesh.compute_point_adjacency().to_sparse_coo()

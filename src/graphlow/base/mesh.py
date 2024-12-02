@@ -581,6 +581,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     def compute_point_adjacency(self) -> torch.Tensor:
         return self._graph_processor.compute_point_adjacency(self)
 
+    @functools.wraps(GraphProcessor.compute_point_relative_incidence)
     @use_cache_decorator
     def compute_point_relative_incidence(
         self, other_mesh: GraphlowMesh
@@ -589,6 +590,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             self, other_mesh
         )
 
+    @functools.wraps(GraphProcessor.compute_cell_relative_incidence)
     @use_cache_decorator
     def compute_cell_relative_incidence(
         self,

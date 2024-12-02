@@ -24,7 +24,7 @@ class GraphProcessor:
         Returns
         -------
         torch.Tensor[float]
-            (n_cells, n_points)-shaped sparse incidence matrix.
+            (n_cells, n_points)-shaped sparse csr tensor.
         """
         indices = mesh.pvmesh.cell_connectivity
         indptr = mesh.pvmesh.offset
@@ -51,7 +51,7 @@ class GraphProcessor:
         Returns
         -------
         torch.Tensor[float]
-            (n_cells, n_cells)-shaped sparse adjacency matrix.
+            (n_cells, n_cells)-shaped sparse csr tensor.
         """
         scipy_cp_inc = array_handler.convert_to_scipy_sparse_csr(
             mesh.compute_cell_point_incidence()
@@ -76,7 +76,7 @@ class GraphProcessor:
         Returns
         -------
         torch.Tensor[float]
-            (n_points, n_points)-shaped sparse adjacency matrix.
+            (n_points, n_points)-shaped sparse csr tensor.
         """
         scipy_cp_inc = array_handler.convert_to_scipy_sparse_csr(
             mesh.compute_cell_point_incidence()
@@ -106,7 +106,7 @@ class GraphProcessor:
         Returns
         -------
         torch.Tensor[float]
-            (n_points_other, n_points_self)-shaped sparse adjacency matrix.
+            (n_points_other, n_points_self)-shaped sparse csr tensor.
         """
         if other_mesh.n_points > mesh.n_points:
             return other_mesh.compute_point_relative_incidence(mesh).transpose(
@@ -153,7 +153,7 @@ class GraphProcessor:
         Returns
         -------
         torch.Tensor[float]
-            (n_cells_other, n_cells_self)-shaped sparse adjacency matrix.
+            (n_cells_other, n_cells_self)-shaped sparse csr tensor.
         """
         if other_mesh.n_points > mesh.n_points:
             return other_mesh.compute_cell_relative_incidence(
