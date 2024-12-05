@@ -16,29 +16,17 @@ from graphlow.base.tensor_property import GraphlowTensorProperty
 from graphlow.processors.geometry_processor import GeometryProcessor
 from graphlow.processors.graph_processor import GraphProcessor
 from graphlow.processors.isoAM_processor import IsoAMProcessor
-from graphlow.util import array_handler, constants
+from graphlow.util import array_handler, cache, constants
 from graphlow.util.enums import FeatureName
 from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def _make_key(
-    method_name: str, args: Any, kwds: Any, kwd_mark: tuple = (object(),)
-) -> functools._HashedSeq:
-    key = (method_name,)
-    key += args
-    if kwds:
-        key += kwd_mark
-        for item in kwds.items():
-            key += item
-    return functools._HashedSeq(key)
-
-
 def use_cache_decorator(method: Callable) -> Callable:
     @functools.wraps(method)
     def wrapper(self: GraphlowMesh, *args: Any, **kwargs: Any) -> Any:
-        key = _make_key(method.__name__, args, kwargs)
+        key = cache.make_key(method.__name__, args, kwargs)
         logger.debug(method.__name__)
         logger.debug(key)
 
