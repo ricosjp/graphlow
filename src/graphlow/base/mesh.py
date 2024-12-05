@@ -16,7 +16,7 @@ from graphlow.base.tensor_property import GraphlowTensorProperty
 from graphlow.processors.geometry_processor import GeometryProcessor
 from graphlow.processors.graph_processor import GraphProcessor
 from graphlow.processors.isoAM_processor import IsoAMProcessor
-from graphlow.util import array_handler, constants
+from graphlow.util import array_handler, cache, constants
 from graphlow.util.enums import FeatureName
 from graphlow.util.logger import get_logger
 
@@ -26,12 +26,14 @@ logger = get_logger(__name__)
 def use_cache_decorator(method: Callable) -> Callable:
     @functools.wraps(method)
     def wrapper(self: GraphlowMesh, *args: Any, **kwargs: Any) -> Any:
+        key = cache.make_key(method.__name__, args, kwargs)
         logger.debug(method.__name__)
+        logger.debug(key)
 
-        cached = self.get_cached_results(method.__name__)
+        cached = self.get_cached_results(key)
         if cached is None:
             result = method(self, *args, **kwargs)
-            self.set_cached_results(method.__name__, result)
+            self.set_cached_results(key, result)
             return result
         else:
             logger.debug("use cached value")
@@ -128,14 +130,13 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     def dtype(self) -> torch.Tensor:
         return self._tensor_property.dtype
 
-    def get_cached_results(self, method_name: str) -> None:
-        if method_name not in self._cached:
+    def get_cached_results(self, key: Any) -> None:
+        if key not in self._cached:
             return None
-        return self._cached[method_name]
+        return self._cached[key]
 
-    def set_cached_results(self, method_name: str, value: Any) -> None:
-        # HACK: if necessary, check method name
-        self._cached[method_name] = value
+    def set_cached_results(self, key: Any, value: Any) -> None:
+        self._cached[key] = value
 
     def save(
         self,
@@ -361,6 +362,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             )
         return GraphlowMesh(extracted, device=self.device, dtype=self.dtype)
 
+    @use_cache_decorator
     def extract_facets(
         self, add_original_index: bool = True, pass_points: bool = False
     ) -> tuple[GraphlowMesh, torch.Tensor]:
@@ -499,10 +501,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         elemental_data: torch.Tensor,
         mode: Literal["mean", "effective"] = "mean",
     ) -> torch.Tensor:
-        val = self._geometry_processor.convert_elemental2nodal(
+        return self._geometry_processor.convert_elemental2nodal(
             self, elemental_data, mode
         )
-        return val
 
     @functools.wraps(GeometryProcessor.convert_nodal2elemental)
     def convert_nodal2elemental(
@@ -510,43 +511,37 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         nodal_data: torch.Tensor,
         mode: Literal["mean", "effective"] = "mean",
     ) -> torch.Tensor:
-        val = self._geometry_processor.convert_nodal2elemental(
+        return self._geometry_processor.convert_nodal2elemental(
             self, nodal_data, mode
         )
-        return val
 
     @functools.wraps(GeometryProcessor.compute_area_vecs)
     def compute_area_vecs(self) -> torch.Tensor:
-        val = self._geometry_processor.compute_area_vecs(self)
-        return val
+        return self._geometry_processor.compute_area_vecs(self)
 
     @functools.wraps(GeometryProcessor.compute_areas)
     def compute_areas(self, allow_negative_area: bool = False) -> torch.Tensor:
-        val = self._geometry_processor.compute_areas(self, allow_negative_area)
-        return val
+        return self._geometry_processor.compute_areas(self, allow_negative_area)
 
     @functools.wraps(GeometryProcessor.compute_volumes)
     def compute_volumes(
         self, allow_negative_volume: bool = True
     ) -> torch.Tensor:
-        val = self._geometry_processor.compute_volumes(
+        return self._geometry_processor.compute_volumes(
             self, allow_negative_volume
         )
-        return val
 
     @functools.wraps(GeometryProcessor.compute_normals)
     def compute_normals(self) -> torch.Tensor:
-        val = self._geometry_processor.compute_normals(self)
-        return val
+        return self._geometry_processor.compute_normals(self)
 
     @functools.wraps(IsoAMProcessor.compute_isoAM)
     def compute_isoAM(
         self, with_moment_matrix: bool = True, consider_volume: bool = False
     ) -> tuple[torch.Tensor, None | torch.Tensor]:
-        val = self._isoAM_processor.compute_isoAM(
+        return self._isoAM_processor.compute_isoAM(
             self, with_moment_matrix, consider_volume
         )
-        return val
 
     @functools.wraps(IsoAMProcessor.compute_isoAM_with_neumann)
     def compute_isoAM_with_neumann(
@@ -555,47 +550,43 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, None | torch.Tensor]:
-        val = self._isoAM_processor.compute_isoAM_with_neumann(
+        return self._isoAM_processor.compute_isoAM_with_neumann(
             self, normal_weight, with_moment_matrix, consider_volume
         )
-        return val
 
     @functools.wraps(GraphProcessor.compute_cell_point_incidence)
     @use_cache_decorator
     def compute_cell_point_incidence(self) -> torch.Tensor:
-        val = self._graph_processor.compute_cell_point_incidence(self)
-        return val
+        return self._graph_processor.compute_cell_point_incidence(self)
 
     @functools.wraps(GraphProcessor.compute_cell_adjacency)
     @use_cache_decorator
     def compute_cell_adjacency(self) -> torch.Tensor:
-        val = self._graph_processor.compute_cell_adjacency(self)
-        return val
+        return self._graph_processor.compute_cell_adjacency(self)
 
     @functools.wraps(GraphProcessor.compute_point_adjacency)
     @use_cache_decorator
     def compute_point_adjacency(self) -> torch.Tensor:
-        val = self._graph_processor.compute_point_adjacency(self)
-        return val
+        return self._graph_processor.compute_point_adjacency(self)
 
     @functools.wraps(GraphProcessor.compute_point_relative_incidence)
+    @use_cache_decorator
     def compute_point_relative_incidence(
         self, other_mesh: GraphlowMesh
     ) -> torch.Tensor:
-        val = self._graph_processor.compute_point_relative_incidence(
+        return self._graph_processor.compute_point_relative_incidence(
             self, other_mesh
         )
-        return val
 
     @functools.wraps(GraphProcessor.compute_cell_relative_incidence)
+    @use_cache_decorator
     def compute_cell_relative_incidence(
         self,
         other_mesh: GraphlowMesh,
         minimum_n_sharing: int | None = None,
     ) -> torch.Tensor:
-        val = self._graph_processor.compute_cell_relative_incidence(
+        return self._graph_processor.compute_cell_relative_incidence(
             self,
             other_mesh,
             minimum_n_sharing=minimum_n_sharing,
         )
-        return val
