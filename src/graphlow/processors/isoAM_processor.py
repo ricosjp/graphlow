@@ -69,18 +69,12 @@ class IsoAMProcessor:
         # compute inversed moment matrix for each point
         diff_ijk = diff_kij.permute((1, 2, 0))
         weighted_diff_ikj = weighted_diff_kij.permute(1, 0, 2)
-        try:
-            inversed_moment_tensors = torch.stack(
-                [
-                    torch.inverse(
-                        weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
-                    )
-                    for i in range(n_points)
-                ]
-            )
-        except Exception as e:
-            logger.error("Some moment matrices are not full rank")
-            raise e
+        inversed_moment_tensors = torch.stack(
+            [
+                torch.pinverse(weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense())
+                for i in range(n_points)
+            ]
+        )
 
         # compute isoAM using inversed moment matrix
         Dkij = torch.stack(
@@ -158,19 +152,15 @@ class IsoAMProcessor:
         # compute inversed moment matrix for each point
         diff_ijk = diff_kij.permute((1, 2, 0))
         weighted_diff_ikj = weighted_diff_kij.permute(1, 0, 2)
-        try:
-            inversed_moment_tensors = torch.stack(
-                [
-                    torch.inverse(
-                        weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
-                        + weighted_normals[i].outer(normals[i])
-                    )
-                    for i in range(n_points)
-                ]
-            )
-        except Exception as e:
-            logger.error("Some moment matrices are not full rank")
-            raise e
+        inversed_moment_tensors = torch.stack(
+            [
+                torch.pinverse(
+                    weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
+                    + weighted_normals[i].outer(normals[i])
+                )
+                for i in range(n_points)
+            ]
+        )
 
         # compute isoAM using inversed moment matrix
         Dkij = torch.stack(
@@ -276,7 +266,7 @@ class IsoAMProcessor:
             (dim, n_points, n_points)-shaped torch sparse coo tensor
         """
         dim, n_points, _ = Akij.shape
-        L_values = torch.sum(Akij, dim=2).values().reshape(-1, n_points)
+        L_values = torch.sparse.sum(Akij, dim=2).to_dense()
         L_indices = torch.arange(n_points).expand(2, -1)
         grad_op = torch.stack(
             [
