@@ -1,4 +1,5 @@
 import pathlib
+from collections.abc import Callable
 
 import numpy as np
 import pytest
@@ -589,7 +590,9 @@ def test__compute_isoAM_with_neumann_shapes(file_name: pathlib.Path):
         )
     ],
 )
-def test__compute_isoAM_for_surface_mesh(scalar_field, desired_grad):
+def test__compute_isoAM_for_surface_mesh(
+    scalar_field: Callable, desired_grad: np.ndarray
+):
     # create a grid mesh
     ni = 3
     nj = 3
