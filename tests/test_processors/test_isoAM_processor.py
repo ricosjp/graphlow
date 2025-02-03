@@ -573,17 +573,19 @@ def test__compute_isoAM_with_neumann_shapes(file_name: pathlib.Path):
     [
         (
             lambda pos: pos[:, 0] ** 2 - pos[:, 1] ** 2,
-            np.array([
-                [-1.0,  1.0, 0],
-                [-1.5,  0.0, 0],
-                [-1.0, -1.0, 0],
-                [ 0.0,  1.5, 0],
-                [ 0.0,  0.0, 0],
-                [ 0.0, -1.5, 0],
-                [ 1.0,  1.0, 0],
-                [ 1.5,  0.0, 0],
-                [ 1.0, -1.0, 0],
-                ]),
+            np.array(
+                [
+                    [-1.0, 1.0, 0],
+                    [-1.5, 0.0, 0],
+                    [-1.0, -1.0, 0],
+                    [0.0, 1.5, 0],
+                    [0.0, 0.0, 0],
+                    [0.0, -1.5, 0],
+                    [1.0, 1.0, 0],
+                    [1.5, 0.0, 0],
+                    [1.0, -1.0, 0],
+                ]
+            ),
         )
     ],
 )
@@ -603,9 +605,9 @@ def test__compute_isoAM_for_surface_mesh(scalar_field, desired_grad):
     actual_grad_x_phi = grad_adjs[0] @ phi
     actual_grad_y_phi = grad_adjs[1] @ phi
     actual_grad_z_phi = grad_adjs[2] @ phi
-    actual_grad_vector = torch.stack([actual_grad_x_phi, actual_grad_y_phi, actual_grad_z_phi], dim=1)
+    actual_grad_vector = torch.stack(
+        [actual_grad_x_phi, actual_grad_y_phi, actual_grad_z_phi], dim=1
+    )
     actual_grad_vector = actual_grad_vector.detach().numpy()
 
-    np.testing.assert_almost_equal(
-        actual_grad_vector, desired_grad, decimal=6
-    )
+    np.testing.assert_almost_equal(actual_grad_vector, desired_grad, decimal=6)
