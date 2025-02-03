@@ -1,7 +1,9 @@
 import pathlib
+from collections.abc import Callable
 
 import numpy as np
 import pytest
+import pyvista as pv
 import torch
 
 import graphlow
@@ -565,3 +567,50 @@ def test__compute_isoAM_with_neumann_shapes(file_name: pathlib.Path):
     np.testing.assert_array_equal(grad_adjs.shape, (d, N, N))
     np.testing.assert_array_equal(wnormals.shape, (N, d))
     np.testing.assert_array_equal(minv.shape, (N, d, d))
+
+
+@pytest.mark.parametrize(
+    "scalar_field, desired_grad",
+    [
+        (
+            lambda pos: pos[:, 0] ** 2 - pos[:, 1] ** 2,
+            np.array(
+                [
+                    [-1.0, 1.0, 0],
+                    [-1.5, 0.0, 0],
+                    [-1.0, -1.0, 0],
+                    [0.0, 1.5, 0],
+                    [0.0, 0.0, 0],
+                    [0.0, -1.5, 0],
+                    [1.0, 1.0, 0],
+                    [1.5, 0.0, 0],
+                    [1.0, -1.0, 0],
+                ]
+            ),
+        )
+    ],
+)
+def test__compute_isoAM_for_surface_mesh(
+    scalar_field: Callable, desired_grad: np.ndarray
+):
+    # create a grid mesh
+    ni = 3
+    nj = 3
+    x = np.linspace(-1, 1, ni, dtype=np.float32)
+    y = np.linspace(-1, 1, nj, dtype=np.float32)
+    X, Y = np.meshgrid(x, y, indexing="xy")
+    Z = np.zeros([ni, nj], dtype=np.float32)
+    grid = pv.StructuredGrid(X, Y, Z)
+    mesh = graphlow.GraphlowMesh(grid)
+    grad_adjs, _ = mesh.compute_isoAM(with_moment_matrix=True)
+
+    phi = torch.from_numpy(scalar_field(grid.points))
+    actual_grad_x_phi = grad_adjs[0] @ phi
+    actual_grad_y_phi = grad_adjs[1] @ phi
+    actual_grad_z_phi = grad_adjs[2] @ phi
+    actual_grad_vector = torch.stack(
+        [actual_grad_x_phi, actual_grad_y_phi, actual_grad_z_phi], dim=1
+    )
+    actual_grad_vector = actual_grad_vector.detach().numpy()
+
+    np.testing.assert_almost_equal(actual_grad_vector, desired_grad, decimal=6)

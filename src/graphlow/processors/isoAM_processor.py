@@ -69,18 +69,18 @@ class IsoAMProcessor:
         # compute inversed moment matrix for each point
         diff_ijk = diff_kij.permute((1, 2, 0))
         weighted_diff_ikj = weighted_diff_kij.permute(1, 0, 2)
-        try:
-            inversed_moment_tensors = torch.stack(
-                [
-                    torch.inverse(
-                        weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
-                    )
-                    for i in range(n_points)
-                ]
-            )
-        except Exception as e:
-            logger.error("Some moment matrices are not full rank")
-            raise e
+
+        # precompute normals outer product to avoid recomputation
+        normals = self._compute_normals_on_surface_points(mesh)
+        normals_outer = normals.unsqueeze(2) * normals.unsqueeze(1)
+
+        inversed_moment_tensors = []
+        for i in range(n_points):
+            mi = weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
+            if torch.linalg.matrix_rank(mi) < dim:
+                mi += normals_outer[i]
+            inversed_moment_tensors.append(torch.inverse(mi))
+        inversed_moment_tensors = torch.stack(inversed_moment_tensors)
 
         # compute isoAM using inversed moment matrix
         Dkij = torch.stack(
@@ -158,19 +158,15 @@ class IsoAMProcessor:
         # compute inversed moment matrix for each point
         diff_ijk = diff_kij.permute((1, 2, 0))
         weighted_diff_ikj = weighted_diff_kij.permute(1, 0, 2)
-        try:
-            inversed_moment_tensors = torch.stack(
-                [
-                    torch.inverse(
-                        weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
-                        + weighted_normals[i].outer(normals[i])
-                    )
-                    for i in range(n_points)
-                ]
-            )
-        except Exception as e:
-            logger.error("Some moment matrices are not full rank")
-            raise e
+
+        # precompute normals outer product to avoid recomputation
+        normals_outer = weighted_normals.unsqueeze(2) * normals.unsqueeze(1)
+        inversed_moment_tensors = []
+        for i in range(n_points):
+            mi = weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
+            mi += normals_outer[i]
+            inversed_moment_tensors.append(torch.inverse(mi))
+        inversed_moment_tensors = torch.stack(inversed_moment_tensors)
 
         # compute isoAM using inversed moment matrix
         Dkij = torch.stack(
@@ -263,20 +259,19 @@ class IsoAMProcessor:
 
     def _create_grad_operator_from(self, Akij: torch.Tensor) -> torch.Tensor:
         """Create a grad operator from a given sparse coo matrix
-        where each row(i) has a value and diag(i=j) has no value (sparse)
+        where diag(i=j) has no value (sparse)
 
         Parameters
         ----------
         Akij: (dim, n_points, n_points)-shaped torch sparse coo tensor
-            To ensure correct calculation, each row(i) must contain a value and
-            diag(i=j) has no value (sparse)
+            To ensure correct calculation, diag(i=j) has no value (sparse)
 
         Returns:
         --------
             (dim, n_points, n_points)-shaped torch sparse coo tensor
         """
         dim, n_points, _ = Akij.shape
-        L_values = torch.sum(Akij, dim=2).values().reshape(-1, n_points)
+        L_values = torch.sparse.sum(Akij, dim=2).to_dense()
         L_indices = torch.arange(n_points).expand(2, -1)
         grad_op = torch.stack(
             [
