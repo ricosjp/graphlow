@@ -92,6 +92,58 @@ class GraphProcessor:
         )
         return point_adjacency
 
+    def compute_point_degree(
+        self, mesh: IReadOnlyGraphlowMesh
+    ) -> torch.Tensor:
+        """Compute (n_points, n_points)-shaped degree matrix.
+
+        Returns
+        -------
+        torch.Tensor[float]
+            (n_points, n_points)-shaped sparse csr tensor.
+        """
+        point_adjacency = self.compute_point_adjacency(mesh)
+        return self._compute_degree(point_adjacency)
+
+    def compute_cell_degree(
+        self, mesh: IReadOnlyGraphlowMesh
+    ) -> torch.Tensor:
+        """Compute (n_cells, n_cells)-shaped degree matrix.
+
+        Returns
+        -------
+        torch.Tensor[float]
+            (n_cells, n_cells)-shaped sparse csr tensor.
+        """
+        cell_adjacency = self.compute_cell_adjacency(mesh)
+        return self._compute_degree(cell_adjacency)
+
+    def compute_normalized_point_adjacency(
+        self, mesh: IReadOnlyGraphlowMesh
+    ) -> torch.Tensor:
+        """Compute (n_points, n_points)-shaped normalized adjacency matrix.
+
+        Returns
+        -------
+        torch.Tensor[float]
+            (n_points, n_points)-shaped sparse csr tensor.
+        """
+        point_adjacency = self.compute_point_adjacency(mesh)
+        return self._compute_normalized_adjacency(point_adjacency)
+
+    def compute_normalized_cell_adjacency(
+        self, mesh: IReadOnlyGraphlowMesh
+    ) -> torch.Tensor:
+        """Compute (n_cells, n_cells)-shaped normalized adjacency matrix.
+
+        Returns
+        -------
+        torch.Tensor[float]
+            (n_cells, n_cells)-shaped sparse csr tensor.
+        """
+        cell_adjacency = self.compute_cell_adjacency(mesh)
+        return self._compute_normalized_adjacency(cell_adjacency)
+
     def compute_point_relative_incidence(
         self, mesh: IReadOnlyGraphlowMesh, other_mesh: IReadOnlyGraphlowMesh
     ) -> torch.Tensor:
@@ -196,3 +248,53 @@ class GraphProcessor:
             device=mesh.device,
             dtype=mesh.dtype,
         )
+
+    def _compute_degree(
+        self, adjacency: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute degree matrix from adjacency matrix.
+
+        Parameters
+        ----------
+        adjacency: torch.Tensor
+            Adjacency matrix.
+
+        Returns
+        -------
+        torch.Tensor[float]
+            sparse csr tensor.
+        """
+        degrees = (
+            adjacency.sum(dim=1, keepdim=True).to_dense().reshape(-1)
+        )
+        return torch.sparse.spdiags(degrees, offsets=torch.tensor([0]), shape=adjacency.shape).to_sparse_csr()
+
+    def _compute_normalized_adjacency(
+        self, adjacency: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute normalized adjacency matrix from adjacency matrix.
+
+        Parameters
+        ----------
+        adjacency: torch.Tensor
+            Adjacency matrix.
+
+        Returns
+        -------
+        torch.Tensor[float]
+            Normalized adjacency matrix.
+        """
+        degrees = (
+            adjacency.sum(dim=1, keepdim=True).to_dense().reshape(-1)
+        )
+        D_inv_sqrt_values = 1.0 / torch.sqrt(degrees)
+        indices = torch.stack(
+            [
+                torch.arange(adjacency.shape[0]),
+                torch.arange(adjacency.shape[1]),
+            ]
+        )
+        D_inv_sqrt = torch.sparse_coo_tensor(
+            indices, D_inv_sqrt_values, size=adjacency.shape
+        ).to_sparse_csr()
+        return D_inv_sqrt @ adjacency @ D_inv_sqrt

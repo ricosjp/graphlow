@@ -79,6 +79,54 @@ def test__compute_cell_adjacency(file_name: pathlib.Path, desired: np.ndarray):
     "file_name, desired",
     [
         (
+            pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+            np.array(
+                [
+                    [3, 0, 0],
+                    [0, 2, 0],
+                    [0, 0, 2],
+                ]
+            ),
+        ),
+    ],
+)
+def test__compute_cell_degree(file_name: pathlib.Path, desired: np.ndarray):
+    mesh = graphlow.read(file_name)
+    cell_degree = mesh.compute_cell_degree()
+    np.testing.assert_array_equal(
+        array_handler.convert_to_dense_numpy(cell_degree), desired
+    )
+
+
+@pytest.mark.parametrize(
+    "file_name, desired",
+    [
+        (
+            pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+            np.array(
+                [
+                    [1.0 / 3.0, 1.0 / np.sqrt(6.0), 1.0 / np.sqrt(6.0)],
+                    [1.0 / np.sqrt(6.0), 1.0 / 2.0, 0.0],
+                    [1.0 / np.sqrt(6.0), 0.0, 1.0 / 2.0],
+                ]
+            ),
+        ),
+    ],
+)
+def test__compute_normalized_cell_adjacency(
+    file_name: pathlib.Path, desired: np.ndarray
+):
+    mesh = graphlow.read(file_name)
+    normalized_cell_adjacency = mesh.compute_normalized_cell_adjacency()
+    np.testing.assert_almost_equal(
+        array_handler.convert_to_dense_numpy(normalized_cell_adjacency), desired
+    )
+
+
+@pytest.mark.parametrize(
+    "file_name, desired",
+    [
+        (
             pathlib.Path("tests/data/vtk/hex/mesh.vtk"),
             np.array(
                 [
@@ -126,6 +174,242 @@ def test__compute_point_adjacency(file_name: pathlib.Path, desired: np.ndarray):
     point_adjacency = mesh.compute_point_adjacency()
     np.testing.assert_array_equal(
         array_handler.convert_to_dense_numpy(point_adjacency), desired
+    )
+
+
+@pytest.mark.parametrize(
+    "file_name, desired",
+    [
+        (
+            pathlib.Path("tests/data/vtk/hex/mesh.vtk"),
+            np.array(
+                [
+                    # 0  1  2  3  4  5  6  7  8  9 10 11
+                    [8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  #  0
+                    [0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  #  1
+                    [0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0],  #  2
+                    [0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0],  #  3
+                    [0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0],  #  4
+                    [0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0],  #  5
+                    [0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0],  #  6
+                    [0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0],  #  7
+                    [0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0],  #  8
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0],  #  9
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0],  # 10
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8],  # 11
+                ]
+            ),
+        )
+    ],
+)
+def test__compute_point_degree(file_name: pathlib.Path, desired: np.ndarray):
+    mesh = graphlow.read(file_name)
+    point_degree = mesh.compute_point_degree()
+    np.testing.assert_array_equal(
+        array_handler.convert_to_dense_numpy(point_degree), desired
+    )
+
+
+@pytest.mark.parametrize(
+    "file_name, desired",
+    [
+        (
+            pathlib.Path("tests/data/vtk/hex/mesh.vtk"),
+            np.array(
+                [
+                    # 0
+                    [
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        0,
+                        0,
+                        0,
+                        0,
+                    ],
+                    # 1
+                    [
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        0,
+                        0,
+                        0,
+                        0,
+                    ],
+                    # 2
+                    [
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        0,
+                        0,
+                        0,
+                        0,
+                    ],
+                    # 3
+                    [
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        0,
+                        0,
+                        0,
+                        0,
+                    ],
+                    # 4
+                    [
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                    ],
+                    # 5
+                    [
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                    ],
+                    # 6
+                    [
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                    ],
+                    # 7
+                    [
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / 12.0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                    ],
+                    # 8
+                    [
+                        0,
+                        0,
+                        0,
+                        0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                    ],
+                    # 9
+                    [
+                        0,
+                        0,
+                        0,
+                        0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                    ],
+                    # 10
+                    [
+                        0,
+                        0,
+                        0,
+                        0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                    ],
+                    # 11
+                    [
+                        0,
+                        0,
+                        0,
+                        0,
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / np.sqrt(8 * 12),
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                        1.0 / 8.0,
+                    ],
+                ]
+            ),
+        )
+    ],
+)
+def test__compute_normalized_point_adjacency(
+    file_name: pathlib.Path, desired: np.ndarray
+):
+    mesh = graphlow.read(file_name)
+    normalized_point_adjacency = mesh.compute_normalized_point_adjacency()
+    np.testing.assert_almost_equal(
+        array_handler.convert_to_dense_numpy(normalized_point_adjacency),
+        desired,
     )
 
 
