@@ -92,9 +92,7 @@ class GraphProcessor:
         )
         return point_adjacency
 
-    def compute_point_degree(
-        self, mesh: IReadOnlyGraphlowMesh
-    ) -> torch.Tensor:
+    def compute_point_degree(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
         """Compute (n_points, n_points)-shaped degree matrix.
 
         Returns
@@ -105,9 +103,7 @@ class GraphProcessor:
         point_adjacency = self.compute_point_adjacency(mesh)
         return self._compute_degree(point_adjacency)
 
-    def compute_cell_degree(
-        self, mesh: IReadOnlyGraphlowMesh
-    ) -> torch.Tensor:
+    def compute_cell_degree(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
         """Compute (n_cells, n_cells)-shaped degree matrix.
 
         Returns
@@ -249,9 +245,7 @@ class GraphProcessor:
             dtype=mesh.dtype,
         )
 
-    def _compute_degree(
-        self, adjacency: torch.Tensor
-    ) -> torch.Tensor:
+    def _compute_degree(self, adjacency: torch.Tensor) -> torch.Tensor:
         """Compute degree matrix from adjacency matrix.
 
         Parameters
@@ -264,10 +258,10 @@ class GraphProcessor:
         torch.Tensor[float]
             sparse csr tensor.
         """
-        degrees = (
-            adjacency.sum(dim=1, keepdim=True).to_dense().reshape(-1)
-        )
-        return torch.sparse.spdiags(degrees, offsets=torch.tensor([0]), shape=adjacency.shape).to_sparse_csr()
+        degrees = adjacency.sum(dim=1, keepdim=True).to_dense().reshape(-1)
+        return torch.sparse.spdiags(
+            degrees, offsets=torch.tensor([0]), shape=adjacency.shape
+        ).to_sparse_csr()
 
     def _compute_normalized_adjacency(
         self, adjacency: torch.Tensor
@@ -284,9 +278,7 @@ class GraphProcessor:
         torch.Tensor[float]
             Normalized adjacency matrix.
         """
-        degrees = (
-            adjacency.sum(dim=1, keepdim=True).to_dense().reshape(-1)
-        )
+        degrees = adjacency.sum(dim=1, keepdim=True).to_dense().reshape(-1)
         D_inv_sqrt_values = 1.0 / torch.sqrt(degrees)
         indices = torch.stack(
             [
