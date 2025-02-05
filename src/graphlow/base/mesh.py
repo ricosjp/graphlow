@@ -569,6 +569,26 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     def compute_point_adjacency(self) -> torch.Tensor:
         return self._graph_processor.compute_point_adjacency(self)
 
+    @functools.wraps(GraphProcessor.compute_point_degree)
+    @use_cache_decorator
+    def compute_point_degree(self) -> torch.Tensor:
+        return self._graph_processor.compute_point_degree(self)
+
+    @functools.wraps(GraphProcessor.compute_cell_degree)
+    @use_cache_decorator
+    def compute_cell_degree(self) -> torch.Tensor:
+        return self._graph_processor.compute_cell_degree(self)
+
+    @functools.wraps(GraphProcessor.compute_normalized_point_adjacency)
+    @use_cache_decorator
+    def compute_normalized_point_adjacency(self) -> torch.Tensor:
+        return self._graph_processor.compute_normalized_point_adjacency(self)
+
+    @functools.wraps(GraphProcessor.compute_normalized_cell_adjacency)
+    @use_cache_decorator
+    def compute_normalized_cell_adjacency(self) -> torch.Tensor:
+        return self._graph_processor.compute_normalized_cell_adjacency(self)
+
     @functools.wraps(GraphProcessor.compute_point_relative_incidence)
     @use_cache_decorator
     def compute_point_relative_incidence(

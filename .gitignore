@@ -171,3 +171,5 @@ tests/outputs
 .DS_Store
 tmp
 spike
+
+outputs
