@@ -215,6 +215,47 @@ def test__compute_area_vecs(file_name: pathlib.Path, desired: np.ndarray):
 
 
 @pytest.mark.parametrize(
+    "file_name, data, desired",
+    [
+        (
+            pathlib.Path("tests/data/vtk/hex/mesh.vtk"),
+            np.array(
+                    # 0  1  2  3  4  5  6  7  8  9 10 11
+                    [1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 5, 1]
+            ),
+            np.array(
+                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+            ),
+        )
+    ],
+)
+def test__compute_median_nodal(file_name: pathlib.Path, data: np.ndarray, desired: np.ndarray):
+    volmesh = graphlow.read(file_name)
+    filtered_data = volmesh.compute_median(torch.from_numpy(data), mode="nodal", n_hop=1)
+    np.testing.assert_almost_equal(filtered_data.detach().numpy(), desired)
+
+@pytest.mark.parametrize(
+    "file_name, data, desired",
+    [
+        (
+            pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
+            np.array(
+                    # 0  1  2  3  4  5  6
+                    [1, 1, 1, 1, 3, 1, 1]
+            ),
+            np.array(
+                    [1, 1, 1, 1, 1, 1, 1]
+            ),
+        )
+    ],
+)
+def test__compute_median_for_elemental(file_name: pathlib.Path, data: np.ndarray, desired: np.ndarray):
+    volmesh = graphlow.read(file_name)
+    filtered_data = volmesh.compute_median(torch.from_numpy(data), mode="elemental", n_hop=1)
+    np.testing.assert_almost_equal(filtered_data.detach().numpy(), desired)
+
+
+@pytest.mark.parametrize(
     "file_name",
     [
         # primitives
