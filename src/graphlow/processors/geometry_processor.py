@@ -122,7 +122,8 @@ class GeometryProcessor:
 
         if adj.shape[0] != data.shape[0]:
             raise ValueError(
-                f"Input data shape does not match the specified mode: {data.shape} != {adj.shape}"
+                f"Input data shape does not match \
+                the specified mode: {data.shape} != {adj.shape}"
             )
 
         N = data.shape[0]

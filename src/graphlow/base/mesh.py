@@ -522,9 +522,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         mode: Literal["elemental", "nodal"] = "elemental",
         n_hop: int = 1,
     ) -> torch.Tensor:
-        return self._geometry_processor.compute_median(
-            self, data, mode, n_hop
-        )
+        return self._geometry_processor.compute_median(self, data, mode, n_hop)
 
     @functools.wraps(GeometryProcessor.compute_area_vecs)
     def compute_area_vecs(self) -> torch.Tensor:
