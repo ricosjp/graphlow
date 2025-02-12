@@ -234,8 +234,7 @@ def test__compute_area_vecs(file_name: pathlib.Path, desired: np.ndarray):
             ),
             4,
             np.array([5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]),
-            
-        )
+        ),
     ],
 )
 def test__compute_median_nodal(
@@ -268,7 +267,7 @@ def test__compute_median_nodal(
             ),
             3,
             np.array([3, 3, 3, 3, 3, 3, 3]),
-        )
+        ),
     ],
 )
 def test__compute_median_for_elemental(
