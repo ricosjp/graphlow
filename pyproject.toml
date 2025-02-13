@@ -144,11 +144,6 @@ ignore_errors = false
 show_missing = true
 # Regexes for lines to exclude from consideration
 exclude_also = [
-    # Don't complain if tests don't hit defensive assertion code:
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "AbstractMethodError",
-
     # Don't complain about abstract methods, they aren't run:
     "@(abc\\.)?abstractmethod",
 ]
