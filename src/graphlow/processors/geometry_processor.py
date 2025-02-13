@@ -88,6 +88,60 @@ class GeometryProcessor:
             return nodal_data
         raise ValueError(f"Invalid mode: {mode}")
 
+    def compute_median(
+        self,
+        mesh: IReadOnlyGraphlowMesh,
+        data: torch.Tensor,
+        mode: Literal["nodal", "elemental"] = "elemental",
+        n_hop: int = 1,
+    ) -> torch.Tensor:
+        """Perform median filter according with adjacency of the mesh.
+
+        Parameters
+        ----------
+        data: torch.Tensor
+            data to be filtered.
+        mode: str, "elemental", or "nodal", default: "elemental"
+            specify the mode of the data.
+        n_hop: int, optional [1]
+            The number of hops to make filtering.
+
+        Returns
+        -------
+        torch.Tensor
+        """
+        if n_hop == 0:
+            return data
+
+        if mode == "elemental":
+            adj = mesh.compute_cell_adjacency()
+        elif mode == "nodal":
+            adj = mesh.compute_point_adjacency()
+        else:
+            raise ValueError(f"Invalid mode: {mode}")
+
+        if adj.shape[0] != data.shape[0]:
+            raise ValueError(
+                f"Input data shape does not match \
+                the specified mode: {data.shape} != {adj.shape}"
+            )
+
+        N = data.shape[0]
+
+        # torch.linalg.matrix_power for sparse matrix
+        # does not supported power of 1
+        # so we need to handle it separately
+        if n_hop == 1:
+            n_hop_adj = adj
+        else:
+            n_hop_adj = torch.linalg.matrix_power(adj, n_hop)
+
+        filtered_data = torch.zeros_like(data)
+        for i in range(N):
+            nhop_neighbors = n_hop_adj[i].indices().reshape(-1)
+            filtered_data[i] = torch.median(data[nhop_neighbors])
+        return filtered_data
+
     def compute_area_vecs(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
         """Compute (n_elements, dims)-shaped area vectors.
 
