@@ -21,6 +21,10 @@ class GraphProcessor:
         """Compute (n_cells, n_points)-shaped sparse incidence matrix.
         The method is cached.
 
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+
         Returns
         -------
         torch.Tensor[float]
@@ -48,6 +52,10 @@ class GraphProcessor:
         """Compute (n_cells, n_cells)-shaped sparse adjacency matrix including
         self-loops. The method is cached.
 
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+
         Returns
         -------
         torch.Tensor[float]
@@ -73,6 +81,10 @@ class GraphProcessor:
         """Compute (n_points, n_points)-shaped sparse adjacency matrix
         including self-loops. The method is cached.
 
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+
         Returns
         -------
         torch.Tensor[float]
@@ -95,6 +107,10 @@ class GraphProcessor:
     def compute_point_degree(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
         """Compute (n_points, n_points)-shaped degree matrix.
 
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+
         Returns
         -------
         torch.Tensor[float]
@@ -105,6 +121,10 @@ class GraphProcessor:
 
     def compute_cell_degree(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
         """Compute (n_cells, n_cells)-shaped degree matrix.
+
+        Parameters
+        ----------
+        mesh: GraphlowMesh
 
         Returns
         -------
@@ -119,6 +139,10 @@ class GraphProcessor:
     ) -> torch.Tensor:
         """Compute (n_points, n_points)-shaped normalized adjacency matrix.
 
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+
         Returns
         -------
         torch.Tensor[float]
@@ -131,6 +155,10 @@ class GraphProcessor:
         self, mesh: IReadOnlyGraphlowMesh
     ) -> torch.Tensor:
         """Compute (n_cells, n_cells)-shaped normalized adjacency matrix.
+
+        Parameters
+        ----------
+        mesh: GraphlowMesh
 
         Returns
         -------
@@ -148,6 +176,7 @@ class GraphProcessor:
 
         Parameters
         ----------
+        mesh: GraphlowMesh
         other_mesh: graphlow.GraphlowMesh
             Other mesh object to be
 
@@ -192,6 +221,7 @@ class GraphProcessor:
 
         Parameters
         ----------
+        mesh: GraphlowMesh
         other_mesh: graphlow.GraphlowMesh
             Other mesh object to be
         minimum_n_sharing: int | None

@@ -19,11 +19,12 @@ class IsoAMProcessor:
         mesh: IReadOnlyGraphlowMesh,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-    ) -> tuple[torch.Tensor, None | torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Compute (dims, n_points, n_points)-shaped isoAM.
 
         Parameters
         ----------
+        mesh: GraphlowMesh
         with_moment_matrix: bool, optional [True]
             If True, scale the matrix with moment matrices, which are
             tensor products of relative position tensors.
@@ -32,13 +33,13 @@ class IsoAMProcessor:
 
         Returns
         -------
-        If `with_moment_matrix` is True, returns a tuple of 2 tensors,
-            (isoAM, Minv).
-        If `with_moment_matrix` is False, returns a tuple,
-            (isoAM, None).
-
-        isoAM: (dims, n_points, n_points)-shaped sparse coo tensor
-        Minv: (n_points, dims, dims)-shaped tensor
+        isoAM: torch.Tensor | None
+            (dims, n_points, n_points)-shaped sparse coo tensor
+        Minv: torch.Tensor | None
+            if `with_moment_matrix` is True,
+                return (n_points, dims, dims)-shaped tensor
+            if `with_moment_matrix` is False,
+                return None
         """
         points = mesh.points
         adj = mesh.compute_point_adjacency().to_sparse_coo()
@@ -100,7 +101,7 @@ class IsoAMProcessor:
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-    ) -> tuple[torch.Tensor, torch.Tensor, None | torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         """Compute (dims, n_points, n_points)-shaped
         Neumann boundary model IsoAM.
 
@@ -116,14 +117,15 @@ class IsoAMProcessor:
 
         Returns
         -------
-        If `with_moment_matrix` is True, returns a tuple of 3 tensors,
-            (NIsoAM, weighted_normals, Minv).
-        If `with_moment_matrix` is False, returns a tuple,
-            (NIsoAM, weighted_normals, None).
-
-        NIsoAM: (dims, n_points, n_points)-shaped sparse coo tensor
-        weighted_normals: (n_points, dims)-shaped tensor
-        Minv: (n_points, dims, dims)-shaped tensor
+        NIsoAM: torch.Tensor
+            (dims, n_points, n_points)-shaped sparse coo tensor
+        weighted_normals: torch.Tensor
+            (n_points, dims)-shaped tensor
+        Minv: torch.Tensor | None
+            if `with_moment_matrix` is True,
+                return (n_points, dims, dims)-shaped tensor
+            if `with_moment_matrix` is False,
+                return None
         """
         points = mesh.points
         adj = mesh.compute_point_adjacency().to_sparse_coo()
@@ -188,12 +190,11 @@ class IsoAMProcessor:
         Parameters
         ----------
         points: (n_points, dim)-shaped torch tensor
-
         adj: (n_points, n_points)-shaped torch sparse coo tensor
 
-        Returns:
-        --------
-            (dim, n_points, n_points)-shaped torch sparse coo tensor
+        Returns
+        -------
+        (dim, n_points, n_points)-shaped torch sparse coo tensor
         """
         # Extract indices from sparse adjacency matrix
         n_points, dim = points.shape
@@ -222,9 +223,9 @@ class IsoAMProcessor:
         ----------
         diff_kij: (dim, n_points, n_points)-shaped torch sparse coo tensor
 
-        Returns:
-        --------
-            (n_points, n_points)-shaped torch sparse coo tensor
+        Returns
+        -------
+        (n_points, n_points)-shaped torch sparse coo tensor
         """
         squarenorm_ij = d_kij.pow(2).sum(dim=0).pow(-1)
         if torch.isinf(squarenorm_ij.values()).any():
@@ -239,12 +240,11 @@ class IsoAMProcessor:
         Parameters
         ----------
         mesh: GraphlowMesh
-
         adj: (n_points, n_points)-shaped torch sparse coo tensor
 
-        Returns:
-        --------
-            (n_points, n_points)-shaped torch sparse coo tensor
+        Returns
+        -------
+        (n_points, n_points)-shaped torch sparse coo tensor
         """
         adj_indices = adj.indices()
         rows, cols = adj_indices
@@ -266,9 +266,9 @@ class IsoAMProcessor:
         Akij: (dim, n_points, n_points)-shaped torch sparse coo tensor
             To ensure correct calculation, diag(i=j) has no value (sparse)
 
-        Returns:
-        --------
-            (dim, n_points, n_points)-shaped torch sparse coo tensor
+        Returns
+        -------
+        (dim, n_points, n_points)-shaped torch sparse coo tensor
         """
         dim, n_points, _ = Akij.shape
         L_values = torch.sparse.sum(Akij, dim=2).to_dense()
@@ -287,6 +287,16 @@ class IsoAMProcessor:
     def _compute_normals_on_surface_points(
         self, mesh: IReadOnlyGraphlowMesh
     ) -> torch.Tensor:
+        """Compute normals tensor with values only on the surface points.
+
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+
+        Returns
+        -------
+        normals: (n_points, dim)-shaped tensor
+        """
         surf = mesh.extract_surface(pass_points=True)
         surf_vol_rel_inc = (
             mesh.compute_point_relative_incidence(surf).to_sparse_coo().T
