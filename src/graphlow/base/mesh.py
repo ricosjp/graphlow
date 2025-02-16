@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import functools
 import pathlib
-from collections.abc import Callable
 from typing import Any, Literal
 
 import numpy as np
@@ -16,30 +14,11 @@ from graphlow.base.tensor_property import GraphlowTensorProperty
 from graphlow.processors.geometry_processor import GeometryProcessor
 from graphlow.processors.graph_processor import GraphProcessor
 from graphlow.processors.isoAM_processor import IsoAMProcessor
-from graphlow.util import array_handler, cache, constants
+from graphlow.util import array_handler, constants
 from graphlow.util.enums import FeatureName
 from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-def use_cache_decorator(method: Callable) -> Callable:
-    @functools.wraps(method)
-    def wrapper(self: GraphlowMesh, *args: Any, **kwargs: Any) -> Any:
-        key = cache.make_key(method.__name__, args, kwargs)
-        logger.debug(method.__name__)
-        logger.debug(key)
-
-        cached = self.get_cached_results(key)
-        if cached is None:
-            result = method(self, *args, **kwargs)
-            self.set_cached_results(key, result)
-            return result
-        else:
-            logger.debug("use cached value")
-            return cached
-
-    return wrapper
 
 
 class GraphlowMesh(IReadOnlyGraphlowMesh):
@@ -70,7 +49,6 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         self._geometry_processor = GeometryProcessor()
         self._graph_processor = GraphProcessor()
         self._isoAM_processor = IsoAMProcessor()
-        self._cached = {}
 
         self._tensor_property = GraphlowTensorProperty(
             device=device, dtype=dtype
@@ -129,14 +107,6 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     @property
     def dtype(self) -> torch.Tensor:
         return self._tensor_property.dtype
-
-    def get_cached_results(self, key: Any) -> Any:
-        if key not in self._cached:
-            return None
-        return self._cached[key]
-
-    def set_cached_results(self, key: Any, value: Any) -> Any:
-        self._cached[key] = value
 
     def save(
         self,
@@ -376,7 +346,6 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             )
         return GraphlowMesh(extracted, device=self.device, dtype=self.dtype)
 
-    @use_cache_decorator
     def extract_facets(
         self, add_original_index: bool = True, pass_points: bool = False
     ) -> tuple[GraphlowMesh, torch.Tensor]:
@@ -575,35 +544,35 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             self, normal_weight, with_moment_matrix, consider_volume
         )
 
-    @use_cache_decorator
-    def compute_cell_point_incidence(self) -> torch.Tensor:
-        return self._graph_processor.compute_cell_point_incidence(self)
+    def compute_cell_point_incidence(self, cache: bool = True) -> torch.Tensor:
+        return self._graph_processor.compute_cell_point_incidence(self, cache)
 
-    @use_cache_decorator
-    def compute_cell_adjacency(self) -> torch.Tensor:
-        return self._graph_processor.compute_cell_adjacency(self)
+    def compute_cell_adjacency(self, cache: bool = True) -> torch.Tensor:
+        return self._graph_processor.compute_cell_adjacency(self, cache)
 
-    @use_cache_decorator
-    def compute_point_adjacency(self) -> torch.Tensor:
-        return self._graph_processor.compute_point_adjacency(self)
+    def compute_point_adjacency(self, cache: bool = True) -> torch.Tensor:
+        return self._graph_processor.compute_point_adjacency(self, cache)
 
-    @use_cache_decorator
-    def compute_point_degree(self) -> torch.Tensor:
-        return self._graph_processor.compute_point_degree(self)
+    def compute_point_degree(self, cache: bool = True) -> torch.Tensor:
+        return self._graph_processor.compute_point_degree(self, cache)
 
-    @use_cache_decorator
-    def compute_cell_degree(self) -> torch.Tensor:
-        return self._graph_processor.compute_cell_degree(self)
+    def compute_cell_degree(self, cache: bool = True) -> torch.Tensor:
+        return self._graph_processor.compute_cell_degree(self, cache)
 
-    @use_cache_decorator
-    def compute_normalized_point_adjacency(self) -> torch.Tensor:
-        return self._graph_processor.compute_normalized_point_adjacency(self)
+    def compute_normalized_point_adjacency(
+        self, cache: bool = True
+    ) -> torch.Tensor:
+        return self._graph_processor.compute_normalized_point_adjacency(
+            self, cache
+        )
 
-    @use_cache_decorator
-    def compute_normalized_cell_adjacency(self) -> torch.Tensor:
-        return self._graph_processor.compute_normalized_cell_adjacency(self)
+    def compute_normalized_cell_adjacency(
+        self, cache: bool = True
+    ) -> torch.Tensor:
+        return self._graph_processor.compute_normalized_cell_adjacency(
+            self, cache
+        )
 
-    @use_cache_decorator
     def compute_point_relative_incidence(
         self, other_mesh: GraphlowMesh
     ) -> torch.Tensor:
@@ -611,7 +580,6 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             self, other_mesh
         )
 
-    @use_cache_decorator
     def compute_cell_relative_incidence(
         self,
         other_mesh: GraphlowMesh,
