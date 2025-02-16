@@ -420,9 +420,9 @@ def test__compute_normalized_point_adjacency(
     ],
 )
 def test__compute_point_relative_incidence(file_name: pathlib.Path):
-    mesh = graphlow.read(file_name)
-    mesh.dict_point_tensor.update({"feature": mesh.points[:, 0] ** 2})
-    mesh.copy_features_to_pyvista()
+    pv_mesh = pv.read(file_name)
+    pv_mesh.point_data["feature"] = pv_mesh.points[:, 0] ** 2
+    mesh = graphlow.GraphlowMesh(pv_mesh)
 
     surface = mesh.extract_surface()
     relative_incidence = mesh.compute_point_relative_incidence(surface)
@@ -438,6 +438,12 @@ def test__compute_point_relative_incidence(file_name: pathlib.Path):
     np.testing.assert_array_equal(
         array_handler.convert_to_dense_numpy(relative_incidence),
         array_handler.convert_to_dense_numpy(relative_incidence_t).T,
+    )
+
+    np.testing.assert_array_equal(
+        array_handler.convert_to_dense_numpy(relative_incidence)
+        @ pv_mesh.point_data["feature"],
+        surface.pvmesh.point_data["feature"],
     )
 
 
@@ -490,7 +496,6 @@ def test__compute_cell_relative_incidence(
     relative_incidence = array_handler.convert_to_dense_numpy(
         mesh.compute_cell_relative_incidence(surface)
     ).astype(int)
-
     np.testing.assert_almost_equal(relative_incidence, desired)
 
     # Check reversed order also works
@@ -498,3 +503,8 @@ def test__compute_cell_relative_incidence(
         surface.compute_cell_relative_incidence(mesh)
     ).astype(int)
     np.testing.assert_array_equal(relative_incidence, relative_incidence_t.T)
+
+    np.testing.assert_array_equal(
+        relative_incidence @ pv_mesh.cell_data["feature"],
+        surface.pvmesh.cell_data["feature"],
+    )
