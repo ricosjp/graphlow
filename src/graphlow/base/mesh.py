@@ -15,7 +15,7 @@ from graphlow.processors.geometry_processor import GeometryProcessor
 from graphlow.processors.graph_processor import GraphProcessor
 from graphlow.processors.isoAM_processor import IsoAMProcessor
 from graphlow.util import array_handler, constants
-from graphlow.util.enums import FeatureName
+from graphlow.util.enums import FeatureName, SparseMatrixName
 from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -262,7 +262,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         return
 
     def extract_surface(
-        self, add_original_index: bool = True, pass_points: bool = False
+        self,
+        add_original_index: bool = True,
+        pass_point_data: bool = False,
     ) -> GraphlowMesh:
         """Extract surface.
 
@@ -271,42 +273,47 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         add_original_index: bool, optional [True]
             If True, add original index feature to enable relative incidence
             matrix computation.
-        pass_points: bool, optional [False]
-            If True, the extracted mesh will inherit the point tensor
-            with gradients from this mesh. This parameter is used,
-            for example, when you want to differentiate the metrics of
-            the extracted mesh based on the point data of this mesh.
+        pass_point_data: bool, optional [False]
+            If True, the extracted mesh will inherit
+            the dict_point_tensor from this mesh.
+            This parameter is used, for example,
+            when you want to differentiate the metrics of the extracted mesh
+            based on the point information of this mesh.
 
         Returns
         -------
         graphlow.GraphlowMesh
             Extracted surface mesh.
         """
-        if add_original_index or pass_points:
+        if add_original_index or pass_point_data:
             self.add_original_index()
 
-        surface_mesh = self.pvmesh.extract_surface(
+        pv_surface = self.pvmesh.extract_surface(
             pass_pointid=False, pass_cellid=False
-        ).cast_to_unstructured_grid()
+        )
 
-        if pass_points:
-            dict_point_tensor = self._get_extracted_dict_point_tensor(
-                surface_mesh
-            )
-            return GraphlowMesh(
-                surface_mesh,
-                dict_point_tensor=dict_point_tensor,
-                device=self.device,
-                dtype=self.dtype,
-            )
-        return GraphlowMesh(surface_mesh, device=self.device, dtype=self.dtype)
+        surface = GraphlowMesh(
+            pv_surface,
+            device=self.device,
+            dtype=self.dtype,
+        )
+        if not pass_point_data:
+            return surface
+
+        point_rel_incidence = self.compute_point_relative_incidence(surface)
+        point_tensor = self.dict_point_tensor.extract_by_rel_incidence(
+            point_rel_incidence
+        )
+        surface.dict_point_tensor.update(point_tensor, overwrite=True)
+        return surface
 
     def extract_cells(
         self,
         ind: Any,
         invert: bool = False,
         add_original_index: bool = True,
-        pass_points: bool = False,
+        pass_point_data: bool = False,
+        pass_cell_data: bool = False,
     ) -> GraphlowMesh:
         """Extract cells by indices.
 
@@ -319,37 +326,58 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         add_original_index: bool, optional [True]
             If True, add original index feature to enable relative incidence
             matrix computation.
-        pass_points: bool, optional [False]
-            If True, the extracted mesh will inherit the point tensor
-            with gradients from this mesh. This parameter is used,
-            for example, when you want to differentiate the metrics of
-            the extracted mesh based on the point data of this mesh.
+        pass_point_data: bool, optional [False]
+            If True, the extracted mesh will inherit
+            the dict_point_tensor from this mesh.
+            This parameter is used, for example,
+            when you want to differentiate the metrics of the extracted mesh
+            based on the point information of this mesh.
+        pass_cell_data: bool, optional [False]
+            If True, the extracted mesh will inherit
+            the dict_cell_data from this mesh.
+            This parameter is used, for example,
+            when you want to differentiate the metrics of the extracted mesh
+            based on the cell information of this mesh.
 
         Returns
         -------
         graphlow.GraphlowMesh
             Extracted cells mesh.
         """
-        if add_original_index or pass_points:
+        if add_original_index or pass_point_data or pass_cell_data:
             self.add_original_index()
 
-        extracted = self.pvmesh.extract_cells(
-            ind, invert=invert
-        ).cast_to_unstructured_grid()
+        pv_extracted = self.pvmesh.extract_cells(ind, invert=invert)
 
-        if pass_points:
-            dict_point_tensor = self._get_extracted_dict_point_tensor(extracted)
-            return GraphlowMesh(
-                extracted,
-                dict_point_tensor=dict_point_tensor,
-                device=self.device,
-                dtype=self.dtype,
+        extracted = GraphlowMesh(
+            pv_extracted,
+            device=self.device,
+            dtype=self.dtype,
+        )
+
+        if pass_point_data:
+            point_rel_incidence = self.compute_point_relative_incidence(
+                extracted
             )
-        return GraphlowMesh(extracted, device=self.device, dtype=self.dtype)
+            point_tensor = self.dict_point_tensor.extract_by_rel_incidence(
+                point_rel_incidence
+            )
+            extracted.dict_point_tensor.update(point_tensor, overwrite=True)
+
+        if pass_cell_data:
+            cell_rel_incidence = self.compute_cell_relative_incidence(extracted)
+            cell_tensor = self.dict_cell_tensor.extract_by_rel_incidence(
+                cell_rel_incidence
+            )
+            extracted.dict_cell_tensor.update(cell_tensor, overwrite=True)
+
+        return extracted
 
     def extract_facets(
-        self, add_original_index: bool = True, pass_points: bool = False
-    ) -> tuple[GraphlowMesh, torch.Tensor]:
+        self,
+        add_original_index: bool = True,
+        pass_point_data: bool = False,
+    ) -> GraphlowMesh:
         """Extract all internal/external facets of the volume mesh
         with (n_faces, n_cells)-shaped sparse signed incidence matrix
 
@@ -358,20 +386,19 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         add_original_index: bool, optional [True]
             If True, add original index feature to enable relative incidence
             matrix computation.
-        pass_points: bool, optional [False]
-            If True, the extracted mesh will inherit the point tensor
-            with gradients from this mesh. This parameter is used,
-            for example, when you want to differentiate the metrics of
-            the extracted mesh based on the point data of this mesh.
+        pass_point_data: bool, optional [False]
+            If True, the extracted mesh will inherit
+            the dict_point_tensor from this mesh.
+            This parameter is used, for example,
+            when you want to differentiate the metrics of the extracted mesh
+            based on the point information of this mesh.
 
         Returns
         -------
         facets: graphlow.GraphlowMesh
             Extracted facets mesh.
-        fc_inc: torch.Tensor
-            (n_faces, n_cells)-shaped sparse signed incidence matrix.
         """
-        if add_original_index or pass_points:
+        if add_original_index or pass_point_data:
             self.add_original_index()
         poly, scipy_fc_inc = self._extract_facets_impl()
         fc_inc = array_handler.convert_to_torch_sparse_csr(
@@ -379,16 +406,29 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             device=self.device,
             dtype=self.dtype,
         )
+        dict_sparse_tensor = GraphlowDictTensor(
+            {SparseMatrixName.FACET_CELL_INCIDENCE: fc_inc},
+            device=self.device,
+            dtype=self.dtype,
+        )
+        self.dict_sparse_tensor.update(dict_sparse_tensor, overwrite=True)
 
-        if pass_points:
-            return GraphlowMesh(
-                poly,
-                dict_point_tensor=self.dict_point_tensor,
-                device=self.device,
-                dtype=self.dtype,
-            ), fc_inc
+        extracted = GraphlowMesh(
+            poly.cast_to_unstructured_grid(),
+            dict_sparse_tensor=dict_sparse_tensor,
+            device=self.device,
+            dtype=self.dtype,
+        )
 
-        return GraphlowMesh(poly, device=self.device, dtype=self.dtype), fc_inc
+        if not pass_point_data:
+            return extracted
+
+        point_rel_incidence = self.compute_point_relative_incidence(extracted)
+        point_tensor = self.dict_point_tensor.extract_by_rel_incidence(
+            point_rel_incidence
+        )
+        extracted.dict_point_tensor.update(point_tensor, overwrite=True)
+        return extracted
 
     def _extract_facets_impl(self) -> tuple[pv.PolyData, sp.csr_array]:
         """Implementation of `extract_facets`
@@ -410,9 +450,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
         n_facets = 0
         n_cells = vol.n_cells
-        cell_centers = torch.from_numpy(
-            self.pvmesh.cell_centers().points.astype(np.float32)
-        ).clone()
+        cell_centers = torch.from_numpy(self.pvmesh.cell_centers().points).to(
+            device=self.device, dtype=self.dtype
+        )
 
         facet_idmap = {}
 
@@ -423,6 +463,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
                 face = cell.get_face(j).point_ids
                 vtk_polygon_cell = [len(face), *face]
 
+                # check orientation
                 face_points = self.points[face]
                 face_center = torch.mean(face_points, dim=0)
                 side_vec = face_points - face_center
@@ -454,37 +495,13 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
                 col_indices.append(cell_id)
 
         poly = pv.PolyData(self.points.detach().numpy(), polygon_cells)
+        for k, v in vol.point_data.items():
+            poly.point_data[k] = v
         scipy_fc_inc = sp.csr_array(
             (sign_values, (row_indices, col_indices)),
             shape=(n_facets, n_cells),
         )
         return poly, scipy_fc_inc
-
-    def _get_extracted_dict_point_tensor(
-        self, pvmesh: pv.UnstructuredGrid
-    ) -> GraphlowDictTensor:
-        if pvmesh.n_points > self.n_points:
-            raise ValueError(
-                "The provided mesh was not extracted from this object."
-            )
-        if FeatureName.ORIGINAL_INDEX not in pvmesh.point_data:
-            raise ValueError(
-                f"{FeatureName.ORIGINAL_INDEX} not found in "
-                "Run mesh operation with add_original_index=True option."
-            )
-
-        col = torch.from_numpy(pvmesh.point_data[FeatureName.ORIGINAL_INDEX])
-        row = torch.arange(len(col))
-        value = torch.ones(len(col))
-        indices = torch.stack([row, col], dim=0)
-        size = (pvmesh.n_points, self.n_points)
-        point_relative_incidence = array_handler.convert_to_torch_sparse_csr(
-            torch.sparse_coo_tensor(indices, value, size=size),
-            device=self.device,
-            dtype=self.dtype,
-        )
-        extracted_points = point_relative_incidence @ self.points
-        return GraphlowDictTensor({FeatureName.POINTS: extracted_points})
 
     def convert_elemental2nodal(
         self,
@@ -601,3 +618,16 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             other_mesh,
             minimum_n_sharing=minimum_n_sharing,
         )
+
+    def compute_facet_cell_incidence(
+        self, refresh_cache: bool = False
+    ) -> torch.Tensor:
+        if (
+            not refresh_cache
+            and SparseMatrixName.FACET_CELL_INCIDENCE in self.dict_sparse_tensor
+        ):
+            return self.dict_sparse_tensor[
+                SparseMatrixName.FACET_CELL_INCIDENCE
+            ]
+        _ = self.extract_facets(add_original_index=True)
+        return self.dict_sparse_tensor[SparseMatrixName.FACET_CELL_INCIDENCE]

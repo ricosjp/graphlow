@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 from collections import abc
 
 import numpy as np
 import torch
-from typing_extensions import Self
 
 from graphlow.base.tensor import GraphlowTensor
 from graphlow.base.tensor_property import GraphlowTensorProperty
@@ -12,7 +13,8 @@ from graphlow.util import typing
 class GraphlowDictTensor:
     def __init__(
         self,
-        dict_tensor: Self | dict[typing.KeyType, typing.ArrayDataType],
+        dict_tensor: GraphlowDictTensor
+        | dict[typing.KeyType, typing.ArrayDataType],
         length: int | None = None,
         *,
         time_series: bool | list[bool] = False,
@@ -62,6 +64,9 @@ class GraphlowDictTensor:
             keys = list(self.keys())
             raise KeyError(f"{key} not in {keys}")
         return self.dict_tensor[key].tensor
+
+    def __len__(self) -> int:
+        return len(self._dict_tensor)
 
     @property
     def device(self) -> torch.Tensor:
@@ -121,7 +126,7 @@ class GraphlowDictTensor:
 
     def update(
         self,
-        dict_tensor: dict[str, typing.ArrayDataType] | Self,
+        dict_tensor: GraphlowDictTensor | dict[str, typing.ArrayDataType],
         *,
         time_series: bool | list[bool] = False,
         overwrite: bool = False,
@@ -168,3 +173,29 @@ class GraphlowDictTensor:
         self,
     ) -> dict[typing.KeyType, typing.NumpyScipyArray]:
         return {k: v.convert_to_numpy_scipy() for k, v in self.items()}
+
+    def extract_by_rel_incidence(
+        self,
+        rel_incidence: torch.Tensor,
+    ) -> GraphlowDictTensor:
+        """Extract data GraphlowDictTensor by the relative
+        incidence matrix.
+
+        Parameters
+        ----------
+        rel_incidence: torch.Tensor
+            (n_other_data, n_self_data)-shaped sparse csr tensor.
+
+        Returns
+        -------
+        graphlow.GraphlowDictTensor
+            Extracted data.
+        """
+        extracted_data = {
+            k: rel_incidence @ v.tensor for k, v in self.dict_tensor.items()
+        }
+        return GraphlowDictTensor(
+            extracted_data,
+            device=self.device,
+            dtype=self.dtype,
+        )

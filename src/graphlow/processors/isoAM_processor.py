@@ -297,7 +297,7 @@ class IsoAMProcessor:
         -------
         normals: (n_points, dim)-shaped tensor
         """
-        surf = mesh.extract_surface(pass_points=True)
+        surf = mesh.extract_surface(pass_point_data=True)
         surf_vol_rel_inc = (
             mesh.compute_point_relative_incidence(surf).to_sparse_coo().T
         )

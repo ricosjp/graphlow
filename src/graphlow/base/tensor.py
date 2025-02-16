@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import torch
-from typing_extensions import Self
 
 from graphlow.base.tensor_property import GraphlowTensorProperty
 from graphlow.util import array_handler, typing
@@ -66,7 +67,7 @@ class GraphlowTensor:
         return
 
     def convert_to_torch_tensor(
-        self, tensor: Self | typing.ArrayDataType | None = None
+        self, tensor: GraphlowTensor | typing.ArrayDataType | None = None
     ) -> torch.Tensor:
         if tensor is None:
             tensor = self._tensor
