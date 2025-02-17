@@ -69,15 +69,15 @@ class GraphlowDictTensor:
         return len(self._dict_tensor)
 
     @property
-    def device(self) -> torch.Tensor:
+    def device(self) -> torch.device:
         return self._tensor_property.device
 
     @property
-    def dtype(self) -> torch.Tensor:
+    def dtype(self) -> torch.dtype:
         return self._tensor_property.dtype
 
     @property
-    def dict_tensor(self) -> dict[str, GraphlowTensor]:
+    def dict_tensor(self) -> dict[typing.KeyType, GraphlowTensor]:
         return self._dict_tensor
 
     def keys(self) -> abc.KeysView:
@@ -89,7 +89,7 @@ class GraphlowDictTensor:
     def items(self) -> abc.ItemsView:
         return self.dict_tensor.items()
 
-    def pop(self, key: typing.KeyType) -> torch.Tensor:
+    def pop(self, key: typing.KeyType) -> GraphlowTensor:
         return self._dict_tensor.pop(key)
 
     def send(
@@ -110,9 +110,6 @@ class GraphlowDictTensor:
 
         for v in self._dict_tensor.values():
             v.send(device=self.device, dtype=self.dtype)
-        # self._dict_tensor = {
-        #     k: v.send(device=self.device, dtype=self.dtype)
-        #     for k, v in self._dict_tensor.items()}
         return
 
     def has_time_series(self) -> bool:
@@ -126,7 +123,8 @@ class GraphlowDictTensor:
 
     def update(
         self,
-        dict_tensor: GraphlowDictTensor | dict[str, typing.ArrayDataType],
+        dict_tensor: GraphlowDictTensor
+        | dict[typing.KeyType, typing.ArrayDataType],
         *,
         time_series: bool | list[bool] = False,
         overwrite: bool = False,

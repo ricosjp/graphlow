@@ -13,7 +13,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     # Write methods you want to share with processors.
     @property
     @abc.abstractmethod
-    def pvmesh(self) -> pv.PointGrid:
+    def pvmesh(self) -> pv.UnstructuredGrid:
         pass
 
     @property
@@ -48,12 +48,12 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def device(self) -> torch.Tensor:
+    def device(self) -> torch.device:
         pass
 
     @property
     @abc.abstractmethod
-    def dtype(self) -> torch.Tensor:
+    def dtype(self) -> torch.dtype:
         pass
 
     @abc.abstractmethod
@@ -248,7 +248,6 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def compute_isoAM_with_neumann(
         self,
-        mesh: IReadOnlyGraphlowMesh,
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,

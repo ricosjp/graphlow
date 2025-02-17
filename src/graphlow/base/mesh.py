@@ -74,7 +74,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         return
 
     @property
-    def pvmesh(self) -> pv.PointGrid:
+    def pvmesh(self) -> pv.UnstructuredGrid:
         return self._pvmesh
 
     @property
@@ -102,11 +102,11 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         return self._dict_sparse_tensor
 
     @property
-    def device(self) -> torch.Tensor:
+    def device(self) -> torch.device:
         return self._tensor_property.device
 
     @property
-    def dtype(self) -> torch.Tensor:
+    def dtype(self) -> torch.dtype:
         return self._tensor_property.dtype
 
     def save(
@@ -547,7 +547,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
     def compute_isoAM(
         self, with_moment_matrix: bool = True, consider_volume: bool = False
-    ) -> tuple[torch.Tensor, None | torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         return self._isoAM_processor.compute_isoAM(
             self, with_moment_matrix, consider_volume
         )
@@ -557,7 +557,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-    ) -> tuple[torch.Tensor, torch.Tensor, None | torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         return self._isoAM_processor.compute_isoAM_with_neumann(
             self, normal_weight, with_moment_matrix, consider_volume
         )
@@ -602,7 +602,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         )
 
     def compute_point_relative_incidence(
-        self, other_mesh: GraphlowMesh
+        self, other_mesh: IReadOnlyGraphlowMesh
     ) -> torch.Tensor:
         return self._graph_processor.compute_point_relative_incidence(
             self, other_mesh
@@ -610,7 +610,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
     def compute_cell_relative_incidence(
         self,
-        other_mesh: GraphlowMesh,
+        other_mesh: IReadOnlyGraphlowMesh,
         minimum_n_sharing: int | None = None,
     ) -> torch.Tensor:
         return self._graph_processor.compute_cell_relative_incidence(

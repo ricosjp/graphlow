@@ -29,11 +29,11 @@ class GraphlowTensor:
             return self.shape[0]
 
     @property
-    def device(self) -> torch.Tensor:
+    def device(self) -> torch.device:
         return self._tensor_property.device
 
     @property
-    def dtype(self) -> torch.Tensor:
+    def dtype(self) -> torch.dtype:
         return self._tensor_property.dtype
 
     @property
