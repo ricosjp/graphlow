@@ -6,22 +6,21 @@ from graphlow.util import typing
 
 
 def convert_to_numpy_scipy(
-    array: typing.ArrayDataType, torch_dtype: torch.dtype = torch.float32
+    array: typing.ArrayDataType,
 ) -> np.ndarray | sp.sparray:
     """Convert input array to numpy array or scipy sparse array.
 
     Parameters
     ----------
     array: graphlow.util.typing.ArrayDataType
-    torch_dtype: torch.dtype
-        Torch float dtype. The default is torch.float32.
 
     Returns
     -------
     numpy.ndarray | sp.sparray
     """
     if isinstance(array, torch.Tensor):
-        return array.to("cpu", torch_dtype).detach().to_dense().numpy()
+        dtype = convert_to_valid_dtype_for_vtk(array.dtype)
+        return array.to("cpu", dtype).detach().to_dense().numpy()
     elif isinstance(array, sp.sparray):
         return array
     elif isinstance(array, np.ndarray):
@@ -63,14 +62,12 @@ def convert_to_scipy_sparse_csr(array: typing.ArrayDataType) -> sp.csr_array:
     scipy.sparse.csr_array
     """
     if isinstance(array, torch.Tensor):
-        if array.is_sparse_csr:
-            indptr = array.crow_indices().numpy()
-            indices = array.col_indices().numpy()
-            values = array.values().numpy()
-            shape = tuple(array.size())
-            return sp.csr_array((values, indices, indptr), shape=shape)
-        else:
-            return convert_to_scipy_sparse_csr(array.to_sparse_csr())
+        csr = array.to_sparse_csr()
+        indptr = csr.crow_indices().numpy()
+        indices = csr.col_indices().numpy()
+        values = csr.values().numpy()
+        shape = tuple(csr.size())
+        return sp.csr_array((values, indices, indptr), shape=shape)
     elif isinstance(array, np.ndarray):
         return sp.csr_array(array)
     elif isinstance(array, sp.sparray):
@@ -79,31 +76,12 @@ def convert_to_scipy_sparse_csr(array: typing.ArrayDataType) -> sp.csr_array:
         raise TypeError(f"Unexpected input type: {array.__class__}")
 
 
-def send(
-    tensor: torch.Tensor,
-    *,
-    device: torch.device | None = None,
-    dtype: torch.dtype | None = None,
-) -> torch.Tensor:
-    """Convert input torch tensor to desired device and dtype.
-
-    Parameters
-    ----------
-    tensor: torch.Tensor
-    device: torch.device | None
-    dtype: torch.dtype | None
-        Data type of the converted tensor. Note that it is effective only when
-        tensor is float-like, i.e., bool or int will be preserved.
-
-    Returns
-    -------
-    torch.Tensor
-    """
-    if "float" in str(tensor.dtype):
-        return tensor.to(device=device, dtype=dtype)
-    else:
-        # NOTE: Preserve type if int or bool
-        return tensor.to(device=device)
+def convert_to_valid_dtype_for_vtk(dtype: torch.dtype) -> torch.dtype:
+    if dtype in [torch.float16, torch.bfloat16]:
+        return torch.float32
+    elif dtype == torch.bool:
+        return torch.int32
+    return dtype
 
 
 def convert_to_torch_tensor(
@@ -138,7 +116,7 @@ def convert_to_torch_tensor(
     else:
         raise TypeError(f"Unexpected input type: {array.__class__}")
 
-    return send(tensor, device=device, dtype=dtype)
+    return tensor.to(device=device, dtype=dtype)
 
 
 def convert_to_torch_sparse_csr(
@@ -174,4 +152,4 @@ def convert_to_torch_sparse_csr(
         tensor = torch.from_numpy(array).to_sparse_csr()
     else:
         raise TypeError(f"Unexpected input type: {array.__class__}")
-    return send(tensor, device=device, dtype=dtype)
+    return tensor.to(device=device, dtype=dtype)
