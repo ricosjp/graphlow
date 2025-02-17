@@ -78,18 +78,19 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
         self._pvmesh = pvmesh.cast_to_unstructured_grid()
         self._dict_point_tensor = dict_point_tensor or GraphlowDictTensor(
-            {}, length=self.n_points
+            {}, length=self.n_points, device=self.device, dtype=self.dtype
         )
         if FeatureName.POINTS not in self._dict_point_tensor:
             self._dict_point_tensor.update(
                 {FeatureName.POINTS: self.pvmesh.points}
             )
         self._dict_cell_tensor = dict_cell_tensor or GraphlowDictTensor(
-            {}, length=self.n_cells
+            {}, length=self.n_cells, device=self.device, dtype=self.dtype
         )
         self._dict_sparse_tensor = dict_sparse_tensor or GraphlowDictTensor(
-            {}, length=None
+            {}, length=None, device=self.device, dtype=self.dtype
         )
+        self.copy_features_from_pyvista(overwrite=True)
 
         self.send()
         return

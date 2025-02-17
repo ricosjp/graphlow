@@ -484,7 +484,6 @@ def test__compute_cell_relative_incidence(
     pv_mesh.point_data["feature"] = pv_mesh.points[:, -1] ** 2
     pv_mesh = pv_mesh.point_data_to_cell_data()
     mesh = graphlow.GraphlowMesh(pv_mesh)
-    mesh.copy_features_from_pyvista()
 
     surface = mesh.extract_surface()
     relative_incidence = array_handler.convert_to_dense_numpy(
