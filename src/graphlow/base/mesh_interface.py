@@ -278,14 +278,17 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def compute_cell_point_incidence(self, cache: bool = True) -> torch.Tensor:
+    def compute_cell_point_incidence(
+        self, refresh_cache: bool = False
+    ) -> torch.Tensor:
         """Compute (n_cells, n_points)-shaped sparse incidence matrix.
         The method is cached.
 
         Parameters
         ----------
-        cache: bool, optional [True]
-            If True, the result is cached.
+        refresh_cache: bool, optional [False]
+            If True, recompute the incidence matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
@@ -295,14 +298,17 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def compute_cell_adjacency(self, cache: bool = True) -> torch.Tensor:
+    def compute_cell_adjacency(
+        self, refresh_cache: bool = False
+    ) -> torch.Tensor:
         """Compute (n_cells, n_cells)-shaped sparse adjacency matrix including
         self-loops. The method is cached.
 
         Parameters
         ----------
-        cache: bool, optional [True]
-            If True, the result is cached.
+        refresh_cache: bool, optional [False]
+            If True, recompute the adjacency matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
@@ -312,14 +318,17 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def compute_point_adjacency(self, cache: bool = True) -> torch.Tensor:
+    def compute_point_adjacency(
+        self, refresh_cache: bool = False
+    ) -> torch.Tensor:
         """Compute (n_points, n_points)-shaped sparse adjacency matrix
         including self-loops. The method is cached.
 
         Parameters
         ----------
-        cache: bool, optional [True]
-            If True, the result is cached.
+        refresh_cache: bool, optional [False]
+            If True, recompute the adjacency matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
@@ -329,13 +338,14 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def compute_point_degree(self, cache: bool = True) -> torch.Tensor:
+    def compute_point_degree(self, refresh_cache: bool = False) -> torch.Tensor:
         """Compute (n_points, n_points)-shaped degree matrix.
 
         Parameters
         ----------
-        cache: bool, optional [True]
-            If True, the result is cached.
+        refresh_cache: bool, optional [False]
+            If True, recompute the degree matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
@@ -345,13 +355,14 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def compute_cell_degree(self, cache: bool = True) -> torch.Tensor:
+    def compute_cell_degree(self, refresh_cache: bool = False) -> torch.Tensor:
         """Compute (n_cells, n_cells)-shaped degree matrix.
 
         Parameters
         ----------
-        cache: bool, optional [True]
-            If True, the result is cached.
+        refresh_cache: bool, optional [False]
+            If True, recompute the degree matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
@@ -362,14 +373,15 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def compute_normalized_point_adjacency(
-        self, cache: bool = True
+        self, refresh_cache: bool = False
     ) -> torch.Tensor:
         """Compute (n_points, n_points)-shaped normalized adjacency matrix.
 
         Parameters
         ----------
-        cache: bool, optional [True]
-            If True, the result is cached.
+        refresh_cache: bool, optional [False]
+            If True, recompute the normalized adjacency matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
@@ -380,14 +392,15 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def compute_normalized_cell_adjacency(
-        self, cache: bool = True
+        self, refresh_cache: bool = False
     ) -> torch.Tensor:
         """Compute (n_cells, n_cells)-shaped normalized adjacency matrix.
 
         Parameters
         ----------
-        cache: bool, optional [True]
-            If True, the result is cached.
+        refresh_cache: bool, optional [False]
+            If True, recompute the normalized adjacency matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------

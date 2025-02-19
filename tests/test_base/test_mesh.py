@@ -399,13 +399,13 @@ def test__use_cache(func_name: str):
     mesh = graphlow.read(file_name)
     func = getattr(mesh, func_name)
 
-    first_result = func(cache=False)
-    second_result = func(cache=False)
-    assert id(second_result) != id(first_result)
-
-    first_result = func(cache=True)
-    second_result = func(cache=True)
+    first_result = func(refresh_cache=False)
+    second_result = func(refresh_cache=False)
     assert id(second_result) == id(first_result)
+
+    first_result = func(refresh_cache=True)
+    second_result = func(refresh_cache=True)
+    assert id(second_result) != id(first_result)
 
 
 @pytest.mark.parametrize(

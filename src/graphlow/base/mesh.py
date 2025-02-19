@@ -544,33 +544,43 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             self, normal_weight, with_moment_matrix, consider_volume
         )
 
-    def compute_cell_point_incidence(self, cache: bool = True) -> torch.Tensor:
-        return self._graph_processor.compute_cell_point_incidence(self, cache)
+    def compute_cell_point_incidence(
+        self, refresh_cache: bool = False
+    ) -> torch.Tensor:
+        return self._graph_processor.compute_cell_point_incidence(
+            self, refresh_cache
+        )
 
-    def compute_cell_adjacency(self, cache: bool = True) -> torch.Tensor:
-        return self._graph_processor.compute_cell_adjacency(self, cache)
+    def compute_cell_adjacency(
+        self, refresh_cache: bool = False
+    ) -> torch.Tensor:
+        return self._graph_processor.compute_cell_adjacency(self, refresh_cache)
 
-    def compute_point_adjacency(self, cache: bool = True) -> torch.Tensor:
-        return self._graph_processor.compute_point_adjacency(self, cache)
+    def compute_point_adjacency(
+        self, refresh_cache: bool = False
+    ) -> torch.Tensor:
+        return self._graph_processor.compute_point_adjacency(
+            self, refresh_cache
+        )
 
-    def compute_point_degree(self, cache: bool = True) -> torch.Tensor:
-        return self._graph_processor.compute_point_degree(self, cache)
+    def compute_point_degree(self, refresh_cache: bool = False) -> torch.Tensor:
+        return self._graph_processor.compute_point_degree(self, refresh_cache)
 
-    def compute_cell_degree(self, cache: bool = True) -> torch.Tensor:
-        return self._graph_processor.compute_cell_degree(self, cache)
+    def compute_cell_degree(self, refresh_cache: bool = False) -> torch.Tensor:
+        return self._graph_processor.compute_cell_degree(self, refresh_cache)
 
     def compute_normalized_point_adjacency(
-        self, cache: bool = True
+        self, refresh_cache: bool = False
     ) -> torch.Tensor:
         return self._graph_processor.compute_normalized_point_adjacency(
-            self, cache
+            self, refresh_cache
         )
 
     def compute_normalized_cell_adjacency(
-        self, cache: bool = True
+        self, refresh_cache: bool = False
     ) -> torch.Tensor:
         return self._graph_processor.compute_normalized_cell_adjacency(
-            self, cache
+            self, refresh_cache
         )
 
     def compute_point_relative_incidence(
