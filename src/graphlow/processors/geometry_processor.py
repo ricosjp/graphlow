@@ -26,6 +26,7 @@ class GeometryProcessor:
 
         Parameters
         ----------
+        mesh: GraphlowMesh
         elemental_data: torch.Tensor
             elemental data to convert.
         mode: "mean", or "effective", default: "mean"
@@ -62,6 +63,7 @@ class GeometryProcessor:
 
         Parameters
         ----------
+        mesh: GraphlowMesh
         nodal_data: torch.Tensor
             nodal data to convert.
         mode: "mean", or "effective", default: "mean"
@@ -99,6 +101,7 @@ class GeometryProcessor:
 
         Parameters
         ----------
+        mesh: GraphlowMesh
         data: torch.Tensor
             data to be filtered.
         mode: str, "elemental", or "nodal", default: "elemental"
@@ -148,7 +151,11 @@ class GeometryProcessor:
         Available celltypes are:
         VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
 
-        Return
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+
+        Returns
         -------
         torch.Tensor[float]
         """
@@ -191,6 +198,7 @@ class GeometryProcessor:
 
         Parameters
         ----------
+        mesh: GraphlowMesh
         allow_negative_area : bool, optional [False]
 
         Returns
@@ -215,7 +223,8 @@ class GeometryProcessor:
 
         Parameters
         ----------
-        allow_negative_area: bool, optional [True]
+        mesh: GraphlowMesh
+        allow_negative_volume: bool, optional [True]
             If True, compute the signed volume.
 
         Returns
@@ -265,6 +274,10 @@ class GeometryProcessor:
 
         Available celltypes are:
         VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
+
+        Parameters
+        ----------
+        mesh: GraphlowMesh
 
         Returns
         -------

@@ -16,24 +16,37 @@ class GraphProcessor:
         pass
 
     def compute_cell_point_incidence(
-        self, mesh: IReadOnlyGraphlowMesh
+        self, mesh: IReadOnlyGraphlowMesh, refresh_cache: bool = False
     ) -> torch.Tensor:
         """Compute (n_cells, n_points)-shaped sparse incidence matrix.
         The method is cached.
+
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+        refresh_cache: bool, optional [False]
+            If True, recompute the incidence matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
         torch.Tensor[float]
             (n_cells, n_points)-shaped sparse csr tensor.
         """
-        indices = mesh.pvmesh.cell_connectivity
-        indptr = mesh.pvmesh.offset
-        data = torch.ones(len(indices))
+        if (
+            not refresh_cache
+            and SparseMatrixName.CELL_POINT_INCIDENCE in mesh.dict_sparse_tensor
+        ):
+            return mesh.dict_sparse_tensor[
+                SparseMatrixName.CELL_POINT_INCIDENCE
+            ]
+
+        indices = torch.from_numpy(mesh.pvmesh.cell_connectivity.copy())
+        indptr = torch.from_numpy(mesh.pvmesh.offset.copy())
+        data = torch.ones(len(indices), dtype=mesh.dtype)
         size = (mesh.n_cells, mesh.n_points)
-        cell_point_incidence = array_handler.send(
-            torch.sparse_csr_tensor(indptr, indices, data, size=size),
-            device=mesh.device,
-            dtype=mesh.dtype,
+        cell_point_incidence = torch.sparse_csr_tensor(
+            indptr, indices, data, size=size, device=mesh.device
         )
 
         mesh.dict_sparse_tensor.update(
@@ -43,16 +56,29 @@ class GraphProcessor:
         return cell_point_incidence
 
     def compute_cell_adjacency(
-        self, mesh: IReadOnlyGraphlowMesh
+        self, mesh: IReadOnlyGraphlowMesh, refresh_cache: bool = False
     ) -> torch.Tensor:
         """Compute (n_cells, n_cells)-shaped sparse adjacency matrix including
         self-loops. The method is cached.
+
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+        refresh_cache: bool, optional [False]
+            If True, recompute the adjacency matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
         torch.Tensor[float]
             (n_cells, n_cells)-shaped sparse csr tensor.
         """
+        if (
+            not refresh_cache
+            and SparseMatrixName.CELL_ADJACENCY in mesh.dict_sparse_tensor
+        ):
+            return mesh.dict_sparse_tensor[SparseMatrixName.CELL_ADJACENCY]
+
         scipy_cp_inc = array_handler.convert_to_scipy_sparse_csr(
             mesh.compute_cell_point_incidence()
         ).astype(bool)
@@ -63,21 +89,35 @@ class GraphProcessor:
         )
 
         mesh.dict_sparse_tensor.update(
-            {SparseMatrixName.CELL_ADJACENCY: cell_adjacency}, overwrite=True
+            {SparseMatrixName.CELL_ADJACENCY: cell_adjacency},
+            overwrite=True,
         )
         return cell_adjacency
 
     def compute_point_adjacency(
-        self, mesh: IReadOnlyGraphlowMesh
+        self, mesh: IReadOnlyGraphlowMesh, refresh_cache: bool = False
     ) -> torch.Tensor:
         """Compute (n_points, n_points)-shaped sparse adjacency matrix
         including self-loops. The method is cached.
+
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+        refresh_cache: bool, optional [False]
+            If True, recompute the adjacency matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
         torch.Tensor[float]
             (n_points, n_points)-shaped sparse csr tensor.
         """
+        if (
+            not refresh_cache
+            and SparseMatrixName.POINT_ADJACENCY in mesh.dict_sparse_tensor
+        ):
+            return mesh.dict_sparse_tensor[SparseMatrixName.POINT_ADJACENCY]
+
         scipy_cp_inc = array_handler.convert_to_scipy_sparse_csr(
             mesh.compute_cell_point_incidence()
         ).astype(bool)
@@ -88,57 +128,138 @@ class GraphProcessor:
         )
 
         mesh.dict_sparse_tensor.update(
-            {SparseMatrixName.POINT_ADJACENCY: point_adjacency}, overwrite=True
+            {SparseMatrixName.POINT_ADJACENCY: point_adjacency},
+            overwrite=True,
         )
         return point_adjacency
 
-    def compute_point_degree(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
+    def compute_point_degree(
+        self, mesh: IReadOnlyGraphlowMesh, refresh_cache: bool = False
+    ) -> torch.Tensor:
         """Compute (n_points, n_points)-shaped degree matrix.
+
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+        refresh_cache: bool, optional [False]
+            If True, recompute the degree matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
         torch.Tensor[float]
             (n_points, n_points)-shaped sparse csr tensor.
         """
-        point_adjacency = self.compute_point_adjacency(mesh)
-        return self._compute_degree(point_adjacency)
+        if (
+            not refresh_cache
+            and SparseMatrixName.POINT_DEGREE in mesh.dict_sparse_tensor
+        ):
+            return mesh.dict_sparse_tensor[SparseMatrixName.POINT_DEGREE]
 
-    def compute_cell_degree(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
+        point_adjacency = self.compute_point_adjacency(mesh)
+        point_degree = self._compute_degree(point_adjacency)
+
+        mesh.dict_sparse_tensor.update(
+            {SparseMatrixName.POINT_DEGREE: point_degree}, overwrite=True
+        )
+        return point_degree
+
+    def compute_cell_degree(
+        self, mesh: IReadOnlyGraphlowMesh, refresh_cache: bool = False
+    ) -> torch.Tensor:
         """Compute (n_cells, n_cells)-shaped degree matrix.
+
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+        refresh_cache: bool, optional [False]
+            If True, recompute the degree matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
         torch.Tensor[float]
             (n_cells, n_cells)-shaped sparse csr tensor.
         """
+        if (
+            not refresh_cache
+            and SparseMatrixName.CELL_DEGREE in mesh.dict_sparse_tensor
+        ):
+            return mesh.dict_sparse_tensor[SparseMatrixName.CELL_DEGREE]
+
         cell_adjacency = self.compute_cell_adjacency(mesh)
-        return self._compute_degree(cell_adjacency)
+        cell_degree = self._compute_degree(cell_adjacency)
+
+        mesh.dict_sparse_tensor.update(
+            {SparseMatrixName.CELL_DEGREE: cell_degree}, overwrite=True
+        )
+        return cell_degree
 
     def compute_normalized_point_adjacency(
-        self, mesh: IReadOnlyGraphlowMesh
+        self, mesh: IReadOnlyGraphlowMesh, refresh_cache: bool = False
     ) -> torch.Tensor:
         """Compute (n_points, n_points)-shaped normalized adjacency matrix.
 
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+        refresh_cache: bool, optional [False]
+            If True, recompute the normalized adjacency matrix.
+            Otherwise, return the cached result if available.
+
         Returns
         -------
         torch.Tensor[float]
             (n_points, n_points)-shaped sparse csr tensor.
         """
-        point_adjacency = self.compute_point_adjacency(mesh)
-        return self._compute_normalized_adjacency(point_adjacency)
+        if (
+            not refresh_cache
+            and SparseMatrixName.NORMALIZED_POINT_ADJ in mesh.dict_sparse_tensor
+        ):
+            return mesh.dict_sparse_tensor[
+                SparseMatrixName.NORMALIZED_POINT_ADJ
+            ]
+
+        point_adj = self.compute_point_adjacency(mesh)
+        normalized_point_adj = self._compute_normalized_adjacency(point_adj)
+
+        mesh.dict_sparse_tensor.update(
+            {SparseMatrixName.NORMALIZED_POINT_ADJ: normalized_point_adj},
+            overwrite=True,
+        )
+        return normalized_point_adj
 
     def compute_normalized_cell_adjacency(
-        self, mesh: IReadOnlyGraphlowMesh
+        self, mesh: IReadOnlyGraphlowMesh, refresh_cache: bool = False
     ) -> torch.Tensor:
         """Compute (n_cells, n_cells)-shaped normalized adjacency matrix.
+
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+        refresh_cache: bool, optional [False]
+            If True, recompute the normalized adjacency matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
         torch.Tensor[float]
             (n_cells, n_cells)-shaped sparse csr tensor.
         """
-        cell_adjacency = self.compute_cell_adjacency(mesh)
-        return self._compute_normalized_adjacency(cell_adjacency)
+        if (
+            not refresh_cache
+            and SparseMatrixName.NORMALIZED_CELL_ADJ in mesh.dict_sparse_tensor
+        ):
+            return mesh.dict_sparse_tensor[SparseMatrixName.NORMALIZED_CELL_ADJ]
+
+        cell_adj = self.compute_cell_adjacency(mesh)
+        normalized_cell_adj = self._compute_normalized_adjacency(cell_adj)
+
+        mesh.dict_sparse_tensor.update(
+            {SparseMatrixName.NORMALIZED_CELL_ADJ: normalized_cell_adj},
+            overwrite=True,
+        )
+        return normalized_cell_adj
 
     def compute_point_relative_incidence(
         self, mesh: IReadOnlyGraphlowMesh, other_mesh: IReadOnlyGraphlowMesh
@@ -148,8 +269,9 @@ class GraphProcessor:
 
         Parameters
         ----------
+        mesh: GraphlowMesh
         other_mesh: graphlow.GraphlowMesh
-            Other mesh object to be
+            The other mesh object to be compared against.
 
         Returns
         -------
@@ -172,14 +294,13 @@ class GraphProcessor:
             other_mesh.pvmesh.point_data[FeatureName.ORIGINAL_INDEX]
         )
         row = torch.arange(len(col))
-        values = torch.ones(len(col))
+        values = torch.ones(len(col), dtype=mesh.dtype)
         indices = torch.stack([row, col], dim=0)
         size = (other_mesh.n_points, mesh.n_points)
-        return array_handler.convert_to_torch_sparse_csr(
-            torch.sparse_coo_tensor(indices, values, size=size),
-            device=mesh.device,
-            dtype=mesh.dtype,
+        coo = torch.sparse_coo_tensor(
+            indices, values, size=size, device=mesh.device
         )
+        return coo.to_sparse_csr()
 
     def compute_cell_relative_incidence(
         self,
@@ -192,8 +313,9 @@ class GraphProcessor:
 
         Parameters
         ----------
+        mesh: GraphlowMesh
         other_mesh: graphlow.GraphlowMesh
-            Other mesh object to be
+            The other mesh object to be compared against.
         minimum_n_sharing: int | None
             Minimum number of sharing points to define connectivity. If not
             set, it will be the number of points for each cell.
@@ -209,20 +331,28 @@ class GraphProcessor:
             ).transpose(0, 1)
 
         other_self_point_incidence = array_handler.convert_to_scipy_sparse_csr(
-            mesh.compute_point_relative_incidence(other_mesh).to(bool)
-        )
+            mesh.compute_point_relative_incidence(other_mesh)
+        ).astype(bool)
+
+        # (n_other_cells, n_self_points)
         other_incidence = (
             array_handler.convert_to_scipy_sparse_csr(
-                other_mesh.compute_cell_point_incidence().to(bool)
-            )
+                other_mesh.compute_cell_point_incidence()
+            ).astype(bool)
             @ other_self_point_incidence
-        ).astype(int)  # (n_cells_other, n_points_self)
-        self_incidence = array_handler.convert_to_scipy_sparse_csr(
-            mesh.compute_cell_point_incidence().to(int)
-        ).T  # (n_points_self, n_cells_self)
+        ).astype(int)
+
+        # (n_self_points, n_self_cells)
+        self_incidence = (
+            array_handler.convert_to_scipy_sparse_csr(
+                mesh.compute_cell_point_incidence()
+            )
+            .astype(int)
+            .T
+        )
 
         # (n_other_cells, n_self_cells)
-        dot = other_incidence.dot(self_incidence)
+        dot: sp.csr_array = other_incidence @ self_incidence
 
         if minimum_n_sharing is None:
             other_cell_n_vertex = np.array(other_incidence.sum(axis=1))
@@ -260,7 +390,9 @@ class GraphProcessor:
         """
         degrees = adjacency.sum(dim=1, keepdim=True).to_dense().reshape(-1)
         return torch.sparse.spdiags(
-            degrees, offsets=torch.tensor([0]), shape=adjacency.shape
+            degrees,
+            offsets=torch.tensor([0]),
+            shape=adjacency.shape,
         ).to_sparse_csr()
 
     def _compute_normalized_adjacency(
@@ -287,6 +419,9 @@ class GraphProcessor:
             ]
         )
         D_inv_sqrt = torch.sparse_coo_tensor(
-            indices, D_inv_sqrt_values, size=adjacency.shape
+            indices,
+            D_inv_sqrt_values,
+            size=adjacency.shape,
+            device=adjacency.device,
         ).to_sparse_csr()
         return D_inv_sqrt @ adjacency @ D_inv_sqrt

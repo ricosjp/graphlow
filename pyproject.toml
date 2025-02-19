@@ -20,7 +20,7 @@ torch = "^2.3.1"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"
 pytest-cov = "^4.1.0"
-ruff = "^0.4.10"
+ruff = "^0.9.6"
 mypy = "^1.8.0"
 sphinx = "^7.2.6"
 pytest-benchmark = "^5.1.0"
@@ -95,7 +95,7 @@ select = [
     "UP",  # pyupgrade
     "ANN", # flake8-annotations
 ]
-ignore = ["ANN003", "ANN101", "ANN102", "ANN204"]
+ignore = ["ANN003", "ANN204"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]

@@ -1,6 +1,5 @@
 import pathlib
 import shutil
-from unittest import mock
 
 import numpy as np
 import pytest
@@ -8,7 +7,6 @@ import pyvista as pv
 import torch
 
 import graphlow
-from graphlow.processors.graph_processor import GraphProcessor
 from graphlow.util import array_handler
 from graphlow.util.logger import get_logger
 
@@ -425,17 +423,24 @@ def test__optimize_ball(file_name: pathlib.Path):
         "compute_cell_point_incidence",
         "compute_cell_adjacency",
         "compute_point_adjacency",
+        "compute_point_degree",
+        "compute_cell_degree",
+        "compute_normalized_point_adjacency",
+        "compute_normalized_cell_adjacency",
     ],
 )
 def test__use_cache(func_name: str):
     file_name = pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu")
     mesh = graphlow.read(file_name)
     func = getattr(mesh, func_name)
-    with mock.patch.object(GraphProcessor, func_name) as mocked:
-        _ = func()
-        _ = func()
 
-        assert mocked.call_count == 1
+    first_result = func(refresh_cache=False)
+    second_result = func(refresh_cache=False)
+    assert id(second_result) == id(first_result)
+
+    first_result = func(refresh_cache=True)
+    second_result = func(refresh_cache=True)
+    assert id(second_result) != id(first_result)
 
 
 @pytest.mark.parametrize(
