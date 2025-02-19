@@ -392,6 +392,10 @@ def test__optimize_ball(file_name: pathlib.Path):
         "compute_cell_point_incidence",
         "compute_cell_adjacency",
         "compute_point_adjacency",
+        "compute_point_degree",
+        "compute_cell_degree",
+        "compute_normalized_point_adjacency",
+        "compute_normalized_cell_adjacency",
     ],
 )
 def test__use_cache(func_name: str):
