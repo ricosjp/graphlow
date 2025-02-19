@@ -19,6 +19,36 @@ logger = get_logger(__name__)
     "input_file_name",
     [
         pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+    ],
+)
+@pytest.mark.parametrize(
+    "output_file_name",
+    [
+        pathlib.Path("tests/outputs/save/mesh.vtk"),
+        pathlib.Path("tests/outputs/save/mesh.vtu"),
+        pathlib.Path("tests/outputs/save/mesh.vtp"),
+        pathlib.Path("tests/outputs/save/mesh.stl"),
+    ],
+)
+def test__save_overwrite_features(
+    input_file_name: pathlib.Path, output_file_name: pathlib.Path
+):
+    output_file_name.unlink(missing_ok=True)
+    mesh = graphlow.read(input_file_name)
+
+    # Raise ValueError when overwriting
+    with pytest.raises(ValueError) as e:
+        mesh.save(output_file_name)
+    assert "already exists" in str(e.value)
+
+    # Overwrite
+    mesh.save(output_file_name, overwrite_features=True)
+
+
+@pytest.mark.parametrize(
+    "input_file_name",
+    [
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
         pathlib.Path("tests/data/vtp/complex_surface/mesh.vtp"),
     ],
@@ -32,19 +62,20 @@ logger = get_logger(__name__)
         pathlib.Path("tests/outputs/save/mesh.stl"),
     ],
 )
-def test__save(input_file_name: pathlib.Path, output_file_name: pathlib.Path):
+def test__save_overwrite_file(
+    input_file_name: pathlib.Path, output_file_name: pathlib.Path
+):
     output_file_name.unlink(missing_ok=True)
-
     mesh = graphlow.read(input_file_name)
-    mesh.save(output_file_name)
+    mesh.save(output_file_name, overwrite_features=True)
 
     # Raise ValueError when overwriting
     with pytest.raises(ValueError) as e:
-        mesh.save(output_file_name)
-        assert "already exists" in str(e.value)
+        mesh.save(output_file_name, overwrite_features=True)
+    assert "already exists" in str(e.value)
 
     # Overwrite
-    mesh.save(output_file_name, overwrite_file=True, overwrite_features=True)
+    mesh.save(output_file_name, overwrite_features=True, overwrite_file=True)
 
 
 @pytest.mark.parametrize(
