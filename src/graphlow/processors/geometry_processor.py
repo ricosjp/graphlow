@@ -170,7 +170,7 @@ class GeometryProcessor:
         # non-polygon cells
         nonpoly_mask = celltypes != pv.CellType.POLYGON
         if np.any(nonpoly_mask):
-            nonpolys = mesh.extract_cells(nonpoly_mask, pass_points=True)
+            nonpolys = mesh.extract_cells(nonpoly_mask, pass_point_data=True)
             nonpolys_dict = nonpolys.pvmesh.cells_dict
             for celltype, cells in nonpolys_dict.items():
                 if celltype not in area_vecs_by_celltype:
@@ -184,7 +184,7 @@ class GeometryProcessor:
         # polygon cells
         poly_mask = celltypes == pv.CellType.POLYGON
         if np.any(poly_mask):
-            polys = mesh.extract_cells(poly_mask, pass_points=True)
+            polys = mesh.extract_cells(poly_mask, pass_point_data=True)
             area_vecs[poly_mask] = self._poly_area_vecs(polys.points, polys)
         return area_vecs
 
@@ -245,7 +245,7 @@ class GeometryProcessor:
         # non-polyhedron cells
         nonpoly_mask = celltypes != pv.CellType.POLYHEDRON
         if np.any(nonpoly_mask):
-            nonpolys = mesh.extract_cells(nonpoly_mask, pass_points=True)
+            nonpolys = mesh.extract_cells(nonpoly_mask, pass_point_data=True)
             nonpolys_dict = nonpolys.pvmesh.cells_dict
             for celltype, cells in nonpolys_dict.items():
                 if celltype not in volumes_by_celltype:
@@ -260,7 +260,7 @@ class GeometryProcessor:
         poly_mask = celltypes == pv.CellType.POLYHEDRON
         if np.any(poly_mask):
             polys: IReadOnlyGraphlowMesh = mesh.extract_cells(
-                poly_mask, pass_points=True
+                poly_mask, pass_point_data=True
             )
             volumes[poly_mask] = self._poly_volumes(polys)
 
@@ -448,10 +448,10 @@ class GeometryProcessor:
         return volumes
 
     def _poly_volumes(self, polys: IReadOnlyGraphlowMesh) -> torch.Tensor:
-        facets, fc_inc = polys.extract_facets(pass_points=True)
+        facets = polys.extract_facets(pass_point_data=True)
         facet_centers = facets.convert_nodal2elemental(facets.points)
         area_vecs = facets.compute_area_vecs()
         cone_volumes = torch.sum(area_vecs * facet_centers, dim=1) / 3.0
-        cf_inc = fc_inc.to_sparse_coo().T
+        cf_inc = facets.compute_facet_cell_incidence().to_sparse_coo().T
         cell_volumes = cf_inc @ cone_volumes
         return cell_volumes

@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 from collections import abc
 
 import numpy as np
 import torch
-from typing_extensions import Self
 
 from graphlow.base.tensor import GraphlowTensor
 from graphlow.base.tensor_property import GraphlowTensorProperty
@@ -12,7 +13,8 @@ from graphlow.util import typing
 class GraphlowDictTensor:
     def __init__(
         self,
-        dict_tensor: Self | dict[typing.KeyType, typing.ArrayDataType],
+        dict_tensor: GraphlowDictTensor
+        | dict[typing.KeyType, typing.ArrayDataType],
         length: int | None = None,
         *,
         time_series: bool | list[bool] = False,
@@ -63,16 +65,19 @@ class GraphlowDictTensor:
             raise KeyError(f"{key} not in {keys}")
         return self.dict_tensor[key].tensor
 
+    def __len__(self) -> int:
+        return len(self._dict_tensor)
+
     @property
-    def device(self) -> torch.Tensor:
+    def device(self) -> torch.device:
         return self._tensor_property.device
 
     @property
-    def dtype(self) -> torch.Tensor:
+    def dtype(self) -> torch.dtype:
         return self._tensor_property.dtype
 
     @property
-    def dict_tensor(self) -> dict[str, GraphlowTensor]:
+    def dict_tensor(self) -> dict[typing.KeyType, GraphlowTensor]:
         return self._dict_tensor
 
     def keys(self) -> abc.KeysView:
@@ -84,7 +89,7 @@ class GraphlowDictTensor:
     def items(self) -> abc.ItemsView:
         return self.dict_tensor.items()
 
-    def pop(self, key: typing.KeyType) -> torch.Tensor:
+    def pop(self, key: typing.KeyType) -> GraphlowTensor:
         return self._dict_tensor.pop(key)
 
     def send(
@@ -105,9 +110,6 @@ class GraphlowDictTensor:
 
         for v in self._dict_tensor.values():
             v.send(device=self.device, dtype=self.dtype)
-        # self._dict_tensor = {
-        #     k: v.send(device=self.device, dtype=self.dtype)
-        #     for k, v in self._dict_tensor.items()}
         return
 
     def has_time_series(self) -> bool:
@@ -121,7 +123,8 @@ class GraphlowDictTensor:
 
     def update(
         self,
-        dict_tensor: dict[str, typing.ArrayDataType] | Self,
+        dict_tensor: GraphlowDictTensor
+        | dict[typing.KeyType, typing.ArrayDataType],
         *,
         time_series: bool | list[bool] = False,
         overwrite: bool = False,
@@ -145,6 +148,10 @@ class GraphlowDictTensor:
                     keys = list(self.keys())
                     raise ValueError(f"{key} already exists in {keys}")
 
+            if isinstance(value, GraphlowTensor):
+                value.send(device=self.device, dtype=self.dtype)
+                self._dict_tensor[key] = value
+                continue
             self._dict_tensor[key] = GraphlowTensor(
                 value, device=self.device, dtype=self.dtype, time_series=ts
             )
@@ -168,3 +175,29 @@ class GraphlowDictTensor:
         self,
     ) -> dict[typing.KeyType, typing.NumpyScipyArray]:
         return {k: v.convert_to_numpy_scipy() for k, v in self.items()}
+
+    def extract_by_rel_incidence(
+        self,
+        rel_incidence: torch.Tensor,
+    ) -> GraphlowDictTensor:
+        """Extract data GraphlowDictTensor by the relative
+        incidence matrix.
+
+        Parameters
+        ----------
+        rel_incidence: torch.Tensor
+            (n_other_data, n_self_data)-shaped sparse csr tensor.
+
+        Returns
+        -------
+        graphlow.GraphlowDictTensor
+            Extracted data.
+        """
+        extracted_data = {
+            k: rel_incidence @ v.tensor for k, v in self.dict_tensor.items()
+        }
+        return GraphlowDictTensor(
+            extracted_data,
+            device=self.device,
+            dtype=self.dtype,
+        )

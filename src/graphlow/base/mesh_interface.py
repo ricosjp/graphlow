@@ -13,7 +13,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     # Write methods you want to share with processors.
     @property
     @abc.abstractmethod
-    def pvmesh(self) -> pv.PointGrid:
+    def pvmesh(self) -> pv.UnstructuredGrid:
         pass
 
     @property
@@ -48,17 +48,17 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def device(self) -> torch.Tensor:
+    def device(self) -> torch.device:
         pass
 
     @property
     @abc.abstractmethod
-    def dtype(self) -> torch.Tensor:
+    def dtype(self) -> torch.dtype:
         pass
 
     @abc.abstractmethod
     def extract_surface(
-        self, add_original_index: bool = True, pass_points: bool = False
+        self, add_original_index: bool = True, pass_point_data: bool = False
     ) -> IReadOnlyGraphlowMesh:
         pass
 
@@ -68,14 +68,17 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         ind: Any,
         invert: bool = False,
         add_original_index: bool = True,
-        pass_points: bool = False,
+        pass_point_data: bool = False,
+        pass_cell_data: bool = False,
     ) -> IReadOnlyGraphlowMesh:
         pass
 
     @abc.abstractmethod
     def extract_facets(
-        self, add_original_index: bool = True, pass_points: bool = False
-    ) -> tuple[IReadOnlyGraphlowMesh, torch.Tensor]:
+        self,
+        add_original_index: bool = True,
+        pass_point_data: bool = False,
+    ) -> IReadOnlyGraphlowMesh:
         pass
 
     @abc.abstractmethod
@@ -245,7 +248,6 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def compute_isoAM_with_neumann(
         self,
-        mesh: IReadOnlyGraphlowMesh,
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
@@ -449,5 +451,21 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         -------
         torch.Tensor[float]
             (n_cells_other, n_cells_self)-shaped sparse csr tensor.
+        """
+        pass
+
+    @abc.abstractmethod
+    def compute_facet_cell_incidence(self, cache: bool = True) -> torch.Tensor:
+        """Compute (n_facets, n_cells)-shaped sparse incidence matrix.
+
+        Parameters
+        ----------
+        cache: bool, optional [True]
+            If True, the result is cached.
+
+        Returns
+        -------
+        torch.Tensor[float]
+            (n_facets, n_cells)-shaped sparse csr tensor.
         """
         pass

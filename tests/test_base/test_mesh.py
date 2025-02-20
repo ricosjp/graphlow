@@ -92,10 +92,10 @@ def test__extract_surface(file_name: pathlib.Path, desired_file: pathlib.Path):
     mesh.points.requires_grad_()
     assert mesh.points.requires_grad
 
-    surface = mesh.extract_surface(pass_points=False)
+    surface = mesh.extract_surface(pass_point_data=False)
     assert not surface.points.requires_grad
 
-    surface = mesh.extract_surface(pass_points=True)
+    surface = mesh.extract_surface(pass_point_data=True)
     assert surface.points.requires_grad
 
     np.testing.assert_almost_equal(surface.pvmesh.points, desired.pvmesh.points)
@@ -119,10 +119,10 @@ def test__extract_cells(
     mesh.points.requires_grad_()
     assert mesh.points.requires_grad
 
-    cells = mesh.extract_cells(cellids_to_extract, pass_points=False)
+    cells = mesh.extract_cells(cellids_to_extract, pass_point_data=False)
     assert not cells.points.requires_grad
 
-    cells = mesh.extract_cells(cellids_to_extract, pass_points=True)
+    cells = mesh.extract_cells(cellids_to_extract, pass_point_data=True)
     assert cells.points.requires_grad
 
     np.testing.assert_almost_equal(
@@ -238,7 +238,7 @@ def test___extract_facets_impl(
 def test__extract_facets(file_name: pathlib.Path):
     mesh = graphlow.read(file_name)
     _, scipy_fc_inc = mesh._extract_facets_impl()
-    _, torch_fc_inc = mesh.extract_facets()
+    torch_fc_inc = mesh.compute_facet_cell_incidence()
     desired = array_handler.convert_to_dense_numpy(scipy_fc_inc)
     actual = array_handler.convert_to_dense_numpy(torch_fc_inc)
     np.testing.assert_almost_equal(actual, desired)
@@ -427,6 +427,7 @@ def test__optimize_ball(file_name: pathlib.Path):
         "compute_cell_degree",
         "compute_normalized_point_adjacency",
         "compute_normalized_cell_adjacency",
+        "compute_facet_cell_incidence",
     ],
 )
 def test__use_cache(func_name: str):

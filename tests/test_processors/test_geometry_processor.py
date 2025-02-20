@@ -412,7 +412,7 @@ def test__compute_signed_volumes(file_name: pathlib.Path):
 def test__compute_normals(file_name: pathlib.Path):
     volmesh = graphlow.read(file_name)
     surf = volmesh.extract_surface()
-    facets, _ = volmesh.extract_facets()
+    facets = volmesh.extract_facets()
 
     # implemented
     surf_normals = surf.compute_normals().detach().numpy()
