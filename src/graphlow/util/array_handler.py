@@ -21,14 +21,11 @@ def convert_to_numpy_scipy(
     if isinstance(array, torch.Tensor):
         dtype = convert_to_valid_dtype_for_vtk(array.dtype)
         return array.to("cpu", dtype).detach().to_dense().numpy()
-    elif isinstance(array, sp.sparray):
+    if isinstance(array, sp.sparray):
         return array
-    elif isinstance(array, np.ndarray):
+    if isinstance(array, np.ndarray):
         return array
-    elif hasattr(array, "data"):
-        return convert_to_numpy_scipy(array.data)
-    else:
-        raise TypeError(f"Unexpected input type: {array.__class__}")
+    raise TypeError(f"Unexpected input type: {array.__class__}")
 
 
 def convert_to_dense_numpy(array: typing.ArrayDataType) -> np.ndarray:
@@ -46,8 +43,7 @@ def convert_to_dense_numpy(array: typing.ArrayDataType) -> np.ndarray:
     converted = convert_to_numpy_scipy(array)
     if isinstance(converted, sp.sparray):
         return converted.toarray()
-    else:
-        return converted
+    return converted
 
 
 def convert_to_scipy_sparse_csr(array: typing.ArrayDataType) -> sp.csr_array:
@@ -68,18 +64,17 @@ def convert_to_scipy_sparse_csr(array: typing.ArrayDataType) -> sp.csr_array:
         values = csr.values().numpy()
         shape = tuple(csr.size())
         return sp.csr_array((values, indices, indptr), shape=shape)
-    elif isinstance(array, np.ndarray):
+    if isinstance(array, np.ndarray):
         return sp.csr_array(array)
-    elif isinstance(array, sp.sparray):
+    if isinstance(array, sp.sparray):
         return array.tocsr()
-    else:
-        raise TypeError(f"Unexpected input type: {array.__class__}")
+    raise TypeError(f"Unexpected input type: {array.__class__}")
 
 
 def convert_to_valid_dtype_for_vtk(dtype: torch.dtype) -> torch.dtype:
     if dtype in [torch.float16, torch.bfloat16]:
         return torch.float32
-    elif dtype == torch.bool:
+    if dtype == torch.bool:
         return torch.int32
     return dtype
 
@@ -111,8 +106,6 @@ def convert_to_torch_tensor(
         tensor = array
     elif isinstance(array, sp.sparray):
         tensor = convert_to_torch_sparse_csr(array)
-    elif hasattr(array, "data"):
-        tensor = convert_to_torch_tensor(array.data)
     else:
         raise TypeError(f"Unexpected input type: {array.__class__}")
 

@@ -148,6 +148,10 @@ class GraphlowDictTensor:
                     keys = list(self.keys())
                     raise ValueError(f"{key} already exists in {keys}")
 
+            if isinstance(value, GraphlowTensor):
+                value.send(device=self.device, dtype=self.dtype)
+                self._dict_tensor[key] = value
+                continue
             self._dict_tensor[key] = GraphlowTensor(
                 value, device=self.device, dtype=self.dtype, time_series=ts
             )

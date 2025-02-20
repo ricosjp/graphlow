@@ -18,7 +18,9 @@ class GraphlowTensor:
         self._tensor_property = GraphlowTensorProperty(
             device=device, dtype=dtype
         )
-        self._tensor: torch.Tensor = self.convert_to_torch_tensor(tensor)
+        self._tensor: torch.Tensor = array_handler.convert_to_torch_tensor(
+            tensor, device=self.device, dtype=self.dtype
+        )
         self._time_series = time_series
         return
 
@@ -63,21 +65,10 @@ class GraphlowTensor:
         """
         self._tensor_property.device = device or self.device
         self._tensor_property.dtype = dtype or self.dtype
-        self._tensor = array_handler.convert_to_torch_tensor(self._tensor)
+        self._tensor = array_handler.convert_to_torch_tensor(
+            self._tensor, device=self.device, dtype=self.dtype
+        )
         return
-
-    def convert_to_torch_tensor(
-        self, tensor: GraphlowTensor | typing.ArrayDataType | None = None
-    ) -> torch.Tensor:
-        if tensor is None:
-            tensor = self._tensor
-        if isinstance(tensor, GraphlowTensor):
-            tensor.send()
-            return tensor.tensor
-        else:
-            return array_handler.convert_to_torch_tensor(
-                tensor, device=self.device, dtype=self.dtype
-            )
 
     def convert_to_numpy_scipy(self) -> typing.NumpyScipyArray:
         return array_handler.convert_to_numpy_scipy(self.tensor)
