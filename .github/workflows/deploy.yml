@@ -1,0 +1,60 @@
+name: github pages
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # pytest:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@main
+  #     - name: Set up Python
+  #       uses: actions/setup-python@main
+  #       with:
+  #         python-version: '3.11'
+  #     - name: Install dependencies
+  #       run: |
+  #         pipx install poetry==2.0.0
+  #         poetry install --no-interaction
+  #     - name: Run tests
+  #       run: |
+  #         poetry run pytest tests --cov=src --cov-report=term-missing --cov-report=xml --capture=no
+  #     - name: Upload coverage report
+  #       uses: codecov/codecov-action@v5
+  #       with:
+  #         file: ./coverage.xml
+  #         name: codecov-umbrella
+  #         fail_ci_if_error: true
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - name: Set up Python
+        uses: actions/setup-python@main
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pipx install poetry==2.0.0
+          poetry install --no-interaction
+      - name: Build documentation
+        run: make document
+      - name: Deploy to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          name: github-pages
+          path: docs/build/html/
+          retention-days: 1
+
+   deploy:
+     runs-on: ubuntu-latest
+     needs: build
+     steps:
+       - name: Deploy to GitHub Pages
+         uses: actions/deploy-pages@v4
+         with:
+           token: ${{ secrets.GITHUB_TOKEN }}
+           artifact-name: github-pages
