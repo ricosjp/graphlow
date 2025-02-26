@@ -174,3 +174,6 @@ spike
 
 outputs
 note/
+docs/source/tutorials/
+docs/source/modules/
+sg_execution_times.rst
