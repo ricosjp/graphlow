@@ -152,9 +152,7 @@ def optimize_shape(input_mesh: pv.UnstructuredGrid):
 
     def compute_deformation(points: torch.Tensor) -> torch.Tensor:
         hidden = torch.tanh(torch.einsum("np,pq->nq", points, w1))
-        deformation = output_activation(
-            torch.einsum("np,pq->nq", hidden, w2)
-        )
+        deformation = output_activation(torch.einsum("np,pq->nq", hidden, w2))
         return deformation_factor * deformation
 
     deformation = compute_deformation(init_points)
