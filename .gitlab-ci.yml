@@ -40,19 +40,20 @@ pytest:
     - cpu-ge-8
     - mem-ge-32gb
 
-# pages:
-#   stage: deploy
-#   script:
-#     - make document
-#     - mkdir public
-#     - cp -r docs/build/* public/
-#   artifacts:
-#     paths:
-#       - public
-#   only:
-#     - main
-#     - develop
-#     - fix_sphinx
+pages:
+  stage: deploy
+  script:
+    - apt install -y xvfb libgl1-mesa-glx
+    - make document
+    - mkdir public
+    - mv docs/build/html/* public/
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
+    - develop
+    - issue/add_docs
 
 
 .deploy:wheel:

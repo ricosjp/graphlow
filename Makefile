@@ -36,5 +36,8 @@ benchmark:
 
 .PHONY: document
 document:
-	$(RM) public
-	$(RUN) sphinx-build -M html docs/source docs/build
+	$(RM) -r public
+	$(RM) -r docs/build docs/source/tutorials docs/source/modules sg_execution_times.rst
+	poetry run sphinx-apidoc -f -o docs/source/modules src
+	sed -i "1s/^src$$/Module Reference/" ./docs/source/modules/modules.rst
+	poetry run sphinx-build -M html docs/source docs/build

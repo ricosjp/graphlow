@@ -20,11 +20,23 @@ torch = "^2.3.1"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"
 pytest-cov = "^4.1.0"
-ruff = "^0.9.6"
-mypy = "^1.8.0"
-sphinx = "^7.2.6"
 pytest-benchmark = "^5.1.0"
 pytest-memray = "^1.7.0"
+ruff = "^0.9.6"
+mypy = "^1.8.0"
+
+[tool.poetry.group.docs.dependencies]
+sphinx = "^7.2.6"
+furo = "^2024.8.6"
+sphinx-fontawesome = "^0.0.6"
+sphinx-gallery = "^0.17.0"
+sphinx-copybutton = "^0.5.2"
+sphinx-design = "^0.6.1"
+ipykernel = "^6.29.5"
+trame = "^3.8.0"
+trame-vtk = "^2.8.15"
+trame-vuetify = "^2.8.1"
+imageio = "^2.37.0"
 
 [tool.pytest.ini_options]
 markers = [
@@ -72,6 +84,7 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
+    "docs"
 ]
 
 # Same as Black.
