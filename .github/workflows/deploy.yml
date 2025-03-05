@@ -13,7 +13,7 @@ jobs:
       - name: Install dependencies for building docs
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libgl1-mesa-glx
+          sudo apt-get install -y xvfb libgl1 libglx-mesa0
       - name: Set up Python
         uses: actions/setup-python@main
         with:
