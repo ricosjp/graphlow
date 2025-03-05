@@ -12,8 +12,8 @@ jobs:
       - uses: actions/checkout@main
       - name: Install dependencies for building docs
         run: |
-          apt update
-          apt install -y xvfb libgl1-mesa-glx
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-glx
       - name: Set up Python
         uses: actions/setup-python@main
         with:
@@ -50,4 +50,4 @@ jobs:
         uses: actions/deploy-pages@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          artifact-name: github-pages
+          artifact_name: github-pages
