@@ -153,7 +153,10 @@ def test___compute_weight_from_volume(
     adj = mesh.compute_point_adjacency().to_sparse_coo()
     isoAM_processor = IsoAMProcessor()
 
-    Wij = isoAM_processor._compute_weight_from_volume(mesh, adj)
+    weights_nnz = isoAM_processor._compute_weights_nnz_from_volume(mesh)
+    Wij = torch.sparse_coo_tensor(
+        adj.indices(), weights_nnz, (mesh.n_points, mesh.n_points)
+    )
     np.testing.assert_almost_equal(Wij.to_dense().numpy(), desired)
 
 

@@ -232,30 +232,27 @@ class IsoAMProcessor:
             raise ZeroDivisionError("The input contains duplicate points.")
         return squarenorm_ij
 
-    def _compute_weight_from_volume(
-        self, mesh: IReadOnlyGraphlowMesh, adj: torch.Tensor
+    def _compute_weights_nnz_from_volume(
+        self, mesh: IReadOnlyGraphlowMesh
     ) -> torch.Tensor:
         """Compute: V_j / V_i
 
         Parameters
         ----------
         mesh: GraphlowMesh
-        adj: (n_points, n_points)-shaped torch sparse coo tensor
 
         Returns
         -------
-        (n_points, n_points)-shaped torch sparse coo tensor
+        (nnz,)-shaped tensor
         """
-        adj_indices = adj.indices()
-        rows, cols = adj_indices
-
+        adj = mesh.compute_point_adjacency().to_sparse_coo()
+        i_indices, j_indices = adj.indices()
         cell_volumes = mesh.compute_volumes()
         effective_volumes = mesh.convert_elemental2nodal(
             cell_volumes, mode="effective"
         )
-        W_vals = effective_volumes[cols] / effective_volumes[rows]
-        Wij = torch.sparse_coo_tensor(adj_indices, W_vals, size=adj.shape)
-        return Wij
+        weights = effective_volumes[j_indices] / effective_volumes[i_indices]
+        return weights
 
     def _create_grad_operator_from(self, Akij: torch.Tensor) -> torch.Tensor:
         """Create a grad operator from a given sparse coo matrix
