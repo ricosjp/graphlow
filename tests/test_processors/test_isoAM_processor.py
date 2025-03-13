@@ -176,6 +176,116 @@ def test___compute_normals_on_surface_points(
 
 
 @pytest.mark.parametrize(
+    "np_adj, np_points, desired",
+    [
+        (
+            np.array(
+                [
+                    # 0, 1, 2, 3, 4, 5, 6, 7, 8
+                    [1, 1, 0, 1, 0, 0, 0, 0, 0],
+                    [1, 1, 1, 0, 1, 0, 0, 0, 0],
+                    [0, 1, 1, 0, 0, 1, 0, 0, 0],
+                    [1, 0, 0, 1, 1, 0, 1, 0, 0],
+                    [0, 1, 0, 1, 1, 1, 0, 1, 0],
+                    [0, 0, 1, 0, 1, 1, 0, 0, 1],
+                    [0, 0, 0, 1, 0, 0, 1, 1, 0],
+                    [0, 0, 0, 0, 1, 0, 1, 1, 1],
+                    [0, 0, 0, 0, 0, 1, 0, 1, 1],
+                ]
+            ),
+            np.array(
+                [
+                    [0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                    [2.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [1.0, 1.0, 0.0],
+                    [2.0, 1.0, 0.0],
+                    [0.0, 2.0, 0.0],
+                    [1.0, 2.0, 0.0],
+                    [2.0, 2.0, 0.0],
+                ]
+            ),
+            np.array(
+                [
+                    # 0
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 1
+                    [
+                        [2.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 2
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 3
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 2.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 4
+                    [
+                        [2.0, 0.0, 0.0],
+                        [0.0, 2.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 5
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 2.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 6
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 7
+                    [
+                        [2.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 8
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                ]
+            ),
+        )
+    ],
+)
+def test__compute_moment_matrix(
+    np_adj: np.ndarray, np_points: np.ndarray, desired: np.ndarray
+):
+    adj = torch.from_numpy(np_adj).to_sparse_coo()
+    i_indices, j_indices = adj.indices()
+
+    points = torch.from_numpy(np_points)
+    isoAM_processor = IsoAMProcessor()
+
+    weights = torch.ones(
+        i_indices.shape[0], device=points.device, dtype=points.dtype
+    )
+    M = isoAM_processor._compute_moment_matrix(
+        i_indices, j_indices, points, weights
+    )
+    np.testing.assert_almost_equal(M.detach().numpy(), desired)
+
+
+@pytest.mark.parametrize(
     "file_name, desired",
     [
         (

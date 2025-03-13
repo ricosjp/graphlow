@@ -182,6 +182,71 @@ class IsoAMProcessor:
         isoAM = self._create_grad_operator_from(Dkij).coalesce()
         return isoAM, weighted_normals, inversed_moment_tensors
 
+    def _compute_moment_matrix(
+        self,
+        i_indices: torch.Tensor,
+        j_indices: torch.Tensor,
+        points: torch.Tensor,
+        weights: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Compute the moment matrix M_i for each point.
+
+        Parameters
+        ----------
+        mesh : GraphlowMesh
+            The mesh to compute the moment matrix for.
+
+        Returns
+        -------
+        torch.Tensor
+            (n_points, dim, dim)-shaped tensor sparse coo tensor
+        """
+        # Compute differences
+        diff = points[j_indices] - points[i_indices]  # (nnz, dim)
+
+        # Compute norms
+        norms = torch.norm(diff, dim=1)  # (nnz,)
+
+        # Avoid division by zero
+        norms = norms + 1e-8 * (norms == 0).float()
+
+        # Compute unit vectors
+        u = diff / norms.unsqueeze(1)  # (nnz, dim)
+
+        # Compute outer products: (nnz, dim, dim)
+        u_outer = u.unsqueeze(2) * u.unsqueeze(1)  # (nnz, dim, dim)
+
+        # Compute weighted outer products: weights * u_outer
+        weighted_u_outer = u_outer * weights.unsqueeze(1).unsqueeze(
+            2
+        )  # (nnz, dim, dim)
+
+        # Flatten the last two dimensions for scatter_add
+        weighted_u_outer_flat = weighted_u_outer.view(
+            -1, weighted_u_outer.shape[1] * weighted_u_outer.shape[2]
+        )  # (nnz, dim*dim)
+
+        # Initialize M_i as (n_points, dim*dim)
+        n_points, dim = points.shape
+        M_flat = torch.zeros(
+            (n_points, dim * dim), device=points.device, dtype=points.dtype
+        )
+
+        # Expand i_indices to match weighted_u_outer_flat
+        i_indices_expanded = i_indices.unsqueeze(1).expand_as(
+            weighted_u_outer_flat
+        )  # (nnz, dim*dim)
+
+        # Scatter add the weighted outer products into M_flat
+        M_flat = M_flat.scatter_add(
+            0, i_indices_expanded, weighted_u_outer_flat
+        )
+
+        # Reshape back to (n_points, dim, dim)
+        M = M_flat.view(n_points, dim, dim)
+        return M
+
     def _compute_weights_nnz_from_volume(
         self, mesh: IReadOnlyGraphlowMesh
     ) -> torch.Tensor:
