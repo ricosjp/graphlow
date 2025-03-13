@@ -254,32 +254,49 @@ class IsoAMProcessor:
         weights = effective_volumes[j_indices] / effective_volumes[i_indices]
         return weights
 
-    def _create_grad_operator_from(self, Akij: torch.Tensor) -> torch.Tensor:
-        """Create a grad operator from a given sparse coo matrix
-        where diag(i=j) has no value (sparse)
+    def _create_grad_operator_from(
+        self,
+        i_indices: torch.Tensor,
+        j_indices: torch.Tensor,
+        n_points: int,
+        nnz_tensor: torch.Tensor,
+    ) -> torch.Tensor:
+        """Create a grad operator from a given tensor
 
         Parameters
         ----------
-        Akij: (dim, n_points, n_points)-shaped torch sparse coo tensor
-            To ensure correct calculation, diag(i=j) has no value (sparse)
+        nnz_tensor: (nnz, dim)-shaped torch tensor
 
         Returns
         -------
         (dim, n_points, n_points)-shaped torch sparse coo tensor
         """
-        dim, n_points, _ = Akij.shape
-        L_values = torch.sparse.sum(Akij, dim=2).to_dense()
-        L_indices = torch.arange(n_points).expand(2, -1)
-        grad_op = torch.stack(
+        dim = nnz_tensor.shape[1]
+
+        # Compute sum_D_per_i_k: (n_points, dim)
+        sum_D_per_i_k = torch.zeros(
+            n_points, dim, dtype=nnz_tensor.dtype, device=nnz_tensor.device
+        )
+        sum_D_per_i_k.index_add_(0, i_indices, nnz_tensor)
+
+        # Identify self-loop edges (i == j)
+        diag_mask = i_indices == j_indices
+
+        # Adjust tilde_D by subtracting sum_D_per_i_k for self-loop edges
+        grad_adj = nnz_tensor.clone()
+        grad_adj[diag_mask] -= sum_D_per_i_k[i_indices[diag_mask]]
+
+        # nnz, dim -> dim, n_points, n_points
+        indices = torch.stack([i_indices, j_indices], dim=0)
+        result = torch.stack(
             [
-                Akij[k]
-                - torch.sparse_coo_tensor(
-                    L_indices, L_values[k], size=(n_points, n_points)
+                torch.sparse_coo_tensor(
+                    indices, grad_adj[:, k], (n_points, n_points)
                 )
                 for k in range(dim)
             ]
         )
-        return grad_op
+        return result
 
     def _compute_normals_on_surface_points(
         self, mesh: IReadOnlyGraphlowMesh
