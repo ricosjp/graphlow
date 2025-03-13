@@ -182,56 +182,6 @@ class IsoAMProcessor:
         isoAM = self._create_grad_operator_from(Dkij).coalesce()
         return isoAM, weighted_normals, inversed_moment_tensors
 
-    def _compute_differences(
-        self, points: torch.Tensor, adj: torch.Tensor
-    ) -> torch.Tensor:
-        """Compute: x_{jk} - x_{ik}, where x represents a point
-
-        Parameters
-        ----------
-        points: (n_points, dim)-shaped torch tensor
-        adj: (n_points, n_points)-shaped torch sparse coo tensor
-
-        Returns
-        -------
-        (dim, n_points, n_points)-shaped torch sparse coo tensor
-        """
-        # Extract indices from sparse adjacency matrix
-        n_points, dim = points.shape
-        adj_indices = adj.indices()
-
-        # remove diag elements to avoid division by zero
-        adj_indices = adj_indices[:, adj_indices[0, :] != adj_indices[1, :]]
-        rows, cols = adj_indices
-
-        # calculate differences between points
-        diff_xj_xi = points[cols] - points[rows]
-        dim_idx = torch.arange(dim).repeat_interleave(adj_indices.shape[1])
-        diff_indices = torch.cat(
-            (dim_idx.unsqueeze(0), adj_indices.repeat(1, dim))
-        )
-        diff_vals = diff_xj_xi.T.flatten()
-        diff_kij = torch.sparse_coo_tensor(
-            diff_indices, diff_vals, size=(dim, *adj.shape)
-        ).coalesce()
-        return diff_kij
-
-    def _compute_inverse_square_norm(self, d_kij: torch.Tensor) -> torch.Tensor:
-        """Compute: 1 / || sum_k d_{kij}^2 ||^2
-
-        Parameters
-        ----------
-        diff_kij: (dim, n_points, n_points)-shaped torch sparse coo tensor
-
-        Returns
-        -------
-        (n_points, n_points)-shaped torch sparse coo tensor
-        """
-        squarenorm_ij = d_kij.pow(2).sum(dim=0).pow(-1)
-        if torch.isinf(squarenorm_ij.values()).any():
-            raise ZeroDivisionError("The input contains duplicate points.")
-        return squarenorm_ij
-
     def _compute_weights_nnz_from_volume(
         self, mesh: IReadOnlyGraphlowMesh
     ) -> torch.Tensor:
