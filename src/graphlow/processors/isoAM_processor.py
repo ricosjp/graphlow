@@ -45,6 +45,7 @@ class IsoAMProcessor:
         n_points, dim = points.shape
         adj = mesh.compute_point_adjacency().to_sparse_coo()
         i_indices, j_indices = adj.indices()  # (2, nnz)
+        diag_mask = i_indices == j_indices
 
         # Compute differences x_j - x_i
         diff = points[j_indices] - points[i_indices]  # (nnz, dim)
@@ -52,11 +53,11 @@ class IsoAMProcessor:
         # Compute squared norms ||x_j - x_i||^2
         norm_sq = torch.norm(diff, dim=1) ** 2  # (nnz,)
 
-        # Avoid division by zero by adding a small epsilon where norm_sq is zero
-        norm_sq = norm_sq + 1e-8 * (norm_sq == 0).float()
-
         # Compute (x_j - x_i) / ||x_j - x_i||^2
         p = diff / norm_sq.unsqueeze(1)  # (nnz, dim)
+        p[diag_mask] = 0.0
+        if torch.isinf(p).any():
+            raise ZeroDivisionError("Input mesh contains duplicate points")
 
         # Compute weights
         weights = torch.ones(
@@ -137,6 +138,7 @@ class IsoAMProcessor:
         n_points = points.shape[0]
         adj = mesh.compute_point_adjacency().to_sparse_coo()
         i_indices, j_indices = adj.indices()  # (2, nnz)
+        diag_mask = i_indices == j_indices
 
         # Compute normals
         normals = self._compute_normals_on_surface_points(mesh)
@@ -151,11 +153,11 @@ class IsoAMProcessor:
         # Compute squared norms ||x_j - x_i||^2
         norm_sq = torch.norm(diff, dim=1) ** 2  # (nnz,)
 
-        # Avoid division by zero by adding a small epsilon where norm_sq is zero
-        norm_sq = norm_sq + 1e-8 * (norm_sq == 0).float()
-
         # Compute (x_j - x_i) / ||x_j - x_i||^2
         p = diff / norm_sq.unsqueeze(1)  # (nnz, dim)
+        p[diag_mask] = 0.0
+        if torch.isinf(p).any():
+            raise ZeroDivisionError("Input mesh contains duplicate points")
 
         # Compute weights
         weights = torch.ones(
@@ -213,17 +215,19 @@ class IsoAMProcessor:
         torch.Tensor
             (n_points, dim, dim)-shaped tensor sparse coo tensor
         """
+        diag_mask = i_indices == j_indices
+
         # Compute differences
         diff = points[j_indices] - points[i_indices]  # (nnz, dim)
 
         # Compute norms
         norms = torch.norm(diff, dim=1)  # (nnz,)
 
-        # Avoid division by zero
-        norms = norms + 1e-8 * (norms == 0).float()
-
         # Compute unit vectors
         u = diff / norms.unsqueeze(1)  # (nnz, dim)
+        u[diag_mask] = 0.0
+        if torch.isinf(u).any():
+            raise ZeroDivisionError("Input mesh contains duplicate points")
 
         # Compute outer products: (nnz, dim, dim)
         u_outer = u.unsqueeze(2) * u.unsqueeze(1)  # (nnz, dim, dim)
