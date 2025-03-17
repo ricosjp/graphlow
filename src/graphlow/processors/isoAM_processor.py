@@ -82,7 +82,7 @@ class IsoAMProcessor:
         normals = self._compute_normals_on_surface_points(mesh)
         normals_outer = normals.unsqueeze(2) * normals.unsqueeze(1)
 
-        moment_rank = torch.linalg.matrix_rank(moment_matrix)
+        moment_rank = torch.linalg.matrix_rank(moment_matrix, hermitian=True)
         batch_mask = moment_rank < dim
         moment_matrix[batch_mask] += normals_outer[batch_mask]
 
@@ -237,29 +237,14 @@ class IsoAMProcessor:
             2
         )  # (nnz, dim, dim)
 
-        # Flatten the last two dimensions for scatter_add
-        weighted_u_outer_flat = weighted_u_outer.view(
-            -1, weighted_u_outer.shape[1] * weighted_u_outer.shape[2]
-        )  # (nnz, dim*dim)
-
-        # Initialize M_i as (n_points, dim*dim)
+        # Initialize M_i as (n_points, dim, dim)
         n_points, dim = points.shape
-        M_flat = torch.zeros(
-            (n_points, dim * dim), device=points.device, dtype=points.dtype
+        M = torch.zeros(
+            n_points, dim, dim, dtype=points.dtype, device=points.device
         )
 
-        # Expand i_indices to match weighted_u_outer_flat
-        i_indices_expanded = i_indices.unsqueeze(1).expand_as(
-            weighted_u_outer_flat
-        )  # (nnz, dim*dim)
-
-        # Scatter add the weighted outer products into M_flat
-        M_flat = M_flat.scatter_add(
-            0, i_indices_expanded, weighted_u_outer_flat
-        )
-
-        # Reshape back to (n_points, dim, dim)
-        M = M_flat.view(n_points, dim, dim)
+        # Sum each row
+        M.index_add_(0, i_indices, weighted_u_outer)
         return M
 
     def _compute_weights_nnz_from_volume(
