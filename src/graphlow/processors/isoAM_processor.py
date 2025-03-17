@@ -277,7 +277,7 @@ class IsoAMProcessor:
         """
         adj = mesh.compute_point_adjacency().to_sparse_coo()
         i_indices, j_indices = adj.indices()
-        cell_volumes = mesh.compute_volumes()
+        cell_volumes = torch.abs(mesh.compute_volumes())
         effective_volumes = mesh.convert_elemental2nodal(
             cell_volumes, mode="effective"
         )
