@@ -3,11 +3,13 @@ import pathlib
 import numpy as np
 import pytest
 import pyvista as pv
+import torch
 
 import graphlow
 from graphlow.util import array_handler
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -34,15 +36,16 @@ from graphlow.util import array_handler
     ],
 )
 def test__compute_point_cell_incidence(
-    file_name: pathlib.Path, desired: np.ndarray
+    file_name: pathlib.Path, desired: np.ndarray, device: str
 ):
     mesh = graphlow.read(file_name)
+    mesh.send(device=torch.device(device))
     cell_point_incidence = mesh.compute_cell_point_incidence()
-    np.testing.assert_array_equal(
-        cell_point_incidence.to_dense().numpy(), desired
-    )
+    actual = array_handler.convert_to_dense_numpy(cell_point_incidence)
+    np.testing.assert_array_equal(actual, desired)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -67,14 +70,17 @@ def test__compute_point_cell_incidence(
         ),
     ],
 )
-def test__compute_cell_adjacency(file_name: pathlib.Path, desired: np.ndarray):
+def test__compute_cell_adjacency(
+    file_name: pathlib.Path, desired: np.ndarray, device: str
+):
     mesh = graphlow.read(file_name)
+    mesh.send(device=torch.device(device))
     cell_adjacency = mesh.compute_cell_adjacency()
-    np.testing.assert_array_equal(
-        array_handler.convert_to_dense_numpy(cell_adjacency), desired
-    )
+    actual = array_handler.convert_to_dense_numpy(cell_adjacency)
+    np.testing.assert_array_equal(actual, desired)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -90,14 +96,17 @@ def test__compute_cell_adjacency(file_name: pathlib.Path, desired: np.ndarray):
         ),
     ],
 )
-def test__compute_cell_degree(file_name: pathlib.Path, desired: np.ndarray):
+def test__compute_cell_degree(
+    file_name: pathlib.Path, desired: np.ndarray, device: str
+):
     mesh = graphlow.read(file_name)
+    mesh.send(device=torch.device(device))
     cell_degree = mesh.compute_cell_degree()
-    np.testing.assert_array_equal(
-        array_handler.convert_to_dense_numpy(cell_degree), desired
-    )
+    actual = array_handler.convert_to_dense_numpy(cell_degree)
+    np.testing.assert_array_equal(actual, desired)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -114,15 +123,16 @@ def test__compute_cell_degree(file_name: pathlib.Path, desired: np.ndarray):
     ],
 )
 def test__compute_normalized_cell_adjacency(
-    file_name: pathlib.Path, desired: np.ndarray
+    file_name: pathlib.Path, desired: np.ndarray, device: str
 ):
     mesh = graphlow.read(file_name)
+    mesh.send(device=torch.device(device))
     normalized_cell_adjacency = mesh.compute_normalized_cell_adjacency()
-    np.testing.assert_almost_equal(
-        array_handler.convert_to_dense_numpy(normalized_cell_adjacency), desired
-    )
+    actual = array_handler.convert_to_dense_numpy(normalized_cell_adjacency)
+    np.testing.assert_almost_equal(actual, desired)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -169,14 +179,17 @@ def test__compute_normalized_cell_adjacency(
         ),
     ],
 )
-def test__compute_point_adjacency(file_name: pathlib.Path, desired: np.ndarray):
+def test__compute_point_adjacency(
+    file_name: pathlib.Path, desired: np.ndarray, device: str
+):
     mesh = graphlow.read(file_name)
+    mesh.send(device=torch.device(device))
     point_adjacency = mesh.compute_point_adjacency()
-    np.testing.assert_array_equal(
-        array_handler.convert_to_dense_numpy(point_adjacency), desired
-    )
+    actual = array_handler.convert_to_dense_numpy(point_adjacency)
+    np.testing.assert_array_equal(actual, desired)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -202,14 +215,17 @@ def test__compute_point_adjacency(file_name: pathlib.Path, desired: np.ndarray):
         )
     ],
 )
-def test__compute_point_degree(file_name: pathlib.Path, desired: np.ndarray):
+def test__compute_point_degree(
+    file_name: pathlib.Path, desired: np.ndarray, device: str
+):
     mesh = graphlow.read(file_name)
+    mesh.send(device=torch.device(device))
     point_degree = mesh.compute_point_degree()
-    np.testing.assert_array_equal(
-        array_handler.convert_to_dense_numpy(point_degree), desired
-    )
+    actual = array_handler.convert_to_dense_numpy(point_degree)
+    np.testing.assert_array_equal(actual, desired)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -403,34 +419,37 @@ def test__compute_point_degree(file_name: pathlib.Path, desired: np.ndarray):
     ],
 )
 def test__compute_normalized_point_adjacency(
-    file_name: pathlib.Path, desired: np.ndarray
+    file_name: pathlib.Path, desired: np.ndarray, device: str
 ):
     mesh = graphlow.read(file_name)
+    mesh.send(device=torch.device(device))
     normalized_point_adjacency = mesh.compute_normalized_point_adjacency()
-    np.testing.assert_almost_equal(
-        array_handler.convert_to_dense_numpy(normalized_point_adjacency),
-        desired,
-    )
+    actual = array_handler.convert_to_dense_numpy(normalized_point_adjacency)
+    np.testing.assert_almost_equal(actual, desired)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize(
     "file_name",
     [
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__compute_point_relative_incidence(file_name: pathlib.Path):
+def test__compute_point_relative_incidence(
+    file_name: pathlib.Path, device: str
+):
     pv_mesh = pv.read(file_name)
     pv_mesh.point_data["feature"] = pv_mesh.points[:, 0] ** 2
     mesh = graphlow.GraphlowMesh(pv_mesh)
-
+    mesh.send(device=torch.device(device))
     surface = mesh.extract_surface()
     relative_incidence = mesh.compute_point_relative_incidence(surface)
 
     actual_surface_points = relative_incidence.matmul(mesh.points)
     desired_surface_points = surface.points
     np.testing.assert_almost_equal(
-        actual_surface_points.numpy(), desired_surface_points.numpy()
+        array_handler.convert_to_numpy_scipy(actual_surface_points),
+        array_handler.convert_to_numpy_scipy(desired_surface_points),
     )
 
     # Check reversed order also works
@@ -447,6 +466,7 @@ def test__compute_point_relative_incidence(file_name: pathlib.Path):
     )
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -484,13 +504,13 @@ def test__compute_point_relative_incidence(file_name: pathlib.Path):
     ],
 )
 def test__compute_cell_relative_incidence(
-    file_name: pathlib.Path, desired: np.ndarray
+    file_name: pathlib.Path, desired: np.ndarray, device: str
 ):
     pv_mesh = pv.read(file_name)
     pv_mesh.point_data["feature"] = pv_mesh.points[:, -1] ** 2
     pv_mesh = pv_mesh.point_data_to_cell_data()
     mesh = graphlow.GraphlowMesh(pv_mesh)
-
+    mesh.send(device=torch.device(device))
     surface = mesh.extract_surface()
     relative_incidence = array_handler.convert_to_dense_numpy(
         mesh.compute_cell_relative_incidence(surface)
