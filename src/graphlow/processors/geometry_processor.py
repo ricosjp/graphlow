@@ -40,15 +40,21 @@ class GeometryProcessor:
         -------
         torch.Tensor
         """
-        pc_inc = mesh.compute_cell_point_incidence().to_sparse_coo().T
+        pc_inc = (
+            mesh.compute_cell_point_incidence().to_sparse_coo().T
+        )  # (n_points, n_cells)
         if mode == "mean":
-            n_connected_cells = pc_inc.sum(dim=1).to_dense()
-            mean_pc_inc = pc_inc.multiply(n_connected_cells.pow(-1).view(-1, 1))
+            n_connected_cells = pc_inc.sum(dim=1).to_dense()  # (n_points, )
+            mean_pc_inc = pc_inc * n_connected_cells.pow(-1).unsqueeze(
+                1
+            )  # (n_points, n_cells)
             nodal_data = mean_pc_inc @ elemental_data
             return nodal_data
         if mode == "effective":
-            n_points_in_cells = pc_inc.sum(dim=0).to_dense()
-            effective_pc_inc = pc_inc.multiply(n_points_in_cells.pow(-1))
+            n_points_in_cells = pc_inc.sum(dim=0).to_dense()  # (n_cells,)
+            effective_pc_inc = pc_inc * n_points_in_cells.pow(-1).unsqueeze(
+                0
+            )  # (n_points, n_cells)
             nodal_data = effective_pc_inc @ elemental_data
             return nodal_data
         raise ValueError(f"Invalid mode: {mode}")
@@ -77,15 +83,21 @@ class GeometryProcessor:
         -------
         torch.Tensor
         """
-        cp_inc = mesh.compute_cell_point_incidence().to_sparse_coo()
+        cp_inc = (
+            mesh.compute_cell_point_incidence().to_sparse_coo()
+        )  # (n_cells, n_points)
         if mode == "mean":
-            n_points_in_cells = cp_inc.sum(dim=1).to_dense()
-            mean_cp_inc = cp_inc.multiply(n_points_in_cells.pow(-1).view(-1, 1))
+            n_points_in_cells = cp_inc.sum(dim=1).to_dense()  # (n_cells,)
+            mean_cp_inc = cp_inc * n_points_in_cells.pow(-1).unsqueeze(
+                1
+            )  # (n_cells, n_points)
             nodal_data = mean_cp_inc @ nodal_data
             return nodal_data
         if mode == "effective":
-            n_connected_cells = cp_inc.sum(dim=0).to_dense()
-            effective_cp_inc = cp_inc.multiply(n_connected_cells.pow(-1))
+            n_connected_cells = cp_inc.sum(dim=0).to_dense()  # (n_points,)
+            effective_cp_inc = cp_inc * n_connected_cells.pow(-1).unsqueeze(
+                0
+            )  # (n_cells, n_points)
             nodal_data = effective_cp_inc @ nodal_data
             return nodal_data
         raise ValueError(f"Invalid mode: {mode}")

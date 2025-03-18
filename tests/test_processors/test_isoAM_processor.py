@@ -20,120 +20,6 @@ logger = get_logger(__name__)
             pathlib.Path("tests/data/vtu/primitive_cell/octahedron.vtu"),
             np.array(
                 [
-                    # x
-                    [
-                        [0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0],
-                        [-1.0, 0.0, -1.0, 0.0, -1.0, -1.0, -1.0],
-                        [0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0],
-                        [1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0],
-                        [0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0],
-                    ],
-                    # y
-                    [
-                        [0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0],
-                        [-1.0, -1.0, 0.0, -1.0, 0.0, -1.0, -1.0],
-                        [0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0],
-                        [1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0],
-                        [0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0],
-                    ],
-                    # z
-                    [
-                        [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.0],
-                        [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.0],
-                        [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.0],
-                        [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.0],
-                        [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.0],
-                        [-1.0, -1.0, -1.0, -1.0, -1.0, 0.0, 0.0],
-                        [1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0],
-                    ],
-                ]
-            ),
-        )
-    ],
-)
-def test___compute_differences(file_name: pathlib.Path, desired: np.ndarray):
-    mesh = graphlow.read(file_name)
-    points = mesh.points
-    adj = mesh.compute_point_adjacency().to_sparse_coo()
-    isoAM_processor = IsoAMProcessor()
-
-    diff_kij = isoAM_processor._compute_differences(points, adj)
-    np.testing.assert_almost_equal(diff_kij.to_dense().numpy(), desired)
-
-
-@pytest.mark.parametrize(
-    "np_diff_kij, desired",
-    [
-        (
-            np.array(
-                [
-                    # x
-                    [
-                        [0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0],
-                        [-1.0, -1.0, 0.0, -1.0, 0.0, -1.0, -1.0],
-                        [0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0],
-                        [1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0],
-                        [0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0],
-                    ],
-                    # y
-                    [
-                        [0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0],
-                        [0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0],
-                        [0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0],
-                        [-1.0, -1.0, -1.0, 0.0, -1.0, 0.0, -1.0],
-                        [0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0],
-                        [1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0],
-                        [0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0],
-                    ],
-                    # z
-                    [
-                        [0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-                        [1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0],
-                        [0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-                        [0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-                        [0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-                        [0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-                        [-1.0, 0.0, -1.0, -1.0, -1.0, -1.0, 0.0],
-                    ],
-                ]
-            ),
-            np.array(
-                [
-                    [0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-                    [1.0, 0.0, 0.5, 0.5, 0.5, 0.5, 0.0],
-                    [1.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.5],
-                    [1.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.5],
-                    [1.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.5],
-                    [1.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.5],
-                    [1.0, 0.0, 0.5, 0.5, 0.5, 0.5, 0.0],
-                ]
-            ),
-        )
-    ],
-)
-def test___compute_inverse_square_norm(
-    np_diff_kij: np.ndarray, desired: np.ndarray
-):
-    diff_kij = torch.from_numpy(np_diff_kij).to_sparse_coo()
-    isoAM_processor = IsoAMProcessor()
-
-    inv_sqr_norm = isoAM_processor._compute_inverse_square_norm(diff_kij)
-    np.testing.assert_almost_equal(inv_sqr_norm.to_dense().numpy(), desired)
-
-
-@pytest.mark.parametrize(
-    "file_name, desired",
-    [
-        (
-            pathlib.Path("tests/data/vtu/primitive_cell/octahedron.vtu"),
-            np.array(
-                [
                     [1.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
                     [2.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0],
                     [2.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0],
@@ -153,72 +39,105 @@ def test___compute_weight_from_volume(
     adj = mesh.compute_point_adjacency().to_sparse_coo()
     isoAM_processor = IsoAMProcessor()
 
-    Wij = isoAM_processor._compute_weight_from_volume(mesh, adj)
+    weights_nnz = isoAM_processor._compute_weights_nnz_from_volume(mesh)
+    Wij = torch.sparse_coo_tensor(
+        adj.indices(), weights_nnz, (mesh.n_points, mesh.n_points)
+    )
     np.testing.assert_almost_equal(Wij.to_dense().numpy(), desired)
 
 
 @pytest.mark.parametrize(
-    "np_Akij, desired",
+    "np_adj, np_points, desired",
     [
         (
             np.array(
                 [
-                    # x
-                    [
-                        [0.0, 0.0, 1.0, 0.0],
-                        [1.0, 0.0, 2.0, 3.0],
-                        [2.0, 0.0, 0.0, 0.0],
-                        [1.0, 1.0, 0.0, 0.0],
-                    ],
-                    # y
-                    [
-                        [0.0, -1.0, 0.0, 0.0],
-                        [-2.0, 0.0, -2.0, -2.0],
-                        [0.0, 0.0, 0.0, -1.0],
-                        [1.0, 1.0, 1.0, 0.0],
-                    ],
-                    # z
-                    [
-                        [0.0, 1.0, 1.0, 1.0],
-                        [1.0, 0.0, 1.0, 1.0],
-                        [1.0, 1.0, 0.0, 1.0],
-                        [1.0, 1.0, 1.0, 0.0],
-                    ],
+                    # 0, 1, 2, 3, 4, 5, 6, 7, 8
+                    [1, 1, 0, 1, 0, 0, 0, 0, 0],
+                    [1, 1, 1, 0, 1, 0, 0, 0, 0],
+                    [0, 1, 1, 0, 0, 1, 0, 0, 0],
+                    [1, 0, 0, 1, 1, 0, 1, 0, 0],
+                    [0, 1, 0, 1, 1, 1, 0, 1, 0],
+                    [0, 0, 1, 0, 1, 1, 0, 0, 1],
+                    [0, 0, 0, 1, 0, 0, 1, 1, 0],
+                    [0, 0, 0, 0, 1, 0, 1, 1, 1],
+                    [0, 0, 0, 0, 0, 1, 0, 1, 1],
+                ]
+            ),
+            np.array(
+                [
+                    [0.0, 0.0, 2.0],
+                    [1.0, 0.0, 1.0],
+                    [2.0, 0.0, 0.0],
+                    [0.0, 1.0, 2.0],
+                    [1.0, 1.0, 1.0],
+                    [2.0, 1.0, 0.0],
+                    [0.0, 2.0, 2.0],
+                    [1.0, 2.0, 1.0],
+                    [2.0, 2.0, 0.0],
                 ]
             ),
             np.array(
                 [
                     # x
                     [
-                        [-1.0, 0.0, 1.0, 0.0],
-                        [1.0, -6.0, 2.0, 3.0],
-                        [2.0, 0.0, -2.0, 0.0],
-                        [1.0, 1.0, 0.0, -2.0],
+                        # 0,  1,  2,  3,  4,  5,  6,  7,  8
+                        [-1, 1, 0, 0, 0, 0, 0, 0, 0],
+                        [-1, 0, 1, 0, 0, 0, 0, 0, 0],
+                        [0, -1, 1, 0, 0, 0, 0, 0, 0],
+                        [0, 0, 0, -1, 1, 0, 0, 0, 0],
+                        [0, 0, 0, -1, 0, 1, 0, 0, 0],
+                        [0, 0, 0, 0, -1, 1, 0, 0, 0],
+                        [0, 0, 0, 0, 0, 0, -1, 1, 0],
+                        [0, 0, 0, 0, 0, 0, -1, 0, 1],
+                        [0, 0, 0, 0, 0, 0, 0, -1, 1],
                     ],
                     # y
                     [
-                        [1.0, -1.0, 0.0, 0.0],
-                        [-2.0, 6.0, -2.0, -2.0],
-                        [0.0, 0.0, 1.0, -1.0],
-                        [1.0, 1.0, 1.0, -3.0],
+                        # 0,  1,  2,  3,  4,  5,  6,  7,  8
+                        [-1, 0, 0, 1, 0, 0, 0, 0, 0],
+                        [0, -1, 0, 0, 1, 0, 0, 0, 0],
+                        [0, 0, -1, 0, 0, 1, 0, 0, 0],
+                        [-1, 0, 0, 0, 0, 0, 1, 0, 0],
+                        [0, -1, 0, 0, 0, 0, 0, 1, 0],
+                        [0, 0, -1, 0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, -1, 0, 0, 1, 0, 0],
+                        [0, 0, 0, 0, -1, 0, 0, 1, 0],
+                        [0, 0, 0, 0, 0, -1, 0, 0, 1],
                     ],
                     # z
                     [
-                        [-3.0, 1.0, 1.0, 1.0],
-                        [1.0, -3.0, 1.0, 1.0],
-                        [1.0, 1.0, -3.0, 1.0],
-                        [1.0, 1.0, 1.0, -3.0],
+                        # 0,  1,  2,  3,  4,  5,  6,  7,  8
+                        [1, -1, 0, 0, 0, 0, 0, 0, 0],
+                        [1, 0, -1, 0, 0, 0, 0, 0, 0],
+                        [0, 1, -1, 0, 0, 0, 0, 0, 0],
+                        [0, 0, 0, 1, -1, 0, 0, 0, 0],
+                        [0, 0, 0, 1, 0, -1, 0, 0, 0],
+                        [0, 0, 0, 0, 1, -1, 0, 0, 0],
+                        [0, 0, 0, 0, 0, 0, 1, -1, 0],
+                        [0, 0, 0, 0, 0, 0, 1, 0, -1],
+                        [0, 0, 0, 0, 0, 0, 0, 1, -1],
                     ],
                 ]
             ),
         )
     ],
 )
-def test___create_grad_operator_from(np_Akij: np.ndarray, desired: np.ndarray):
-    Akij = torch.from_numpy(np_Akij).to_sparse_coo()
+def test___create_grad_operator_from(
+    np_adj: np.ndarray, np_points: np.ndarray, desired: np.ndarray
+):
+    adj = torch.from_numpy(np_adj).to_sparse_coo()
+    i_indices, j_indices = adj.indices()
+
+    points = torch.from_numpy(np_points)
+    n_points = points.shape[0]
+
+    diff = points[j_indices] - points[i_indices]  # (nnz, dim)
     isoAM_processor = IsoAMProcessor()
 
-    grad_op = isoAM_processor._create_grad_operator_from(Akij).to_dense()
+    grad_op = isoAM_processor._create_grad_operator_from(
+        i_indices, j_indices, n_points, diff
+    ).to_dense()
     np.testing.assert_almost_equal(grad_op.numpy(), desired)
 
 
@@ -254,6 +173,116 @@ def test___compute_normals_on_surface_points(
 
     normals = isoAM_processor._compute_normals_on_surface_points(mesh)
     np.testing.assert_almost_equal(normals.detach().numpy(), desired, decimal=6)
+
+
+@pytest.mark.parametrize(
+    "np_adj, np_points, desired",
+    [
+        (
+            np.array(
+                [
+                    # 0, 1, 2, 3, 4, 5, 6, 7, 8
+                    [1, 1, 0, 1, 0, 0, 0, 0, 0],
+                    [1, 1, 1, 0, 1, 0, 0, 0, 0],
+                    [0, 1, 1, 0, 0, 1, 0, 0, 0],
+                    [1, 0, 0, 1, 1, 0, 1, 0, 0],
+                    [0, 1, 0, 1, 1, 1, 0, 1, 0],
+                    [0, 0, 1, 0, 1, 1, 0, 0, 1],
+                    [0, 0, 0, 1, 0, 0, 1, 1, 0],
+                    [0, 0, 0, 0, 1, 0, 1, 1, 1],
+                    [0, 0, 0, 0, 0, 1, 0, 1, 1],
+                ]
+            ),
+            np.array(
+                [
+                    [0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                    [2.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [1.0, 1.0, 0.0],
+                    [2.0, 1.0, 0.0],
+                    [0.0, 2.0, 0.0],
+                    [1.0, 2.0, 0.0],
+                    [2.0, 2.0, 0.0],
+                ]
+            ),
+            np.array(
+                [
+                    # 0
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 1
+                    [
+                        [2.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 2
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 3
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 2.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 4
+                    [
+                        [2.0, 0.0, 0.0],
+                        [0.0, 2.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 5
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 2.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 6
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 7
+                    [
+                        [2.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    # 8
+                    [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                ]
+            ),
+        )
+    ],
+)
+def test__compute_moment_matrix(
+    np_adj: np.ndarray, np_points: np.ndarray, desired: np.ndarray
+):
+    adj = torch.from_numpy(np_adj).to_sparse_coo()
+    i_indices, j_indices = adj.indices()
+
+    points = torch.from_numpy(np_points)
+    isoAM_processor = IsoAMProcessor()
+
+    weights = torch.ones(
+        i_indices.shape[0], device=points.device, dtype=points.dtype
+    )
+    M = isoAM_processor._compute_moment_matrix(
+        i_indices, j_indices, points, weights
+    )
+    np.testing.assert_almost_equal(M.detach().numpy(), desired)
 
 
 @pytest.mark.parametrize(

@@ -42,58 +42,65 @@ class IsoAMProcessor:
                 return None
         """
         points = mesh.points
-        adj = mesh.compute_point_adjacency().to_sparse_coo()
         n_points, dim = points.shape
+        adj = mesh.compute_point_adjacency().to_sparse_coo()
+        i_indices, j_indices = adj.indices()  # (2, nnz)
+        diag_mask = i_indices == j_indices
 
-        # compute x_jk - x_ik
-        diff_kij = self._compute_differences(points, adj)
+        # Compute differences x_j - x_i
+        diff = points[j_indices] - points[i_indices]  # (nnz, dim)
 
-        # compute: 1 / || x_j - x_i ||^2
-        weight_by_squarenorm_ij = self._compute_inverse_square_norm(diff_kij)
+        # Compute squared norms ||x_j - x_i||^2
+        norm_sq = torch.norm(diff, dim=1) ** 2  # (nnz,)
 
-        # consider effective volumes as weight: V_j / V_i
+        # Compute (x_j - x_i) / ||x_j - x_i||^2
+        p = diff / norm_sq.unsqueeze(1)  # (nnz, dim)
+        p[diag_mask] = 0.0
+        if torch.isinf(p).any():
+            raise ZeroDivisionError("Input mesh contains duplicate points")
+
+        # Compute weights
+        weights = torch.ones(
+            i_indices.shape[0], device=points.device, dtype=points.dtype
+        )  # (nnz,)
+
         if consider_volume:
-            Wij = self._compute_weight_from_volume(mesh, adj)
-            weight_by_squarenorm_ij *= Wij
+            weights = self._compute_weights_nnz_from_volume(mesh)
 
-        weighted_diff_kij = torch.stack(
-            [diff_kij[k] * weight_by_squarenorm_ij for k in range(dim)]
-        )
-
-        # without moment matrix
         if not with_moment_matrix:
+            nnz_tensor = p * weights.unsqueeze(1)  # (nnz, dim)
             isoAM = self._create_grad_operator_from(
-                weighted_diff_kij
-            ).coalesce()
+                i_indices, j_indices, n_points, nnz_tensor
+            )
             return isoAM, None
 
-        # compute inversed moment matrix for each point
-        diff_ijk = diff_kij.permute((1, 2, 0))
-        weighted_diff_ikj = weighted_diff_kij.permute(1, 0, 2)
+        moment_matrix = self._compute_moment_matrix(
+            i_indices, j_indices, points, weights
+        )
 
-        # precompute normals outer product to avoid recomputation
+        # Precompute normals to avoid singular matrices
         normals = self._compute_normals_on_surface_points(mesh)
-        normals_outer = normals.unsqueeze(2) * normals.unsqueeze(1)
+        n_otimes_n = normals.unsqueeze(2) * normals.unsqueeze(1)
 
-        inversed_moment_tensors = []
-        for i in range(n_points):
-            mi = weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
-            if torch.linalg.matrix_rank(mi) < dim:
-                mi += normals_outer[i]
-            inversed_moment_tensors.append(torch.inverse(mi))
-        inversed_moment_tensors = torch.stack(inversed_moment_tensors)
+        moment_rank = torch.linalg.matrix_rank(moment_matrix, hermitian=True)
+        batch_mask = moment_rank < dim
+        moment_matrix[batch_mask] += n_otimes_n[batch_mask]
 
-        # compute isoAM using inversed moment matrix
-        Dkij = torch.stack(
-            [
-                (
-                    inversed_moment_tensors[i] @ weighted_diff_ikj[i]
-                ).to_sparse_coo()
-                for i in range(n_points)
-            ]
-        ).permute((1, 0, 2))
-        isoAM = self._create_grad_operator_from(Dkij).coalesce()
-        return isoAM, inversed_moment_tensors
+        # Compute the inverse of M_i
+        moment_inv = torch.linalg.inv(moment_matrix)  # (n_points, dim, dim)
+
+        # Get M_i^{-1} for each edge (i,j)
+        moment_inv_i = moment_inv[i_indices]  # (nnz, dim, dim)
+
+        # Compute M_i^{-1} @ p for each edge
+        temp = torch.bmm(moment_inv_i, p.unsqueeze(2)).squeeze(2)  # (nnz, dim)
+
+        # Compute D_{k,ij} = w_ij * (M_i^{-1} @ p)_k
+        nnz_tensor = weights.unsqueeze(1) * temp  # (nnz, dim)
+        isoAM = self._create_grad_operator_from(
+            i_indices, j_indices, n_points, nnz_tensor
+        )
+        return isoAM, moment_inv
 
     def compute_isoAM_with_neumann(
         self,
@@ -128,161 +135,185 @@ class IsoAMProcessor:
                 return None
         """
         points = mesh.points
+        n_points = points.shape[0]
         adj = mesh.compute_point_adjacency().to_sparse_coo()
-        n_points, dim = points.shape
+        i_indices, j_indices = adj.indices()  # (2, nnz)
+        diag_mask = i_indices == j_indices
 
-        # compute normals
+        # Compute normals
         normals = self._compute_normals_on_surface_points(mesh)
-        weighted_normals = normal_weight * normals
+        weighted_normals = normal_weight * normals  # (n_points, dim)
+        n_otimes_n = weighted_normals.unsqueeze(2) * normals.unsqueeze(
+            1
+        )  # (n_points, dim, dim)
 
-        # compute x_jk - x_ik
-        diff_kij = self._compute_differences(points, adj)
+        # Compute differences x_j - x_i
+        diff = points[j_indices] - points[i_indices]  # (nnz, dim)
 
-        # compute: 1 / || x_j - x_i ||^2
-        weight_by_squarenorm_ij = self._compute_inverse_square_norm(diff_kij)
+        # Compute squared norms ||x_j - x_i||^2
+        norm_sq = torch.norm(diff, dim=1) ** 2  # (nnz,)
 
-        # consider effective volumes as weight: V_j / V_i
+        # Compute (x_j - x_i) / ||x_j - x_i||^2
+        p = diff / norm_sq.unsqueeze(1)  # (nnz, dim)
+        p[diag_mask] = 0.0
+        if torch.isinf(p).any():
+            raise ZeroDivisionError("Input mesh contains duplicate points")
+
+        # Compute weights
+        weights = torch.ones(
+            i_indices.shape[0], device=points.device, dtype=points.dtype
+        )  # (nnz,)
+
         if consider_volume:
-            Wij = self._compute_weight_from_volume(mesh, adj)
-            weight_by_squarenorm_ij *= Wij
+            weights = self._compute_weights_nnz_from_volume(mesh)
 
-        weighted_diff_kij = torch.stack(
-            [diff_kij[k] * weight_by_squarenorm_ij for k in range(dim)]
-        )
-
-        # without moment matrix
         if not with_moment_matrix:
+            nnz_tensor = p * weights.unsqueeze(1)  # (nnz, dim)
             isoAM = self._create_grad_operator_from(
-                weighted_diff_kij
-            ).coalesce()
+                i_indices, j_indices, n_points, nnz_tensor
+            )
             return isoAM, weighted_normals, None
 
-        # compute inversed moment matrix for each point
-        diff_ijk = diff_kij.permute((1, 2, 0))
-        weighted_diff_ikj = weighted_diff_kij.permute(1, 0, 2)
+        moment_matrix = (
+            self._compute_moment_matrix(i_indices, j_indices, points, weights)
+            + n_otimes_n
+        )  # (n_points, dim, dim)
 
-        # precompute normals outer product to avoid recomputation
-        normals_outer = weighted_normals.unsqueeze(2) * normals.unsqueeze(1)
-        inversed_moment_tensors = []
-        for i in range(n_points):
-            mi = weighted_diff_ikj[i].mm(diff_ijk[i]).to_dense()
-            mi += normals_outer[i]
-            inversed_moment_tensors.append(torch.inverse(mi))
-        inversed_moment_tensors = torch.stack(inversed_moment_tensors)
+        # Compute the inverse of M_i
+        moment_inv = torch.linalg.inv(moment_matrix)  # (n_points, dim, dim)
 
-        # compute isoAM using inversed moment matrix
-        Dkij = torch.stack(
-            [
-                (
-                    inversed_moment_tensors[i] @ weighted_diff_ikj[i]
-                ).to_sparse_coo()
-                for i in range(n_points)
-            ]
-        ).permute((1, 0, 2))
-        isoAM = self._create_grad_operator_from(Dkij).coalesce()
-        return isoAM, weighted_normals, inversed_moment_tensors
+        # Get M_i^{-1} for each edge (i,j)
+        moment_inv_i = moment_inv[i_indices]  # (nnz, dim, dim)
 
-    def _compute_differences(
-        self, points: torch.Tensor, adj: torch.Tensor
-    ) -> torch.Tensor:
-        """Compute: x_{jk} - x_{ik}, where x represents a point
+        # Compute M_i^{-1} @ p for each edge
+        temp = torch.bmm(moment_inv_i, p.unsqueeze(2)).squeeze(2)  # (nnz, dim)
 
-        Parameters
-        ----------
-        points: (n_points, dim)-shaped torch tensor
-        adj: (n_points, n_points)-shaped torch sparse coo tensor
-
-        Returns
-        -------
-        (dim, n_points, n_points)-shaped torch sparse coo tensor
-        """
-        # Extract indices from sparse adjacency matrix
-        n_points, dim = points.shape
-        adj_indices = adj.indices()
-
-        # remove diag elements to avoid division by zero
-        adj_indices = adj_indices[:, adj_indices[0, :] != adj_indices[1, :]]
-        rows, cols = adj_indices
-
-        # calculate differences between points
-        diff_xj_xi = points[cols] - points[rows]
-        dim_idx = torch.arange(dim).repeat_interleave(adj_indices.shape[1])
-        diff_indices = torch.cat(
-            (dim_idx.unsqueeze(0), adj_indices.repeat(1, dim))
+        # Compute D_{k,ij} = w_ij * (M_i^{-1} @ p)_k
+        nnz_tensor = weights.unsqueeze(1) * temp  # (nnz, dim)
+        isoAM = self._create_grad_operator_from(
+            i_indices, j_indices, n_points, nnz_tensor
         )
-        diff_vals = diff_xj_xi.T.flatten()
-        diff_kij = torch.sparse_coo_tensor(
-            diff_indices, diff_vals, size=(dim, *adj.shape)
-        ).coalesce()
-        return diff_kij
+        return isoAM, weighted_normals, moment_inv
 
-    def _compute_inverse_square_norm(self, d_kij: torch.Tensor) -> torch.Tensor:
-        """Compute: 1 / || sum_k d_{kij}^2 ||^2
+    def _compute_moment_matrix(
+        self,
+        i_indices: torch.Tensor,
+        j_indices: torch.Tensor,
+        points: torch.Tensor,
+        weights: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Compute the moment matrix M_i for each point.
 
         Parameters
         ----------
-        diff_kij: (dim, n_points, n_points)-shaped torch sparse coo tensor
+        mesh : GraphlowMesh
+            The mesh to compute the moment matrix for.
 
         Returns
         -------
-        (n_points, n_points)-shaped torch sparse coo tensor
+        torch.Tensor
+            (n_points, dim, dim)-shaped tensor sparse coo tensor
         """
-        squarenorm_ij = d_kij.pow(2).sum(dim=0).pow(-1)
-        if torch.isinf(squarenorm_ij.values()).any():
-            raise ZeroDivisionError("The input contains duplicate points.")
-        return squarenorm_ij
+        diag_mask = i_indices == j_indices
 
-    def _compute_weight_from_volume(
-        self, mesh: IReadOnlyGraphlowMesh, adj: torch.Tensor
+        # Compute differences
+        diff = points[j_indices] - points[i_indices]  # (nnz, dim)
+
+        # Compute norms
+        norms = torch.norm(diff, dim=1)  # (nnz,)
+
+        # Compute unit vectors
+        u = diff / norms.unsqueeze(1)  # (nnz, dim)
+        u[diag_mask] = 0.0
+        if torch.isinf(u).any():
+            raise ZeroDivisionError("Input mesh contains duplicate points")
+
+        # Compute tensor products: (nnz, dim, dim)
+        u_otimes_u = u.unsqueeze(2) * u.unsqueeze(1)  # (nnz, dim, dim)
+
+        # Compute weighted tensor products: weights * u_otimes_u
+        weighted_u_otimes_u = u_otimes_u * weights.unsqueeze(1).unsqueeze(
+            2
+        )  # (nnz, dim, dim)
+
+        # Initialize M_i as (n_points, dim, dim)
+        n_points, dim = points.shape
+        M = torch.zeros(
+            n_points, dim, dim, dtype=points.dtype, device=points.device
+        )
+
+        # Sum each row
+        M.index_add_(0, i_indices, weighted_u_otimes_u)
+        return M
+
+    def _compute_weights_nnz_from_volume(
+        self, mesh: IReadOnlyGraphlowMesh
     ) -> torch.Tensor:
         """Compute: V_j / V_i
 
         Parameters
         ----------
         mesh: GraphlowMesh
-        adj: (n_points, n_points)-shaped torch sparse coo tensor
 
         Returns
         -------
-        (n_points, n_points)-shaped torch sparse coo tensor
+        (nnz,)-shaped tensor
         """
-        adj_indices = adj.indices()
-        rows, cols = adj_indices
-
-        cell_volumes = mesh.compute_volumes()
+        adj = mesh.compute_point_adjacency().to_sparse_coo()
+        i_indices, j_indices = adj.indices()
+        cell_volumes = torch.abs(mesh.compute_volumes())
         effective_volumes = mesh.convert_elemental2nodal(
             cell_volumes, mode="effective"
         )
-        W_vals = effective_volumes[cols] / effective_volumes[rows]
-        Wij = torch.sparse_coo_tensor(adj_indices, W_vals, size=adj.shape)
-        return Wij
+        weights = effective_volumes[j_indices] / effective_volumes[i_indices]
+        return weights
 
-    def _create_grad_operator_from(self, Akij: torch.Tensor) -> torch.Tensor:
-        """Create a grad operator from a given sparse coo matrix
-        where diag(i=j) has no value (sparse)
+    def _create_grad_operator_from(
+        self,
+        i_indices: torch.Tensor,
+        j_indices: torch.Tensor,
+        n_points: int,
+        nnz_tensor: torch.Tensor,
+    ) -> torch.Tensor:
+        """Create a grad operator from a given tensor
 
         Parameters
         ----------
-        Akij: (dim, n_points, n_points)-shaped torch sparse coo tensor
-            To ensure correct calculation, diag(i=j) has no value (sparse)
+        nnz_tensor: (nnz, dim)-shaped torch tensor
 
         Returns
         -------
         (dim, n_points, n_points)-shaped torch sparse coo tensor
         """
-        dim, n_points, _ = Akij.shape
-        L_values = torch.sparse.sum(Akij, dim=2).to_dense()
-        L_indices = torch.arange(n_points).expand(2, -1)
-        grad_op = torch.stack(
+        dim = nnz_tensor.shape[1]
+
+        # Compute sum_D_per_i_k: (n_points, dim)
+        sum_D_per_i_k = torch.zeros(
+            n_points, dim, dtype=nnz_tensor.dtype, device=nnz_tensor.device
+        )
+        sum_D_per_i_k.index_add_(0, i_indices, nnz_tensor)
+
+        # Identify self-loop edges (i == j)
+        diag_mask = i_indices == j_indices
+
+        # Adjust tilde_D by subtracting sum_D_per_i_k for self-loop edges
+        grad_adj = (
+            nnz_tensor
+            - diag_mask.float().unsqueeze(1) * sum_D_per_i_k[i_indices]
+        )
+
+        # nnz, dim -> dim, n_points, n_points
+        indices = torch.stack([i_indices, j_indices], dim=0)
+        result = torch.stack(
             [
-                Akij[k]
-                - torch.sparse_coo_tensor(
-                    L_indices, L_values[k], size=(n_points, n_points)
+                torch.sparse_coo_tensor(
+                    indices, grad_adj[:, k], (n_points, n_points)
                 )
                 for k in range(dim)
             ]
         )
-        return grad_op
+        return result
 
     def _compute_normals_on_surface_points(
         self, mesh: IReadOnlyGraphlowMesh
