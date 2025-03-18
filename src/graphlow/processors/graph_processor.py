@@ -389,11 +389,17 @@ class GraphProcessor:
             sparse csr tensor.
         """
         degrees = adjacency.sum(dim=1, keepdim=True).to_dense().reshape(-1)
-        return torch.sparse.spdiags(
+        n = degrees.shape[0]
+        crow_indices = torch.arange(
+            n + 1, device=degrees.device, dtype=torch.long
+        )
+        col_indices = torch.arange(n, device=degrees.device, dtype=torch.long)
+        return torch.sparse_csr_tensor(
+            crow_indices,
+            col_indices,
             degrees,
-            offsets=torch.tensor([0]),
-            shape=adjacency.shape,
-        ).to_sparse_csr()
+            size=adjacency.shape,
+        )
 
     def _compute_normalized_adjacency(
         self, adjacency: torch.Tensor

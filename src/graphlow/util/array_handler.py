@@ -58,7 +58,7 @@ def convert_to_scipy_sparse_csr(array: typing.ArrayDataType) -> sp.csr_array:
     scipy.sparse.csr_array
     """
     if isinstance(array, torch.Tensor):
-        csr = array.to_sparse_csr()
+        csr = array.to_sparse_csr().cpu()
         indptr = csr.crow_indices().numpy()
         indices = csr.col_indices().numpy()
         values = csr.values().numpy()
