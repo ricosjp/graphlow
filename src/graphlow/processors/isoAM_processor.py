@@ -80,11 +80,11 @@ class IsoAMProcessor:
 
         # Precompute normals to avoid singular matrices
         normals = self._compute_normals_on_surface_points(mesh)
-        normals_outer = normals.unsqueeze(2) * normals.unsqueeze(1)
+        n_otimes_n = normals.unsqueeze(2) * normals.unsqueeze(1)
 
         moment_rank = torch.linalg.matrix_rank(moment_matrix, hermitian=True)
         batch_mask = moment_rank < dim
-        moment_matrix[batch_mask] += normals_outer[batch_mask]
+        moment_matrix[batch_mask] += n_otimes_n[batch_mask]
 
         # Compute the inverse of M_i
         moment_inv = torch.linalg.inv(moment_matrix)  # (n_points, dim, dim)
@@ -143,7 +143,7 @@ class IsoAMProcessor:
         # Compute normals
         normals = self._compute_normals_on_surface_points(mesh)
         weighted_normals = normal_weight * normals  # (n_points, dim)
-        normals_outer = weighted_normals.unsqueeze(2) * normals.unsqueeze(
+        n_otimes_n = weighted_normals.unsqueeze(2) * normals.unsqueeze(
             1
         )  # (n_points, dim, dim)
 
@@ -176,7 +176,7 @@ class IsoAMProcessor:
 
         moment_matrix = (
             self._compute_moment_matrix(i_indices, j_indices, points, weights)
-            + normals_outer
+            + n_otimes_n
         )  # (n_points, dim, dim)
 
         # Compute the inverse of M_i
@@ -229,11 +229,11 @@ class IsoAMProcessor:
         if torch.isinf(u).any():
             raise ZeroDivisionError("Input mesh contains duplicate points")
 
-        # Compute outer products: (nnz, dim, dim)
-        u_outer = u.unsqueeze(2) * u.unsqueeze(1)  # (nnz, dim, dim)
+        # Compute tensor products: (nnz, dim, dim)
+        u_otimes_u = u.unsqueeze(2) * u.unsqueeze(1)  # (nnz, dim, dim)
 
-        # Compute weighted outer products: weights * u_outer
-        weighted_u_outer = u_outer * weights.unsqueeze(1).unsqueeze(
+        # Compute weighted tensor products: weights * u_otimes_u
+        weighted_u_otimes_u = u_otimes_u * weights.unsqueeze(1).unsqueeze(
             2
         )  # (nnz, dim, dim)
 
@@ -244,7 +244,7 @@ class IsoAMProcessor:
         )
 
         # Sum each row
-        M.index_add_(0, i_indices, weighted_u_outer)
+        M.index_add_(0, i_indices, weighted_u_otimes_u)
         return M
 
     def _compute_weights_nnz_from_volume(
