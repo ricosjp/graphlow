@@ -298,8 +298,10 @@ class IsoAMProcessor:
         diag_mask = i_indices == j_indices
 
         # Adjust tilde_D by subtracting sum_D_per_i_k for self-loop edges
-        grad_adj = nnz_tensor.clone()
-        grad_adj[diag_mask] -= sum_D_per_i_k[i_indices[diag_mask]]
+        grad_adj = (
+            nnz_tensor
+            - diag_mask.float().unsqueeze(1) * sum_D_per_i_k[i_indices]
+        )
 
         # nnz, dim -> dim, n_points, n_points
         indices = torch.stack([i_indices, j_indices], dim=0)
