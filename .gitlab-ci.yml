@@ -34,7 +34,7 @@ pytest:
         coverage_format: cobertura
         path: coverage.xml
   tags:
-    - no-gpu
+    - gpu
     - GenuineIntel
     - avx2
     - cpu-ge-8
