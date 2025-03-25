@@ -9,7 +9,7 @@ import graphlow
 from graphlow.util import array_handler
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -45,7 +45,7 @@ def test__compute_point_cell_incidence(
     np.testing.assert_array_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -80,7 +80,7 @@ def test__compute_cell_adjacency(
     np.testing.assert_array_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -106,7 +106,7 @@ def test__compute_cell_degree(
     np.testing.assert_array_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -132,7 +132,7 @@ def test__compute_normalized_cell_adjacency(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -189,7 +189,7 @@ def test__compute_point_adjacency(
     np.testing.assert_array_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -225,7 +225,7 @@ def test__compute_point_degree(
     np.testing.assert_array_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -428,7 +428,7 @@ def test__compute_normalized_point_adjacency(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -466,7 +466,7 @@ def test__compute_point_relative_incidence(
     )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [

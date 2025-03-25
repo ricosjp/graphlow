@@ -14,7 +14,7 @@ from graphlow.util.logger import get_logger
 logger = get_logger(__name__)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -50,7 +50,7 @@ def test___compute_weight_from_volume(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "np_adj, np_points, desired",
     [
@@ -147,7 +147,7 @@ def test___create_grad_operator_from(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -184,7 +184,7 @@ def test___compute_normals_on_surface_points(
     np.testing.assert_almost_equal(actual, desired, decimal=6)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "np_adj, np_points, desired",
     [
@@ -296,7 +296,7 @@ def test__compute_moment_matrix(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -337,7 +337,7 @@ def test__compute_isoAM_without_moment_matrix(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -380,7 +380,7 @@ def test__compute_isoAM_consider_volume(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired_grad_adjs, desired_minv",
     [
@@ -452,7 +452,7 @@ def test__compute_isoAM_with_moment_matrix(
     np.testing.assert_almost_equal(actual_minv, desired_minv, decimal=6)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -470,7 +470,7 @@ def test__compute_isoAM_shapes(file_name: pathlib.Path, device: str):
     np.testing.assert_array_equal(minv.shape, (N, d, d))
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, normal_weight, \
     desired_grad_adjs, desired_normals, desired_minv",
@@ -599,7 +599,7 @@ def test__compute_isoAM_with_neumann(
     np.testing.assert_almost_equal(actual_minv, desired_minv, decimal=6)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -622,7 +622,7 @@ def test__compute_isoAM_with_neumann_shapes(
     np.testing.assert_array_equal(minv.shape, (N, d, d))
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "scalar_field, desired_grad",
     [

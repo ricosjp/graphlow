@@ -49,6 +49,7 @@ priority = "explicit"
 markers = [
     "with_benchmark: Run test with the --benchmark-autosave option",
     "with_memray: Run test with the --memray option",
+    "with_device: Run test with the --gpu option to use GPU",
 ]
 addopts = [
     "--import-mode=importlib",

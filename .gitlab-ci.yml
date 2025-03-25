@@ -34,11 +34,19 @@ pytest:
         coverage_format: cobertura
         path: coverage.xml
   tags:
-    - gpu
+    - no-gpu
     - GenuineIntel
     - avx2
     - cpu-ge-8
     - mem-ge-32gb
+
+gpu_pytest:
+  stage: test
+  script:
+    - poetry run pytest tests -m with_device --gpu
+  tags:
+    - gpu
+    - GenuineIntel
 
 pages:
   stage: deploy

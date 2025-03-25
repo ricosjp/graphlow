@@ -122,7 +122,7 @@ def test__tetrahedralize_cell(
     np.testing.assert_array_equal(tet_cell_grid.cells, desired_grid.cells)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -143,7 +143,7 @@ def test__convert_elemental2nodal_mean(file_name: pathlib.Path, device: str):
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -164,7 +164,7 @@ def test__convert_elemental2nodal_effective(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -181,7 +181,7 @@ def test__convert_nodal2elemental_mean(file_name: pathlib.Path, device: str):
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -203,7 +203,7 @@ def test__convert_nodal2elemental_effective(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -233,7 +233,7 @@ def test__compute_area_vecs(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, data, n_hop, desired",
     [
@@ -273,7 +273,7 @@ def test__compute_median_nodal(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, data, n_hop, desired",
     [
@@ -313,7 +313,7 @@ def test__compute_median_for_elemental(
     np.testing.assert_almost_equal(actual, desired)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -339,7 +339,7 @@ def test__compute_areas(file_name: pathlib.Path, device: str):
     np.testing.assert_almost_equal(actual, desired, decimal=4)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -386,7 +386,7 @@ def test__compute_volumes(file_name: pathlib.Path, device: str):
     np.testing.assert_almost_equal(actual, desired, decimal=4)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -431,7 +431,7 @@ def test__compute_signed_volumes(file_name: pathlib.Path, device: str):
     np.testing.assert_almost_equal(actual, desired, decimal=4)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -486,7 +486,7 @@ def test__compute_normals(file_name: pathlib.Path, device: str):
     )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
