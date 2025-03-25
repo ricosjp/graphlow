@@ -46,7 +46,6 @@ gpu_pytest:
     - poetry run pytest tests -m with_device --gpu
   tags:
     - gpu
-    - GenuineIntel
 
 pages:
   stage: deploy
