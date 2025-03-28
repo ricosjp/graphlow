@@ -15,8 +15,8 @@ python = "^3.10"
 vtk = "9.3.1"
 pyvista = "^0.43"
 scipy = "^1.14.0"
-torch = {version = "^2.6.0", source = "torch_cu124"}
-torchvision = {version = "^0.21.0", source = "torch_cu124"}
+torch = "^2.6.0"
+torchvision = "^0.21.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"
@@ -38,12 +38,6 @@ trame = "^3.8.0"
 trame-vtk = "^2.8.15"
 trame-vuetify = "^2.8.1"
 imageio = "^2.37.0"
-
-
-[[tool.poetry.source]]
-name = "torch_cu124"
-url = "https://download.pytorch.org/whl/cu124"
-priority = "explicit"
 
 [tool.pytest.ini_options]
 markers = [
