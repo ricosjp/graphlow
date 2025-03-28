@@ -7,6 +7,7 @@ import pyvista as pv
 import torch
 
 import graphlow
+from graphlow.util import array_handler
 from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -121,14 +122,16 @@ def test__tetrahedralize_cell(
     np.testing.assert_array_equal(tet_cell_grid.cells, desired_grid.cells)
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
         pathlib.Path("tests/data/vtu/primitive_cell/cube.vtu"),
     ],
 )
-def test__convert_elemental2nodal_mean(file_name: pathlib.Path):
+def test__convert_elemental2nodal_mean(file_name: pathlib.Path, device: str):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     cell_volumes = volmesh.compute_volumes()
     nodal_vols = volmesh.convert_elemental2nodal(cell_volumes)
     desired = (
@@ -136,9 +139,11 @@ def test__convert_elemental2nodal_mean(file_name: pathlib.Path):
         .cell_data_to_point_data()
         .point_data["CellQuality"]
     )
-    np.testing.assert_almost_equal(nodal_vols.detach().numpy(), desired)
+    actual = array_handler.convert_to_numpy_scipy(nodal_vols)
+    np.testing.assert_almost_equal(actual, desired)
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -149,27 +154,34 @@ def test__convert_elemental2nodal_mean(file_name: pathlib.Path):
     ],
 )
 def test__convert_elemental2nodal_effective(
-    file_name: pathlib.Path, desired: np.ndarray
+    file_name: pathlib.Path, desired: np.ndarray, device: str
 ):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     cell_volumes = volmesh.compute_volumes()
     nodal_vols = volmesh.convert_elemental2nodal(cell_volumes, mode="effective")
-    np.testing.assert_almost_equal(nodal_vols.detach().numpy(), desired)
+    actual = array_handler.convert_to_numpy_scipy(nodal_vols)
+    np.testing.assert_almost_equal(actual, desired)
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
         pathlib.Path("tests/data/vtu/primitive_cell/cube.vtu"),
     ],
 )
-def test__convert_nodal2elemental_mean(file_name: pathlib.Path):
+def test__convert_nodal2elemental_mean(file_name: pathlib.Path, device: str):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     elem_points = volmesh.convert_nodal2elemental(volmesh.points)
     desired = volmesh.pvmesh.cell_centers().points
-    np.testing.assert_almost_equal(elem_points.detach().numpy(), desired)
+
+    actual = array_handler.convert_to_numpy_scipy(elem_points)
+    np.testing.assert_almost_equal(actual, desired)
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -180,15 +192,18 @@ def test__convert_nodal2elemental_mean(file_name: pathlib.Path):
     ],
 )
 def test__convert_nodal2elemental_effective(
-    file_name: pathlib.Path, desired: np.ndarray
+    file_name: pathlib.Path, desired: np.ndarray, device: str
 ):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     elem_points = volmesh.convert_nodal2elemental(
         volmesh.points, mode="effective"
     )
-    np.testing.assert_almost_equal(elem_points.detach().numpy(), desired)
+    actual = array_handler.convert_to_numpy_scipy(elem_points)
+    np.testing.assert_almost_equal(actual, desired)
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, desired",
     [
@@ -207,13 +222,18 @@ def test__convert_nodal2elemental_effective(
         )
     ],
 )
-def test__compute_area_vecs(file_name: pathlib.Path, desired: np.ndarray):
+def test__compute_area_vecs(
+    file_name: pathlib.Path, desired: np.ndarray, device: str
+):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     surfmesh = volmesh.extract_surface()
     area_vecs = surfmesh.compute_area_vecs()
-    np.testing.assert_almost_equal(area_vecs.detach().numpy(), desired)
+    actual = array_handler.convert_to_numpy_scipy(area_vecs)
+    np.testing.assert_almost_equal(actual, desired)
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, data, n_hop, desired",
     [
@@ -238,15 +258,22 @@ def test__compute_area_vecs(file_name: pathlib.Path, desired: np.ndarray):
     ],
 )
 def test__compute_median_nodal(
-    file_name: pathlib.Path, data: np.ndarray, n_hop: int, desired: np.ndarray
+    file_name: pathlib.Path,
+    data: np.ndarray,
+    n_hop: int,
+    desired: np.ndarray,
+    device: str,
 ):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     filtered_data = volmesh.compute_median(
-        torch.from_numpy(data), mode="nodal", n_hop=n_hop
+        torch.from_numpy(data).to(device), mode="nodal", n_hop=n_hop
     )
-    np.testing.assert_almost_equal(filtered_data.detach().numpy(), desired)
+    actual = array_handler.convert_to_numpy_scipy(filtered_data)
+    np.testing.assert_almost_equal(actual, desired)
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name, data, n_hop, desired",
     [
@@ -271,15 +298,22 @@ def test__compute_median_nodal(
     ],
 )
 def test__compute_median_for_elemental(
-    file_name: pathlib.Path, data: np.ndarray, n_hop: int, desired: np.ndarray
+    file_name: pathlib.Path,
+    data: np.ndarray,
+    n_hop: int,
+    desired: np.ndarray,
+    device: str,
 ):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     filtered_data = volmesh.compute_median(
-        torch.from_numpy(data), mode="elemental", n_hop=n_hop
+        torch.from_numpy(data).to(device), mode="elemental", n_hop=n_hop
     )
-    np.testing.assert_almost_equal(filtered_data.detach().numpy(), desired)
+    actual = array_handler.convert_to_numpy_scipy(filtered_data)
+    np.testing.assert_almost_equal(actual, desired)
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -295,16 +329,17 @@ def test__compute_median_for_elemental(
         pathlib.Path("tests/data/vtu/cube/large.vtu"),
     ],
 )
-def test__compute_areas(file_name: pathlib.Path):
+def test__compute_areas(file_name: pathlib.Path, device: str):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     surfmesh = volmesh.extract_surface()
     cell_areas = surfmesh.compute_areas()
     desired = surfmesh.pvmesh.compute_cell_sizes().cell_data["Area"]
-    np.testing.assert_almost_equal(
-        cell_areas.detach().numpy(), desired, decimal=4
-    )
+    actual = array_handler.convert_to_numpy_scipy(cell_areas)
+    np.testing.assert_almost_equal(actual, desired, decimal=4)
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -320,9 +355,11 @@ def test__compute_areas(file_name: pathlib.Path):
         pathlib.Path("tests/data/vtu/cube/large.vtu"),
     ],
 )
-def test__compute_volumes(file_name: pathlib.Path):
+def test__compute_volumes(file_name: pathlib.Path, device: str):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     cell_volumes = volmesh.compute_volumes()
+    actual = array_handler.convert_to_numpy_scipy(cell_volumes)
 
     # See below for why `compute_cell_quality`is used
     # instead of `compute_cell_sizes`
@@ -346,11 +383,10 @@ def test__compute_volumes(file_name: pathlib.Path):
                 ).cell_data["CellQuality"]
             )
             desired[i] = np.sum(tet_cell_volumes)
-    np.testing.assert_almost_equal(
-        cell_volumes.detach().numpy(), desired, decimal=4
-    )
+    np.testing.assert_almost_equal(actual, desired, decimal=4)
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -365,9 +401,11 @@ def test__compute_volumes(file_name: pathlib.Path):
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__compute_signed_volumes(file_name: pathlib.Path):
+def test__compute_signed_volumes(file_name: pathlib.Path, device: str):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     cell_volumes = volmesh.compute_volumes()
+    actual = array_handler.convert_to_numpy_scipy(cell_volumes)
 
     # See below for why `compute_cell_quality`is used
     # instead of `compute_cell_sizes`
@@ -390,11 +428,10 @@ def test__compute_signed_volumes(file_name: pathlib.Path):
         # `compute_cell_sizes` returns correct results for non-twisted cells,
         # so there is generally no issue.
         desired[poly_mask] = polys.compute_cell_sizes().cell_data["Volume"]
-    np.testing.assert_almost_equal(
-        cell_volumes.detach().numpy(), desired, decimal=4
-    )
+    np.testing.assert_almost_equal(actual, desired, decimal=4)
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -409,14 +446,17 @@ def test__compute_signed_volumes(file_name: pathlib.Path):
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test__compute_normals(file_name: pathlib.Path):
+def test__compute_normals(file_name: pathlib.Path, device: str):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     surf = volmesh.extract_surface()
     facets = volmesh.extract_facets()
 
     # implemented
-    surf_normals = surf.compute_normals().detach().numpy()
-    facets_normals = facets.compute_normals().detach().numpy()
+    surf_normals = surf.compute_normals()
+    facets_normals = facets.compute_normals()
+    actual_surf_normals = array_handler.convert_to_numpy_scipy(surf_normals)
+    actual_facets_normals = array_handler.convert_to_numpy_scipy(facets_normals)
 
     # desired
     desired_surf_normals = (
@@ -439,13 +479,14 @@ def test__compute_normals(file_name: pathlib.Path):
 
     # check
     np.testing.assert_almost_equal(
-        surf_normals, desired_surf_normals, decimal=4
+        actual_surf_normals, desired_surf_normals, decimal=4
     )
     np.testing.assert_almost_equal(
-        facets_normals, desired_facets_normals, decimal=4
+        actual_facets_normals, desired_facets_normals, decimal=4
     )
 
 
+@pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
@@ -453,8 +494,9 @@ def test__compute_normals(file_name: pathlib.Path):
         pathlib.Path("tests/data/vtu/primitive_cell/cuboid.vtu"),
     ],
 )
-def test__volume_gradient(file_name: pathlib.Path):
+def test__volume_gradient(file_name: pathlib.Path, device: str):
     volmesh = graphlow.read(file_name)
+    volmesh.send(device=torch.device(device))
     volmesh.points.requires_grad_(True)
     cell_volumes = volmesh.compute_volumes()
     total_volume = torch.sum(cell_volumes)
@@ -466,15 +508,14 @@ def test__volume_gradient(file_name: pathlib.Path):
         cell = volmesh.pvmesh.get_cell(i)
         for face in cell.faces:
             pids = face.point_ids
-            # TODO: To obtain results for any plane,
-            # take the dot product with the normal and then sum the results.
             dV = torch.abs(torch.sum(vol_grad[pids]))
             area = (
                 face.cast_to_unstructured_grid()
                 .compute_cell_quality("area")
                 .cell_data["CellQuality"]
             )
-            np.testing.assert_equal(dV, area)
+            np_dV = array_handler.convert_to_numpy_scipy(dV)
+            np.testing.assert_equal(np_dV, area)
 
 
 @pytest.mark.parametrize(

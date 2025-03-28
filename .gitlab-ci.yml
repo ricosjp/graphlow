@@ -40,6 +40,20 @@ pytest:
     - cpu-ge-8
     - mem-ge-32gb
 
+gpu_pytest:
+  stage: test
+  image: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
+  before_script:
+    - apt update
+    - apt install -y make
+    - pip install poetry
+    - poetry config virtualenvs.in-project false
+    - make init
+  script:
+    - poetry run pytest tests -m with_device --gpu
+  tags:
+    - gpu
+
 pages:
   stage: deploy
   script:

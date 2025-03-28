@@ -494,7 +494,9 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
                 row_indices.append(facet_id)
                 col_indices.append(cell_id)
 
-        poly = pv.PolyData(self.points.detach().numpy(), polygon_cells)
+        poly = pv.PolyData(
+            array_handler.convert_to_numpy_scipy(self.points), polygon_cells
+        )
         for k, v in vol.point_data.items():
             poly.point_data[k] = v
         scipy_fc_inc = sp.csr_array(

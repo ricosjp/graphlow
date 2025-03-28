@@ -15,7 +15,8 @@ python = "^3.10"
 vtk = "9.3.1"
 pyvista = "^0.43"
 scipy = "^1.14.0"
-torch = "^2.3.1"
+torch = "^2.6.0"
+torchvision = "^0.21.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"
@@ -42,6 +43,7 @@ imageio = "^2.37.0"
 markers = [
     "with_benchmark: Run test with the --benchmark-autosave option",
     "with_memray: Run test with the --memray option",
+    "with_device: Run test with the --gpu option to use GPU",
 ]
 addopts = [
     "--import-mode=importlib",
