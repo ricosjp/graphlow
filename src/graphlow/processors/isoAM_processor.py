@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 import torch
 
 from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
@@ -19,6 +21,7 @@ class IsoAMProcessor:
         mesh: IReadOnlyGraphlowMesh,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
+        normal_interp_mode: Literal["mean", "effective"] = "effective",
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Compute (dims, n_points, n_points)-shaped isoAM.
 
@@ -79,7 +82,9 @@ class IsoAMProcessor:
         )
 
         # Precompute normals to avoid singular matrices
-        normals = self._compute_normals_on_surface_points(mesh)
+        normals = self._compute_normals_on_surface_points(
+            mesh, normal_interp_mode
+        )
         n_otimes_n = normals.unsqueeze(2) * normals.unsqueeze(1)
 
         moment_rank = torch.linalg.matrix_rank(moment_matrix, hermitian=True)
@@ -108,6 +113,7 @@ class IsoAMProcessor:
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
+        normal_interp_mode: Literal["mean", "effective"] = "effective",
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         """Compute (dims, n_points, n_points)-shaped
         Neumann boundary model IsoAM.
@@ -141,7 +147,9 @@ class IsoAMProcessor:
         diag_mask = i_indices == j_indices
 
         # Compute normals
-        normals = self._compute_normals_on_surface_points(mesh)
+        normals = self._compute_normals_on_surface_points(
+            mesh, normal_interp_mode
+        )
         weighted_normals = normal_weight * normals  # (n_points, dim)
         n_otimes_n = weighted_normals.unsqueeze(2) * normals.unsqueeze(
             1
@@ -316,7 +324,9 @@ class IsoAMProcessor:
         return result
 
     def _compute_normals_on_surface_points(
-        self, mesh: IReadOnlyGraphlowMesh
+        self,
+        mesh: IReadOnlyGraphlowMesh,
+        mode: Literal["mean", "effective"] = "effective",
     ) -> torch.Tensor:
         """Compute normals tensor with values only on the surface points.
 
@@ -333,8 +343,6 @@ class IsoAMProcessor:
             mesh.compute_point_relative_incidence(surf).to_sparse_coo().T
         )
         normals_on_faces = surf.compute_normals()
-        normals_on_points = surf.convert_elemental2nodal(
-            normals_on_faces, "mean"
-        )
+        normals_on_points = surf.convert_elemental2nodal(normals_on_faces, mode)
         normals_on_points /= normals_on_points.norm(dim=1, keepdim=True)
         return surf_vol_rel_inc @ normals_on_points

@@ -548,10 +548,13 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         return self._geometry_processor.compute_normals(self)
 
     def compute_isoAM(
-        self, with_moment_matrix: bool = True, consider_volume: bool = False
+        self,
+        with_moment_matrix: bool = True,
+        consider_volume: bool = False,
+        normal_interp_mode: Literal["mean", "effective"] = "effective",
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         return self._isoAM_processor.compute_isoAM(
-            self, with_moment_matrix, consider_volume
+            self, with_moment_matrix, consider_volume, normal_interp_mode
         )
 
     def compute_isoAM_with_neumann(
@@ -559,9 +562,14 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
+        normal_interp_mode: Literal["mean", "effective"] = "effective",
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         return self._isoAM_processor.compute_isoAM_with_neumann(
-            self, normal_weight, with_moment_matrix, consider_volume
+            self,
+            normal_weight,
+            with_moment_matrix,
+            consider_volume,
+            normal_interp_mode,
         )
 
     def compute_cell_point_incidence(
