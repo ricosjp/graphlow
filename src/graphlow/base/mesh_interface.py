@@ -275,7 +275,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
         normal_interp_mode: Literal["mean", "effective"], default: "effective"
-            The way to compute volume or normals. cf. convert_elemental2nodal.
+            The way to interpolate normals. cf. convert_elemental2nodal.
             - "mean": averages the values of \
                 nodes connected to each element.
             - "effective": distributes node information \
