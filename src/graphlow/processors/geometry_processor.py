@@ -31,10 +31,14 @@ class GeometryProcessor:
             elemental data to convert.
         mode: "mean", or "conservative", default: "mean"
             The way to convert.
-            - "mean": averages the values of \
-                elements connected to each node. (default)
-            - "conservative": distributes the data \
-                from each element to all its connected nodes. \
+            - "mean": For each node, \
+                we consider all the elements that share this node \
+                and compute the average of their values.
+                This approach provides \
+                a smoothed representation at each node.
+            - "conservative": For each element,
+                we consider all the nodes that share this element \
+                and distribute the element value to them equally.
                 The values are then summed at each node. \
                 This approach ensures that the total quantity \
                 (such as mass or volume) is conserved.
@@ -77,10 +81,14 @@ class GeometryProcessor:
             nodal data to convert.
         mode: "mean", or "conservative", default: "mean"
             The way to convert.
-            - "mean": averages the values of \
-                nodes connected to each element. (default)
-            - "conservative": distributes the data \
-                from each node to all its connected elements. \
+            - "mean": For each element, \
+                we consider all the nodes that share this element \
+                and compute the average of their values. \
+                This approach provides \
+                a smoothed representation at each element.
+            - "conservative": For each node,
+                we consider all the elements that share this node \
+                and distribute the node value to them equally.
                 The values are then summed at each element. \
                 This approach ensures that the total quantity \
                 (such as mass or volume) is conserved.
