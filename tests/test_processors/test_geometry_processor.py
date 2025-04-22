@@ -159,7 +159,9 @@ def test__convert_elemental2nodal_conservative(
     volmesh = graphlow.read(file_name)
     volmesh.send(device=torch.device(device))
     cell_volumes = volmesh.compute_volumes()
-    nodal_vols = volmesh.convert_elemental2nodal(cell_volumes, mode="conservative")
+    nodal_vols = volmesh.convert_elemental2nodal(
+        cell_volumes, mode="conservative"
+    )
     actual = array_handler.convert_to_numpy_scipy(nodal_vols)
     np.testing.assert_almost_equal(actual, desired)
 
