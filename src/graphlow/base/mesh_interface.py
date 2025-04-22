@@ -85,7 +85,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     def convert_elemental2nodal(
         self,
         elemental_data: torch.Tensor,
-        mode: Literal["mean", "effective"] = "mean",
+        mode: Literal["mean", "conservative"] = "mean",
     ) -> torch.Tensor:
         """Convert elemental data to nodal data.
 
@@ -93,12 +93,15 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         ----------
         elemental_data: torch.Tensor
             elemental data to convert.
-        mode: "mean", or "effective", default: "mean"
+        mode: "mean", or "conservative", default: "mean"
             The way to convert.
             - "mean": averages the values of \
                 elements connected to each node. (default)
-            - "effective": distributes element information \
-                to the connected nodes, ensuring consistent volume.
+            - "conservative": distributes the data \
+                from each element to all its connected nodes. \
+                The values are then summed at each node. \
+                This approach ensures that the total quantity \
+                (such as mass or volume) is conserved.
 
         Returns
         -------
@@ -110,7 +113,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     def convert_nodal2elemental(
         self,
         nodal_data: torch.Tensor,
-        mode: Literal["mean", "effective"] = "mean",
+        mode: Literal["mean", "conservative"] = "mean",
     ) -> torch.Tensor:
         """Convert nodal data to elemental data.
 
@@ -118,12 +121,15 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         ----------
         nodal_data: torch.Tensor
             nodal data to convert.
-        mode: "mean", or "effective", default: "mean"
+        mode: "mean", or "conservative", default: "mean"
             The way to convert.
             - "mean": averages the values of \
                 nodes connected to each element. (default)
-            - "effective": distributes node information \
-                to the connected elements, ensuring consistent volume.
+            - "conservative": distributes the data \
+                from each node to all its connected elements. \
+                The values are then summed at each element. \
+                This approach ensures that the total quantity \
+                (such as mass or volume) is conserved.
 
         Returns
         -------

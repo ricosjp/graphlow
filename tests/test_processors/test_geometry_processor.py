@@ -153,13 +153,13 @@ def test__convert_elemental2nodal_mean(file_name: pathlib.Path, device: str):
         )
     ],
 )
-def test__convert_elemental2nodal_effective(
+def test__convert_elemental2nodal_conservative(
     file_name: pathlib.Path, desired: np.ndarray, device: str
 ):
     volmesh = graphlow.read(file_name)
     volmesh.send(device=torch.device(device))
     cell_volumes = volmesh.compute_volumes()
-    nodal_vols = volmesh.convert_elemental2nodal(cell_volumes, mode="effective")
+    nodal_vols = volmesh.convert_elemental2nodal(cell_volumes, mode="conservative")
     actual = array_handler.convert_to_numpy_scipy(nodal_vols)
     np.testing.assert_almost_equal(actual, desired)
 
@@ -191,13 +191,13 @@ def test__convert_nodal2elemental_mean(file_name: pathlib.Path, device: str):
         )
     ],
 )
-def test__convert_nodal2elemental_effective(
+def test__convert_nodal2elemental_conservative(
     file_name: pathlib.Path, desired: np.ndarray, device: str
 ):
     volmesh = graphlow.read(file_name)
     volmesh.send(device=torch.device(device))
     elem_points = volmesh.convert_nodal2elemental(
-        volmesh.points, mode="effective"
+        volmesh.points, mode="conservative"
     )
     actual = array_handler.convert_to_numpy_scipy(elem_points)
     np.testing.assert_almost_equal(actual, desired)

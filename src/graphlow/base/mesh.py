@@ -508,7 +508,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     def convert_elemental2nodal(
         self,
         elemental_data: torch.Tensor,
-        mode: Literal["mean", "effective"] = "mean",
+        mode: Literal["mean", "conservative"] = "mean",
     ) -> torch.Tensor:
         return self._geometry_processor.convert_elemental2nodal(
             self, elemental_data, mode
@@ -517,7 +517,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     def convert_nodal2elemental(
         self,
         nodal_data: torch.Tensor,
-        mode: Literal["mean", "effective"] = "mean",
+        mode: Literal["mean", "conservative"] = "mean",
     ) -> torch.Tensor:
         return self._geometry_processor.convert_nodal2elemental(
             self, nodal_data, mode
@@ -551,7 +551,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         self,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-        normal_interp_mode: Literal["mean", "effective"] = "effective",
+        normal_interp_mode: Literal["mean", "conservative"] = "mean",
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         return self._isoAM_processor.compute_isoAM(
             self, with_moment_matrix, consider_volume, normal_interp_mode
@@ -562,7 +562,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-        normal_interp_mode: Literal["mean", "effective"] = "effective",
+        normal_interp_mode: Literal["mean", "conservative"] = "mean",
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         return self._isoAM_processor.compute_isoAM_with_neumann(
             self,

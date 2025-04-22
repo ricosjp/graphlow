@@ -21,7 +21,7 @@ class IsoAMProcessor:
         mesh: IReadOnlyGraphlowMesh,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-        normal_interp_mode: Literal["mean", "effective"] = "effective",
+        normal_interp_mode: Literal["mean", "conservative"] = "conservative",
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Compute (dims, n_points, n_points)-shaped isoAM.
 
@@ -33,12 +33,16 @@ class IsoAMProcessor:
             tensor products of relative position tensors.
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
-        normal_interp_mode: Literal["mean", "effective"], default: "effective"
+        normal_interp_mode: Literal["mean", "conservative"], \
+            default: "conservative" \
             The way to interpolate normals. cf. convert_elemental2nodal.
             - "mean": averages the values of \
                 nodes connected to each element.
-            - "effective": distributes node information \
-                to the connected elements, ensuring consistent volume.
+            - "conservative": distributes the data \
+                from each element to all its connected nodes. \
+                The values are then summed at each node. \
+                This approach ensures that the total quantity \
+                (such as mass or volume) is conserved.
 
         Returns
         -------
@@ -119,7 +123,7 @@ class IsoAMProcessor:
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-        normal_interp_mode: Literal["mean", "effective"] = "effective",
+        normal_interp_mode: Literal["mean", "conservative"] = "conservative",
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         """Compute (dims, n_points, n_points)-shaped
         Neumann boundary model IsoAM.
@@ -133,12 +137,16 @@ class IsoAMProcessor:
             tensor products of relative position tensors.
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
-        normal_interp_mode: Literal["mean", "effective"], default: "effective"
+        normal_interp_mode: Literal["mean", "conservative"], \
+            default: "conservative" \
             The way to interpolate normals. cf. convert_elemental2nodal.
             - "mean": averages the values of \
                 nodes connected to each element.
-            - "effective": distributes node information \
-                to the connected elements, ensuring consistent volume.
+            - "conservative": distributes the data \
+                from each element to all its connected nodes. \
+                The values are then summed at each node. \
+                This approach ensures that the total quantity \
+                (such as mass or volume) is conserved.
 
         Returns
         -------
@@ -284,7 +292,7 @@ class IsoAMProcessor:
         i_indices, j_indices = adj.indices()
         cell_volumes = torch.abs(mesh.compute_volumes())
         effective_volumes = mesh.convert_elemental2nodal(
-            cell_volumes, mode="effective"
+            cell_volumes, mode="conservative"
         )
         weights = effective_volumes[j_indices] / effective_volumes[i_indices]
         return weights
@@ -338,7 +346,7 @@ class IsoAMProcessor:
     def _compute_normals_on_surface_points(
         self,
         mesh: IReadOnlyGraphlowMesh,
-        mode: Literal["mean", "effective"] = "effective",
+        mode: Literal["mean", "conservative"] = "conservative",
     ) -> torch.Tensor:
         """Compute normals tensor with values only on the surface points.
 

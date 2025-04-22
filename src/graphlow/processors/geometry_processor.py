@@ -20,7 +20,7 @@ class GeometryProcessor:
         self,
         mesh: IReadOnlyGraphlowMesh,
         elemental_data: torch.Tensor,
-        mode: Literal["mean", "effective"] = "mean",
+        mode: Literal["mean", "conservative"] = "mean",
     ) -> torch.Tensor:
         """Convert elemental data to nodal data.
 
@@ -29,12 +29,15 @@ class GeometryProcessor:
         mesh: GraphlowMesh
         elemental_data: torch.Tensor
             elemental data to convert.
-        mode: "mean", or "effective", default: "mean"
+        mode: "mean", or "conservative", default: "mean"
             The way to convert.
             - "mean": averages the values of \
                 elements connected to each node. (default)
-            - "effective": distributes element information \
-                to the connected nodes, ensuring consistent volume.
+            - "conservative": distributes the data \
+                from each element to all its connected nodes. \
+                The values are then summed at each node. \
+                This approach ensures that the total quantity \
+                (such as mass or volume) is conserved.
 
         Returns
         -------
@@ -50,12 +53,12 @@ class GeometryProcessor:
             )  # (n_points, n_cells)
             nodal_data = mean_pc_inc @ elemental_data
             return nodal_data
-        if mode == "effective":
+        if mode == "conservative":
             n_points_in_cells = pc_inc.sum(dim=0).to_dense()  # (n_cells,)
-            effective_pc_inc = pc_inc * n_points_in_cells.pow(-1).unsqueeze(
+            conservative_pc_inc = pc_inc * n_points_in_cells.pow(-1).unsqueeze(
                 0
             )  # (n_points, n_cells)
-            nodal_data = effective_pc_inc @ elemental_data
+            nodal_data = conservative_pc_inc @ elemental_data
             return nodal_data
         raise ValueError(f"Invalid mode: {mode}")
 
@@ -63,7 +66,7 @@ class GeometryProcessor:
         self,
         mesh: IReadOnlyGraphlowMesh,
         nodal_data: torch.Tensor,
-        mode: Literal["mean", "effective"] = "mean",
+        mode: Literal["mean", "conservative"] = "mean",
     ) -> torch.Tensor:
         """Convert nodal data to elemental data.
 
@@ -72,12 +75,15 @@ class GeometryProcessor:
         mesh: GraphlowMesh
         nodal_data: torch.Tensor
             nodal data to convert.
-        mode: "mean", or "effective", default: "mean"
+        mode: "mean", or "conservative", default: "mean"
             The way to convert.
             - "mean": averages the values of \
                 nodes connected to each element. (default)
-            - "effective": distributes node information \
-                to the connected elements, ensuring consistent volume.
+            - "conservative": distributes the data \
+                from each node to all its connected elements. \
+                The values are then summed at each element. \
+                This approach ensures that the total quantity \
+                (such as mass or volume) is conserved.
 
         Returns
         -------
@@ -93,12 +99,12 @@ class GeometryProcessor:
             )  # (n_cells, n_points)
             nodal_data = mean_cp_inc @ nodal_data
             return nodal_data
-        if mode == "effective":
-            n_connected_cells = cp_inc.sum(dim=0).to_dense()  # (n_points,)
-            effective_cp_inc = cp_inc * n_connected_cells.pow(-1).unsqueeze(
+        if mode == "conservative":
+            n_connected_nodes = cp_inc.sum(dim=0).to_dense()  # (n_points,)
+            conservative_cp_inc = cp_inc * n_connected_nodes.pow(-1).unsqueeze(
                 0
             )  # (n_cells, n_points)
-            nodal_data = effective_cp_inc @ nodal_data
+            nodal_data = conservative_cp_inc @ nodal_data
             return nodal_data
         raise ValueError(f"Invalid mode: {mode}")
 
