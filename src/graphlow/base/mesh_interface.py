@@ -85,7 +85,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     def convert_elemental2nodal(
         self,
         elemental_data: torch.Tensor,
-        mode: Literal["mean", "effective"] = "mean",
+        mode: Literal["mean", "conservative"] = "mean",
     ) -> torch.Tensor:
         """Convert elemental data to nodal data.
 
@@ -93,12 +93,19 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         ----------
         elemental_data: torch.Tensor
             elemental data to convert.
-        mode: "mean", or "effective", default: "mean"
+        mode: "mean", or "conservative", default: "mean"
             The way to convert.
-            - "mean": averages the values of \
-                elements connected to each node. (default)
-            - "effective": distributes element information \
-                to the connected nodes, ensuring consistent volume.
+            - "mean": For each node, \
+                we consider all the elements that share this node \
+                and compute the average of their values.
+                This approach provides \
+                a smoothed representation at each node.
+            - "conservative": For each element,
+                we consider all the nodes that share this element \
+                and distribute the element value to them equally.
+                The values are then summed at each node. \
+                This approach ensures that the total quantity \
+                (such as mass or volume) is conserved.
 
         Returns
         -------
@@ -110,7 +117,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     def convert_nodal2elemental(
         self,
         nodal_data: torch.Tensor,
-        mode: Literal["mean", "effective"] = "mean",
+        mode: Literal["mean", "conservative"] = "mean",
     ) -> torch.Tensor:
         """Convert nodal data to elemental data.
 
@@ -118,12 +125,19 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         ----------
         nodal_data: torch.Tensor
             nodal data to convert.
-        mode: "mean", or "effective", default: "mean"
+        mode: "mean", or "conservative", default: "mean"
             The way to convert.
-            - "mean": averages the values of \
-                nodes connected to each element. (default)
-            - "effective": distributes node information \
-                to the connected elements, ensuring consistent volume.
+            - "mean": For each element, \
+                we consider all the nodes that share this element \
+                and compute the average of their values. \
+                This approach provides \
+                a smoothed representation at each element.
+            - "conservative": For each node,
+                we consider all the elements that share this node \
+                and distribute the node value to them equally.
+                The values are then summed at each element. \
+                This approach ensures that the total quantity \
+                (such as mass or volume) is conserved.
 
         Returns
         -------
@@ -221,7 +235,10 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def compute_isoAM(
-        self, with_moment_matrix: bool = True, consider_volume: bool = False
+        self,
+        with_moment_matrix: bool = True,
+        consider_volume: bool = False,
+        normal_interp_mode: Literal["mean", "effective"] = "effective",
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Compute (dims, n_points, n_points)-shaped isoAM.
 
@@ -232,6 +249,12 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
             tensor products of relative position tensors.
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
+        normal_interp_mode: Literal["mean", "effective"], default: "effective"
+            The way to interpolate normals. cf. convert_elemental2nodal.
+            - "mean": averages the values of \
+                nodes connected to each element.
+            - "effective": distributes node information \
+                to the connected elements, ensuring consistent volume.
 
         Returns
         -------
@@ -251,6 +274,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
+        normal_interp_mode: Literal["mean", "effective"] = "effective",
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         """Compute (dims, n_points, n_points)-shaped
         Neumann boundary model IsoAM.
@@ -264,6 +288,12 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
             tensor products of relative position tensors.
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
+        normal_interp_mode: Literal["mean", "effective"], default: "effective"
+            The way to interpolate normals. cf. convert_elemental2nodal.
+            - "mean": averages the values of \
+                nodes connected to each element.
+            - "effective": distributes node information \
+                to the connected elements, ensuring consistent volume.
 
         Returns
         -------
