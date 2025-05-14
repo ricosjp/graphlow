@@ -243,8 +243,14 @@ class IsoAMProcessor:
 
         Parameters
         ----------
-        mesh : GraphlowMesh
-            The mesh to compute the moment matrix for.
+        i_indices: torch.Tensor
+            The row indices of adjacency coo matrix. (nnz,)
+        j_indices: torch.Tensor
+            The column indices of adjacency coo matrix. (nnz,)
+        points: torch.Tensor
+            The points to compute the moment matrix for. (n_points, dim)
+        weights: torch.Tensor
+            The weights of the points. (nnz,)
 
         Returns
         -------
@@ -310,13 +316,20 @@ class IsoAMProcessor:
         i_indices: torch.Tensor,
         j_indices: torch.Tensor,
         n_points: int,
-        nnz_tensor: torch.Tensor,
+        element: torch.Tensor,
     ) -> torch.Tensor:
         """Create a grad operator from a given tensor
 
         Parameters
         ----------
-        nnz_tensor: (nnz, dim)-shaped torch tensor
+        i_indices: torch.Tensor
+            The row indices of adjacency coo matrix. (nnz,)
+        j_indices: torch.Tensor
+            The column indices of adjacency coo matrix. (nnz,)
+        n_points: int
+            The number of points.
+        element: torch.Tensor
+            The non-zero elements to create the grad operator from. (nnz, dim)
 
         Returns
         -------
@@ -361,6 +374,21 @@ class IsoAMProcessor:
         Parameters
         ----------
         mesh: GraphlowMesh
+            The mesh to compute the normals for.
+        mode: Literal["mean", "conservative"], \
+            default: "conservative" \
+            The way to interpolate normals. cf. convert_elemental2nodal.
+            - "mean": For each node, \
+                we consider all the elements that share this node \
+                and compute the average of their values.
+                This approach provides \
+                a smoothed representation at each node.
+            - "conservative": For each element,
+                we consider all the nodes that share this element \
+                and distribute the element value to them equally.
+                The values are then summed at each node. \
+                This approach ensures that the total quantity \
+                (such as mass or volume) is conserved.
 
         Returns
         -------
