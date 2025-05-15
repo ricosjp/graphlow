@@ -191,7 +191,9 @@ class GeometryProcessor:
             pv.CellType.POLYGON: self._poly_area_vecs,
         }
         area_vecs = torch.empty(
-            (mesh.n_cells, mesh.points.shape[1]), device=mesh.device
+            (mesh.n_cells, mesh.points.shape[1]),
+            device=mesh.device,
+            dtype=mesh.dtype,
         )
         celltypes = mesh.pvmesh.celltypes
 
@@ -267,7 +269,9 @@ class GeometryProcessor:
             pv.CellType.HEXAHEDRON: self._hex_volumes,
             pv.CellType.POLYHEDRON: self._poly_volumes,
         }
-        volumes = torch.empty(mesh.n_cells, device=mesh.device)
+        volumes = torch.empty(
+            mesh.n_cells, device=mesh.device, dtype=mesh.dtype
+        )
         celltypes = mesh.pvmesh.celltypes
 
         # non-polyhedron cells
@@ -335,7 +339,9 @@ class GeometryProcessor:
         self, points: torch.Tensor, polys: IReadOnlyGraphlowMesh
     ) -> torch.Tensor:
         area_vecs = torch.empty(
-            (polys.n_cells, points.shape[1]), device=points.device
+            (polys.n_cells, points.shape[1]),
+            device=points.device,
+            dtype=points.dtype,
         )
         for i in range(polys.n_cells):
             cell = polys.pvmesh.get_cell(i)
