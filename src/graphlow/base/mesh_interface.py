@@ -238,7 +238,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         self,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-        normal_interp_mode: Literal["mean", "effective"] = "effective",
+        normal_interp_mode: Literal["mean", "conservative"] = "conservative",
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Compute (dims, n_points, n_points)-shaped isoAM.
 
@@ -249,11 +249,11 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
             tensor products of relative position tensors.
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
-        normal_interp_mode: Literal["mean", "effective"], default: "effective"
+        normal_interp_mode: Literal["mean", "conservative"], default: "conservative"
             The way to interpolate normals. cf. convert_elemental2nodal.
             - "mean": averages the values of \
                 nodes connected to each element.
-            - "effective": distributes node information \
+            - "conservative": distributes node information \
                 to the connected elements, ensuring consistent volume.
 
         Returns
@@ -274,7 +274,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-        normal_interp_mode: Literal["mean", "effective"] = "effective",
+        normal_interp_mode: Literal["mean", "conservative"] = "conservative",
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         """Compute (dims, n_points, n_points)-shaped
         Neumann boundary model IsoAM.
@@ -288,11 +288,11 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
             tensor products of relative position tensors.
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
-        normal_interp_mode: Literal["mean", "effective"], default: "effective"
+        normal_interp_mode: Literal["mean", "conservative"], default: "conservative"
             The way to interpolate normals. cf. convert_elemental2nodal.
             - "mean": averages the values of \
                 nodes connected to each element.
-            - "effective": distributes node information \
+            - "conservative": distributes node information \
                 to the connected elements, ensuring consistent volume.
 
         Returns

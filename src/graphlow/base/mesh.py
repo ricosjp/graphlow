@@ -551,7 +551,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         self,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-        normal_interp_mode: Literal["mean", "conservative"] = "mean",
+        normal_interp_mode: Literal["mean", "conservative"] = "conservative",
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         return self._isoAM_processor.compute_isoAM(
             self, with_moment_matrix, consider_volume, normal_interp_mode
@@ -562,7 +562,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         normal_weight: float = 10.0,
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
-        normal_interp_mode: Literal["mean", "conservative"] = "mean",
+        normal_interp_mode: Literal["mean", "conservative"] = "conservative",
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         return self._isoAM_processor.compute_isoAM_with_neumann(
             self,
