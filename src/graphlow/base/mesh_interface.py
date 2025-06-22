@@ -249,7 +249,8 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
             tensor products of relative position tensors.
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
-        normal_interp_mode: Literal["mean", "conservative"], default: "conservative"
+        normal_interp_mode: Literal["mean", "conservative"], \
+            default: "conservative"
             The way to interpolate normals. cf. convert_elemental2nodal.
             - "mean": averages the values of \
                 nodes connected to each element.
@@ -288,7 +289,8 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
             tensor products of relative position tensors.
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
-        normal_interp_mode: Literal["mean", "conservative"], default: "conservative"
+        normal_interp_mode: Literal["mean", "conservative"], \
+            default: "conservative"
             The way to interpolate normals. cf. convert_elemental2nodal.
             - "mean": averages the values of \
                 nodes connected to each element.
