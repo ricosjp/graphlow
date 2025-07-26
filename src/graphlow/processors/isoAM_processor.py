@@ -375,6 +375,7 @@ class IsoAMProcessor:
         self,
         mesh: IReadOnlyGraphlowMesh,
         mode: Literal["mean", "conservative"] = "conservative",
+        epsilon: float = 1.0e-3,
     ) -> torch.Tensor:
         """Compute normals tensor with values only on the surface points.
 
@@ -396,6 +397,9 @@ class IsoAMProcessor:
                 The values are then summed at each node. \
                 This approach ensures that the total quantity \
                 (such as mass or volume) is conserved.
+        epsilon: float
+            default: 1.0e-3
+            Threshold to detect zero-normed normal vectors.
 
         Returns
         -------
@@ -407,5 +411,11 @@ class IsoAMProcessor:
         )
         normals_on_faces = surf.compute_normals()
         normals_on_points = surf.convert_elemental2nodal(normals_on_faces, mode)
-        normals_on_points /= normals_on_points.norm(dim=1, keepdim=True)
+
+        filter_non_zero = normals_on_points.norm(dim=1) > epsilon
+        filtered_normal = normals_on_points[filter_non_zero]
+        normals_on_points[filter_non_zero] = (
+            filtered_normal / filtered_normal.norm(dim=1, keepdim=True)
+        )
+        normals_on_points[~filter_non_zero] = 0.0
         return surf_vol_rel_inc @ normals_on_points

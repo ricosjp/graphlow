@@ -671,3 +671,39 @@ def test__compute_isoAM_for_surface_mesh(
     )
 
     np.testing.assert_almost_equal(actual_grad_vector, desired_grad, decimal=6)
+
+
+def test___compute_normals_on_surface_points_not_nan():
+    file_name = "tests/data/vtp/openedge_surface/openedge_surface.vtp"
+    mesh = graphlow.read(file_name)
+    isoAM_processor = IsoAMProcessor()
+
+    pv_mesh = pv.read(file_name).compute_normals()
+    pv_normals = pv_mesh.point_data["Normals"]
+    filter_small_pv_normals = np.linalg.norm(pv_normals, axis=1) < 1e-8
+
+    normals = isoAM_processor._compute_normals_on_surface_points(mesh)
+    actual = array_handler.convert_to_numpy_scipy(normals)
+
+    assert not np.any(np.isnan(actual))
+    np.testing.assert_almost_equal(actual[filter_small_pv_normals], 0.0)
+
+
+def test__compute_isoAM_with_neumann_not_nan():
+    file_name = "tests/data/vtu/openedge/openedge.vtu"
+    mesh = graphlow.read(file_name)
+
+    grad_adjs, wnormals, minv = mesh.compute_isoAM_with_neumann(
+        normal_weight=10.0,
+        with_moment_matrix=True,
+        consider_volume=False,
+        normal_interp_mode="conservative",
+    )
+
+    for grad_adj in grad_adjs:
+        assert not np.any(
+            np.isnan(array_handler.convert_to_dense_numpy(grad_adj))
+        )
+
+    assert not np.any(np.isnan(wnormals.numpy()))
+    assert not np.any(np.isnan(minv.numpy()))
