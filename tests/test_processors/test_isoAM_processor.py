@@ -701,9 +701,9 @@ def test__compute_isoAM_with_neumann_not_nan():
     )
 
     for grad_adj in grad_adjs:
-        assert not np.any(np.isnan(array_handler.convert_to_dense_numpy(
-            grad_adj
-        )))
+        assert not np.any(
+            np.isnan(array_handler.convert_to_dense_numpy(grad_adj))
+        )
 
     assert not np.any(np.isnan(wnormals.numpy()))
     assert not np.any(np.isnan(minv.numpy()))

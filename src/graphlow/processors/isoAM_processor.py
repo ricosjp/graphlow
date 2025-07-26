@@ -414,7 +414,8 @@ class IsoAMProcessor:
 
         filter_non_zero = normals_on_points.norm(dim=1) > epsilon
         filtered_normal = normals_on_points[filter_non_zero]
-        normals_on_points[filter_non_zero] \
-            = filtered_normal / filtered_normal.norm(dim=1, keepdim=True)
+        normals_on_points[filter_non_zero] = (
+            filtered_normal / filtered_normal.norm(dim=1, keepdim=True)
+        )
         normals_on_points[~filter_non_zero] = 0.0
         return surf_vol_rel_inc @ normals_on_points
