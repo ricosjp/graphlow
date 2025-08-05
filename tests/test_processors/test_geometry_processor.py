@@ -341,14 +341,15 @@ def test__compute_areas(file_name: pathlib.Path, device: str):
     actual = array_handler.convert_to_numpy_scipy(cell_areas)
     np.testing.assert_almost_equal(actual, desired, decimal=4)
 
+
 @pytest.mark.with_device
 @pytest.mark.parametrize(
     "file_name",
     [
         # primitives
-        pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"), # triangle
-        pathlib.Path("tests/data/vtu/primitive_cell/pyramid.vtu"), # quad
-        pathlib.Path("tests/data/vtu/primitive_cell/poly.vtu"), # polygon
+        pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),  # triangle
+        pathlib.Path("tests/data/vtu/primitive_cell/pyramid.vtu"),  # quad
+        pathlib.Path("tests/data/vtu/primitive_cell/poly.vtu"),  # polygon
         pathlib.Path("tests/data/vts/cube/mesh.vts"),
         pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
@@ -366,11 +367,13 @@ def test__compute_surface_volume(file_name: pathlib.Path, device: str):
     pv_surface_volume = pv_surfmesh.volume
     assert math.isclose(surface_volume, pv_surface_volume, rel_tol=1e-6)
 
+
 def test__compute_surface_volume_on_non_watertight_mesh():
     pv_non_watertight_mesh = pv.examples.download_saddle_surface()
     non_watertight_mesh = graphlow.GraphlowMesh(pv_non_watertight_mesh)
     with pytest.raises(ValueError, match="Surface mesh is not watertight"):
         non_watertight_mesh.compute_surface_volume()
+
 
 @pytest.mark.with_device
 @pytest.mark.parametrize(
