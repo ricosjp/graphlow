@@ -320,6 +320,58 @@ class GeometryProcessor:
         normals = area_vecs / areas
         return normals
 
+    def compute_surface_volume(self, mesh: IReadOnlyGraphlowMesh) -> float:
+        """Compute surface volume.
+
+        Available celltypes are:
+        VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
+
+        Parameters
+        ----------
+        mesh: GraphlowMesh
+
+        Returns
+        -------
+        float
+        """
+        surface_mesh = mesh.extract_surface(pass_point_data=True)
+        cone_volumes_by_celltype = {
+            pv.CellType.TRIANGLE: self._tri_cone_volumes,
+            pv.CellType.QUAD: self._quad_cone_volumes,
+            pv.CellType.POLYGON: self._poly_cone_volumes,
+        }
+        cone_volumes = torch.empty(
+            (surface_mesh.n_cells,),
+            device=surface_mesh.device,
+            dtype=surface_mesh.dtype,
+        )
+        celltypes = surface_mesh.pvmesh.celltypes
+
+        # non-polygon cells
+        nonpoly_mask = celltypes != pv.CellType.POLYGON
+        if np.any(nonpoly_mask):
+            nonpolys = surface_mesh.extract_cells(nonpoly_mask, pass_point_data=True)
+            nonpolys_dict = nonpolys.pvmesh.cells_dict
+            for celltype, cells in nonpolys_dict.items():
+                if celltype not in cone_volumes_by_celltype:
+                    raise KeyError(
+                        f"Unavailable celltype: {pv.CellType(celltype).name}"
+                    )
+                mask = celltypes == celltype
+                cell_points = nonpolys.points[cells]
+                cone_volumes[mask] = cone_volumes_by_celltype[celltype](
+                    cell_points
+                )
+
+        # polygon cells
+        poly_mask = celltypes == pv.CellType.POLYGON
+        if np.any(poly_mask):
+            polys = surface_mesh.extract_cells(poly_mask, pass_point_data=True)
+            cone_volumes[poly_mask] = self._poly_cone_volumes(
+                polys.points, polys
+            )
+        return torch.abs(torch.sum(cone_volumes)).item()
+
     #
     # Area function
     #
@@ -351,6 +403,41 @@ class GeometryProcessor:
             cross = torch.linalg.cross(v1, v2)
             area_vecs[i] = 0.5 * torch.sum(cross, dim=0)
         return area_vecs
+
+    #
+    # Cone volume function
+    #
+    def _tri_cone_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+        v01 = cell_points[:, 1] - cell_points[:, 0]  # n_cell, dim
+        v02 = cell_points[:, 2] - cell_points[:, 0]
+        cross = torch.linalg.cross(v01, v02)  # n_cell, dim
+        v0 = cell_points[:, 0]
+        return torch.sum(cross * v0, dim=1) / 6.0
+
+    def _quad_cone_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+        v1 = cell_points  # n_cell, n_point, dim
+        v2 = torch.roll(v1, shifts=-1, dims=1)
+        cross = torch.sum(torch.linalg.cross(v1, v2), dim=1)  # n_cell, dim
+        v0 = cell_points[:, 0]
+        return torch.sum(cross * v0, dim=1) / 6.0
+
+    def _poly_cone_volumes(
+        self, points: torch.Tensor, polys: IReadOnlyGraphlowMesh
+    ) -> torch.Tensor:
+        cone_volumes = torch.empty(
+            (polys.n_cells,),
+            device=points.device,
+            dtype=points.dtype,
+        )
+        for i in range(polys.n_cells):
+            cell = polys.pvmesh.get_cell(i)
+            face = torch.tensor(cell.point_ids, dtype=torch.int)
+            v1 = points[face]  # n_point, dim
+            v2 = torch.roll(v1, shifts=-1, dims=0)
+            cross = torch.sum(torch.linalg.cross(v1, v2), dim=0)  # dim
+            v0 = v1[0]
+            cone_volumes[i] = torch.sum(cross * v0, dim=0) / 6.0
+        return cone_volumes
 
     #
     # Volume function

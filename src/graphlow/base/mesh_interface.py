@@ -234,6 +234,19 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def compute_surface_volume(self) -> float:
+        """Compute surface volume.
+
+        Available celltypes are:
+        VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
+
+        Returns
+        -------
+        float
+        """
+        pass
+
+    @abc.abstractmethod
     def compute_isoAM(
         self,
         with_moment_matrix: bool = True,
