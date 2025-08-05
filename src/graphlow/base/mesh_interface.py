@@ -234,6 +234,19 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def compute_surface_volume(self) -> torch.Tensor:
+        """Compute (1,)-shaped surface volume.
+
+        Available celltypes are:
+        VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
+
+        Returns
+        -------
+        torch.Tensor[float]
+        """
+        pass
+
+    @abc.abstractmethod
     def compute_isoAM(
         self,
         with_moment_matrix: bool = True,
