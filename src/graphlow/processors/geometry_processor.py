@@ -335,6 +335,14 @@ class GeometryProcessor:
         float
         """
         surface_mesh = mesh.extract_surface(pass_point_data=True)
+        boundary = surface_mesh.pvmesh.extract_feature_edges(
+            boundary_edges=True,
+            feature_edges=False,
+            manifold_edges=False,
+            non_manifold_edges=False,
+        )
+        if boundary.n_cells != 0:
+            raise ValueError("Surface mesh is not watertight")
         cone_volumes_by_celltype = {
             pv.CellType.TRIANGLE: self._tri_cone_volumes,
             pv.CellType.QUAD: self._quad_cone_volumes,
