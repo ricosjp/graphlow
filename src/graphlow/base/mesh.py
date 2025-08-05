@@ -547,7 +547,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     def compute_normals(self) -> torch.Tensor:
         return self._geometry_processor.compute_normals(self)
 
-    def compute_surface_volume(self) -> float:
+    def compute_surface_volume(self) -> torch.Tensor:
         return self._geometry_processor.compute_surface_volume(self)
 
     def compute_isoAM(

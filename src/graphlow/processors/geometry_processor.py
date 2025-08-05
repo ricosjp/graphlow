@@ -320,8 +320,10 @@ class GeometryProcessor:
         normals = area_vecs / areas
         return normals
 
-    def compute_surface_volume(self, mesh: IReadOnlyGraphlowMesh) -> float:
-        """Compute surface volume.
+    def compute_surface_volume(
+        self, mesh: IReadOnlyGraphlowMesh
+    ) -> torch.Tensor:
+        """Compute (1,)-shaped surface volume.
 
         Available celltypes are:
         VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON
@@ -332,7 +334,7 @@ class GeometryProcessor:
 
         Returns
         -------
-        float
+        torch.Tensor[float]
         """
         surface_mesh = mesh.extract_surface(pass_point_data=True)
         boundary = surface_mesh.pvmesh.extract_feature_edges(
@@ -358,7 +360,9 @@ class GeometryProcessor:
         # non-polygon cells
         nonpoly_mask = celltypes != pv.CellType.POLYGON
         if np.any(nonpoly_mask):
-            nonpolys = surface_mesh.extract_cells(nonpoly_mask, pass_point_data=True)
+            nonpolys = surface_mesh.extract_cells(
+                nonpoly_mask, pass_point_data=True
+            )
             nonpolys_dict = nonpolys.pvmesh.cells_dict
             for celltype, cells in nonpolys_dict.items():
                 if celltype not in cone_volumes_by_celltype:
@@ -378,7 +382,7 @@ class GeometryProcessor:
             cone_volumes[poly_mask] = self._poly_cone_volumes(
                 polys.points, polys
             )
-        return torch.abs(torch.sum(cone_volumes)).item()
+        return torch.abs(torch.sum(cone_volumes))
 
     #
     # Area function
