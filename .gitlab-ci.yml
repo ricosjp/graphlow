@@ -1,29 +1,75 @@
+variables:
+  PYTHON_VERSION: "3.10"
+  BASE_LAYER: bookworm-slim
+  # GitLab CI creates a separate mountpoint for the build directory,
+  # so we need to copy instead of using hard links.
+  UV_LINK_MODE: copy
+
 stages:
   - test
   - deploy
 
 default:
-  image: python:3.11-slim
-  before_script:
-    - apt update
-    - apt install -y make
-    - pip install poetry
-    - poetry config virtualenvs.in-project false
-    - make init
+  image: astral/uv:python$PYTHON_VERSION-$BASE_LAYER
 
 lint:
   stage: test
+  before_script:
+    - apt update
+    - apt install -y make
+    - make install
   script:
     - make lint
   tags:
     - no-gpu
 
-pytest:
+cpu-pytest:
   stage: test
+  before_script:
+    - apt update
+    - apt install -y make libx11-6 libgl1-mesa-glx libxrender1
+    - make install
   script:
-    - poetry run pytest tests --cov=src --cov-report term-missing --capture=no
-    - poetry run python3 -m coverage html -d coverage
-    - poetry run python3 -m coverage xml
+    - make cpu-test
+    - mv .coverage .coverage.cpu
+  artifacts:
+    paths:
+      - .coverage.cpu
+  tags:
+    - no-gpu
+    - GenuineIntel
+    - avx2
+    - cpu-ge-8
+    - mem-ge-32gb
+
+gpu_pytest:
+  stage: test
+  image: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
+  before_script:
+    - apt update
+    - apt install -y make
+    - pip install uv
+    - make install
+  script:
+    - make gpu-test
+    - mv .coverage .coverage.gpu
+  artifacts:
+    paths:
+      - .coverage.gpu
+  tags:
+    - gpu
+
+coverage:
+  stage: test
+  needs:
+    - job: cpu-pytest
+      artifacts: true
+    - job: gpu_pytest
+      artifacts: true
+  script:
+    - uv run coverage combine .coverage.cpu .coverage.gpu
+    - uv run coverage html -d coverage
+    - uv run coverage xml
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     expose_as: coverage
@@ -40,24 +86,13 @@ pytest:
     - cpu-ge-8
     - mem-ge-32gb
 
-gpu_pytest:
-  stage: test
-  image: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
-  before_script:
-    - apt update
-    - apt install -y make
-    - pip install poetry
-    - poetry config virtualenvs.in-project false
-    - make init
-  script:
-    - poetry run pytest tests -m with_device --gpu
-  tags:
-    - gpu
-
 pages:
   stage: deploy
+  before_script:
+    - apt update
+    - apt install -y make xvfb libgl1-mesa-glx
+    - make install
   script:
-    - apt install -y xvfb libgl1-mesa-glx
     - make document
     - mkdir public
     - mv docs/build/html/* public/
@@ -67,24 +102,18 @@ pages:
   only:
     - main
     - develop
-    - issue/add_docs
-
 
 .deploy:wheel:
   stage: deploy
   script:
-    - poetry version $VERSION
-    - poetry config repositories.ricos https://pypi.ritc.jp
-    - poetry build -f wheel
-    - poetry publish --username ricos --password $RICOS_PYPI_KEY -r ricos --no-ansi -n -v
-    - poetry publish --username __token__ --password $PYPI_PUBLISH_TOKEN --no-ansi -n -v
-
+    - uv version $VERSION
+    - uv build
+    - uv publish --username __token__ --password $PYPI_PUBLISH_TOKEN -n -v
 
 deploy:wheel:tags:
-  image: python:3.11-slim
+  image: astral/uv:python$PYTHON_VERSION-$BASE_LAYER
   extends: .deploy:wheel
   before_script:
-    - pip install poetry
     - export VERSION=$CI_COMMIT_REF_NAME
   only:
     - tags
