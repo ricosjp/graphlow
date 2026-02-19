@@ -50,17 +50,19 @@ test = [
 lint = ["ruff>=0.9.6", "mypy>=1.8.0"]
 visualize = ["polars", "plotly", "kaleido", "pydantic"]
 docs = [
-    "sphinx>=7.2.6",
-    "furo>=2024.8.6",
-    "sphinx-fontawesome>=0.0.6",
-    "sphinx-gallery>=0.17.0",
-    "sphinx-copybutton>=0.5.2",
-    "sphinx-design>=0.6.1",
-    "ipykernel>=6.29.5",
+    "sphinx",
+    "numpydoc",
+    "pydata-sphinx-theme",
+    "sphinxcontrib-mermaid",
+    "sphinx-fontawesome",
+    "sphinx-gallery",
+    "sphinx-design",
+    "sphinx-copybutton",
     "trame>=3.8.0",
     "trame-vtk>=2.8.15",
     "trame-vuetify>=2.8.1",
-    "imageio>=2.37.0",
+    "ipykernel>=6.29.5",
+    "imageio"
 ]
 
 [tool.uv]

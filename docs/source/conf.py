@@ -38,10 +38,15 @@ release = graphlow.__version__
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.viewcode",
+    "sphinx.ext.doctest",
+    "sphinx.ext.coverage",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.mathjax",
     "sphinx.ext.autosummary",
-    "sphinx.ext.napoleon",  # google, numpy styleのdocstring対応
+    "sphinx.ext.viewcode",
+    "numpydoc",
     "sphinx.ext.githubpages",
+    "sphinxcontrib.mermaid",
     "sphinx_copybutton",
     "sphinx_gallery.gen_gallery",
     "pyvista.ext.plot_directive",
@@ -62,14 +67,40 @@ sphinx_gallery_conf = {
 
 
 # -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
+# https://pydata-sphinx-theme.readthedocs.io/en/stable/user_guide/index.html
 
-html_theme = "furo"
+html_theme = "pydata_sphinx_theme"
+html_theme_options = {
+    # Logo configuration
+    "logo": {
+        "image_light": "_static/logo.webp",
+        "image_dark": "_static/logo.webp",
+    },
+    # Navbar configuration
+    "navbar_start": ["navbar-logo", "navbar-version"],
+    "navbar_align": "content",
+    "header_links_before_dropdown": 5,
+    # Right-hand sidebar contents
+    "secondary_sidebar_items": ["page-toc"],
+    # Footer configuration (hide theme/version credits)
+    "footer_start": ["copyright"],
+    "footer_end": [],
+    "footer_center": [],
+}
+html_context = {
+    "github_version": "main",
+    "doc_path": "docs/source/",
+    "default_mode": "light",
+}
+html_sidebars: dict[str, list] = {"index": []}
 html_static_path = ["_static"]
 html_title = "graphlow"
 html_show_search_summary = True
 html_favicon = "_static/logo.webp"
 html_logo = "_static/logo.webp"
+html_show_sphinx = False
+html_css_files = ["custom.css"]
+
 
 # -- Extension configuration -------------------------------------------------
 autosummary_generate = True
@@ -80,3 +111,22 @@ autodoc_default_options = {
     "exclude-members": "with_traceback",
     "show-inheritance": False,
 }
+
+# numpydoc configuration
+numpydoc_show_class_members = True
+numpydoc_show_inherited_class_members = False
+numpydoc_class_members_toctree = False
+numpydoc_attributes_as_param_list = True
+numpydoc_use_blockquotes = True
+# Validation checks: empty set to disable, or list of check codes to enable
+# Common checks: GL01 (line too long), EX01 (examples not found), etc.
+numpydoc_validation_checks = set()  # Disable validation for now
+numpydoc_validation_exclude = set()  # Exclude specific checks if needed
+
+# Add any paths that contain templates here, relative to this directory.
+templates_path = ["../_templates"]
+
+# codeautolink
+codeautolink_autodoc_inject = False
+codeautolink_search_css_classes = ["highlight-default"]
+codeautolink_concat_default = True

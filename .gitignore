@@ -181,6 +181,5 @@ spike
 outputs
 note/
 docs/source/tutorials/
-docs/source/api/
-docs/_templates/
+docs/source/api/generated/
 sg_execution_times.rst

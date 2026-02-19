@@ -7,7 +7,7 @@ Changes in graphlow between releases.
 --------------
 
 - Migrated project management from Poetry to uv (`pyproject.toml`, CI, and local workflow).
-
+- Switched documentation theme to PyData Sphinx Theme and updated layout configuration.
 
 0.0.1
 --------------
