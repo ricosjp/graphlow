@@ -33,12 +33,12 @@ class GeometryProcessor:
             The way to convert.
             - "mean": For each node, \
                 we consider all the elements that share this node \
-                and compute the average of their values.
+                and compute the average of their values. \
                 This approach provides \
                 a smoothed representation at each node.
-            - "conservative": For each element,
+            - "conservative": For each element, \
                 we consider all the nodes that share this element \
-                and distribute the element value to them equally.
+                and distribute the element value to them equally. \
                 The values are then summed at each node. \
                 This approach ensures that the total quantity \
                 (such as mass or volume) is conserved.
@@ -86,9 +86,9 @@ class GeometryProcessor:
                 and compute the average of their values. \
                 This approach provides \
                 a smoothed representation at each element.
-            - "conservative": For each node,
+            - "conservative": For each node, \
                 we consider all the elements that share this node \
-                and distribute the node value to them equally.
+                and distribute the node value to them equally. \
                 The values are then summed at each element. \
                 This approach ensures that the total quantity \
                 (such as mass or volume) is conserved.

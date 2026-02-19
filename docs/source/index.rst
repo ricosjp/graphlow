@@ -9,7 +9,7 @@ graphlow : Graph for Physics
 
    ./quickstart/index
    ./tutorials/index
-   ./modules/modules
+   ./api/index
    ./changelog
 
 Indices and tables

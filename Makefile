@@ -47,8 +47,7 @@ profile-memory:
 
 .PHONY: document
 document:
-	rm -rf public
-	rm -rf docs/build docs/source/tutorials docs/source/modules sg_execution_times.rst
-	uv run sphinx-apidoc -f -o docs/source/modules src
-	sed -i "1s/^src$$/Module Reference/" ./docs/source/modules/modules.rst
-	uv run sphinx-build -M html docs/source docs/build
+	rm -rf docs/build || true
+	rm -rf docs/source/tutorials || true
+	rm docs/source/sg_execution_times.rst || true
+	uv run sphinx-build docs/source docs/build -b html
