@@ -1,12 +1,13 @@
 import pathlib
 
 import numpy as np
+import phlower_tensor as pt
 import pytest
 import pyvista as pv
 import torch
 
 import graphlow
-from graphlow.util import array_handler
+from graphlow.util.sparse_tensor import threashold_sparse_tensor
 
 
 @pytest.mark.with_device
@@ -41,7 +42,7 @@ def test__compute_point_cell_incidence(
     mesh = graphlow.read(file_name)
     mesh.send(device=torch.device(device))
     cell_point_incidence = mesh.compute_cell_point_incidence()
-    actual = array_handler.convert_to_dense_numpy(cell_point_incidence)
+    actual = cell_point_incidence.to_tensor().to_dense().numpy()
     np.testing.assert_array_equal(actual, desired)
 
 
@@ -76,7 +77,7 @@ def test__compute_cell_adjacency(
     mesh = graphlow.read(file_name)
     mesh.send(device=torch.device(device))
     cell_adjacency = mesh.compute_cell_adjacency()
-    actual = array_handler.convert_to_dense_numpy(cell_adjacency)
+    actual = cell_adjacency.to_tensor().to_dense().numpy()
     np.testing.assert_array_equal(actual, desired)
 
 
@@ -102,7 +103,7 @@ def test__compute_cell_degree(
     mesh = graphlow.read(file_name)
     mesh.send(device=torch.device(device))
     cell_degree = mesh.compute_cell_degree()
-    actual = array_handler.convert_to_dense_numpy(cell_degree)
+    actual = cell_degree.to_tensor().to_dense().numpy()
     np.testing.assert_array_equal(actual, desired)
 
 
@@ -128,7 +129,7 @@ def test__compute_normalized_cell_adjacency(
     mesh = graphlow.read(file_name)
     mesh.send(device=torch.device(device))
     normalized_cell_adjacency = mesh.compute_normalized_cell_adjacency()
-    actual = array_handler.convert_to_dense_numpy(normalized_cell_adjacency)
+    actual = normalized_cell_adjacency.to_tensor().to_dense().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -185,7 +186,7 @@ def test__compute_point_adjacency(
     mesh = graphlow.read(file_name)
     mesh.send(device=torch.device(device))
     point_adjacency = mesh.compute_point_adjacency()
-    actual = array_handler.convert_to_dense_numpy(point_adjacency)
+    actual = point_adjacency.to_tensor().to_dense().numpy()
     np.testing.assert_array_equal(actual, desired)
 
 
@@ -221,7 +222,7 @@ def test__compute_point_degree(
     mesh = graphlow.read(file_name)
     mesh.send(device=torch.device(device))
     point_degree = mesh.compute_point_degree()
-    actual = array_handler.convert_to_dense_numpy(point_degree)
+    actual = point_degree.to_tensor().to_dense().numpy()
     np.testing.assert_array_equal(actual, desired)
 
 
@@ -424,7 +425,7 @@ def test__compute_normalized_point_adjacency(
     mesh = graphlow.read(file_name)
     mesh.send(device=torch.device(device))
     normalized_point_adjacency = mesh.compute_normalized_point_adjacency()
-    actual = array_handler.convert_to_dense_numpy(normalized_point_adjacency)
+    actual = normalized_point_adjacency.to_tensor().to_dense().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -445,22 +446,22 @@ def test__compute_point_relative_incidence(
     surface = mesh.extract_surface()
     relative_incidence = mesh.compute_point_relative_incidence(surface)
 
-    actual_surface_points = relative_incidence.matmul(mesh.points)
+    actual_surface_points = relative_incidence @ mesh.points
     desired_surface_points = surface.points
     np.testing.assert_almost_equal(
-        array_handler.convert_to_numpy_scipy(actual_surface_points),
-        array_handler.convert_to_numpy_scipy(desired_surface_points),
+        actual_surface_points.to_tensor().numpy(),
+        desired_surface_points.to_tensor().numpy(),
     )
 
     # Check reversed order also works
     relative_incidence_t = surface.compute_point_relative_incidence(mesh)
     np.testing.assert_array_equal(
-        array_handler.convert_to_dense_numpy(relative_incidence),
-        array_handler.convert_to_dense_numpy(relative_incidence_t).T,
+        relative_incidence.to_tensor().to_dense().numpy(),
+        relative_incidence_t.transpose(0, 1).to_tensor().to_dense().numpy(),
     )
 
     np.testing.assert_array_equal(
-        array_handler.convert_to_dense_numpy(relative_incidence)
+        relative_incidence.to_tensor().to_dense().numpy()
         @ pv_mesh.point_data["feature"],
         surface.pvmesh.point_data["feature"],
     )
@@ -512,18 +513,83 @@ def test__compute_cell_relative_incidence(
     mesh = graphlow.GraphlowMesh(pv_mesh)
     mesh.send(device=torch.device(device))
     surface = mesh.extract_surface()
-    relative_incidence = array_handler.convert_to_dense_numpy(
+    relative_incidence = (
         mesh.compute_cell_relative_incidence(surface)
-    ).astype(int)
+        .to_tensor()
+        .to_dense()
+        .numpy()
+        .astype(int)
+    )
     np.testing.assert_almost_equal(relative_incidence, desired)
 
     # Check reversed order also works
-    relative_incidence_t = array_handler.convert_to_dense_numpy(
+    relative_incidence_t = (
         surface.compute_cell_relative_incidence(mesh)
-    ).astype(int)
+        .to_tensor()
+        .to_dense()
+        .numpy()
+        .astype(int)
+    )
     np.testing.assert_array_equal(relative_incidence, relative_incidence_t.T)
 
     np.testing.assert_array_equal(
         relative_incidence @ pv_mesh.cell_data["feature"],
         surface.pvmesh.cell_data["feature"],
+    )
+
+
+@pytest.mark.with_device
+@pytest.mark.parametrize(
+    "input, threshold, desired",
+    [
+        (
+            # Small values below threshold are removed
+            np.array(
+                [
+                    [1.0, 1e-9, 0.0],
+                    [0.5, 5.0, 1e-10],
+                    [0.0, 2.0, 0.0],
+                ],
+                dtype=float,
+            ),
+            1e-8,
+            np.array(
+                [
+                    [1, 0, 0],
+                    [1, 1, 0],
+                    [0, 1, 0],
+                ],
+                dtype=float,
+            ),
+        ),
+        (
+            np.array(
+                [
+                    [1.0, 1e-7, 0.0],
+                    [1.0, 0.0, 1e-6],
+                    [0.0, 1.0, 0.0],
+                ],
+                dtype=float,
+            ),
+            1e-8,
+            np.array(
+                [
+                    [1.0, 1.0, 0.0],
+                    [1.0, 0.0, 1.0],
+                    [0.0, 1.0, 0.0],
+                ],
+                dtype=float,
+            ),
+        ),
+    ],
+)
+def test__threshold_sparse_tensor(
+    input: np.ndarray, threshold: float, desired: np.ndarray, device: str
+):
+    sparse_tensor = pt.phlower_tensor(
+        torch.from_numpy(input).to_sparse_coo(), dimension={}
+    ).to(device=torch.device(device))
+    thresholded = threashold_sparse_tensor(sparse_tensor, threshold=threshold)
+    np.testing.assert_array_equal(
+        thresholded.to_tensor().to_dense().cpu().numpy(), desired
     )

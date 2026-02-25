@@ -1,5 +1,3 @@
-IN_PROJECT?=true
-
 .PHONY: reset
 reset:
 	rm -r ./.venv || true
@@ -26,6 +24,10 @@ cpu-test:
 .PHONY: gpu-test
 gpu-test:
 	uv run pytest tests -m with_device --gpu --cov=src --cov-report term-missing --durations 5
+
+.PHONY: slow-test
+slow-test:
+	uv run pytest tests -m slow --durations 5
 
 .PHONY: benchmark
 benchmark:

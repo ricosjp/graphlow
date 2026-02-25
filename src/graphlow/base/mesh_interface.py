@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import abc
-from typing import Any, Literal
+from typing import Literal
 
+import phlower_tensor as pt
 import pyvista as pv
 import torch
+from phlower_tensor.collections import IPhlowerTensorCollections
+from pyvista.core._typing_core import VectorLike
 
-from graphlow.base.dict_tensor import GraphlowDictTensor
+from graphlow.util.enums import FloatPrecision
 
 
 class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
-    # Write methods you want to share with processors.
     @property
     @abc.abstractmethod
     def pvmesh(self) -> pv.UnstructuredGrid:
@@ -18,7 +20,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def points(self) -> torch.Tensor:
+    def points(self) -> pt.PhlowerTensor:
         pass
 
     @property
@@ -33,17 +35,22 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def dict_point_tensor(self) -> GraphlowDictTensor:
+    def dict_point_tensor(self) -> IPhlowerTensorCollections:
         pass
 
     @property
     @abc.abstractmethod
-    def dict_cell_tensor(self) -> GraphlowDictTensor:
+    def dict_cell_tensor(self) -> IPhlowerTensorCollections:
         pass
 
     @property
     @abc.abstractmethod
-    def dict_sparse_tensor(self) -> GraphlowDictTensor:
+    def dict_sparse_tensor(self) -> IPhlowerTensorCollections:
+        pass
+
+    @property
+    @abc.abstractmethod
+    def float_precision(self) -> FloatPrecision:
         pass
 
     @property
@@ -65,7 +72,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def extract_cells(
         self,
-        ind: Any,
+        ind: VectorLike[int],
         invert: bool = False,
         add_original_index: bool = True,
         pass_point_data: bool = False,
@@ -84,14 +91,14 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def convert_elemental2nodal(
         self,
-        elemental_data: torch.Tensor,
+        elemental_data: pt.PhlowerTensor,
         mode: Literal["mean", "conservative"] = "mean",
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Convert elemental data to nodal data.
 
         Parameters
         ----------
-        elemental_data: torch.Tensor
+        elemental_data: pt.PhlowerTensor
             elemental data to convert.
         mode: "mean", or "conservative", default: "mean"
             The way to convert.
@@ -109,21 +116,21 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor
+        pt.PhlowerTensor
         """
         pass
 
     @abc.abstractmethod
     def convert_nodal2elemental(
         self,
-        nodal_data: torch.Tensor,
+        nodal_data: pt.PhlowerTensor,
         mode: Literal["mean", "conservative"] = "mean",
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Convert nodal data to elemental data.
 
         Parameters
         ----------
-        nodal_data: torch.Tensor
+        nodal_data: pt.PhlowerTensor
             nodal data to convert.
         mode: "mean", or "conservative", default: "mean"
             The way to convert.
@@ -141,22 +148,22 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor
+        pt.PhlowerTensor
         """
         pass
 
     @abc.abstractmethod
     def compute_median(
         self,
-        data: torch.Tensor,
+        data: pt.PhlowerTensor,
         mode: Literal["elemental", "nodal"] = "elemental",
         n_hop: int = 1,
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Perform median filter according with adjacency of the mesh.
 
         Parameters
         ----------
-        data: torch.Tensor
+        data: pt.PhlowerTensor
             data to be filtered.
         mode: str, "elemental", or "nodal", default: "elemental"
             specify the mode of the data.
@@ -165,12 +172,12 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor
+        pt.PhlowerTensor
         """
         pass
 
     @abc.abstractmethod
-    def compute_area_vecs(self) -> torch.Tensor:
+    def compute_area_vecs(self) -> pt.PhlowerTensor:
         """Compute (n_elements, dims)-shaped area vectors.
 
         Available celltypes are:
@@ -178,12 +185,14 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
+        pt.PhlowerTensor
         """
         pass
 
     @abc.abstractmethod
-    def compute_areas(self, allow_negative_area: bool = False) -> torch.Tensor:
+    def compute_areas(
+        self, allow_negative_area: bool = False
+    ) -> pt.PhlowerTensor:
         """Compute (n_elements,)-shaped areas.
 
         Available celltypes are:
@@ -195,14 +204,14 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
+        pt.PhlowerTensor
         """
         pass
 
     @abc.abstractmethod
     def compute_volumes(
         self, allow_negative_volume: bool = True
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Compute (n_elements,)-shaped volumes.
 
         Available celltypes are:
@@ -216,12 +225,12 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
+        pt.PhlowerTensor
         """
         pass
 
     @abc.abstractmethod
-    def compute_normals(self) -> torch.Tensor:
+    def compute_normals(self) -> pt.PhlowerTensor:
         """Compute (n_elements, dims)-shaped normals.
 
         Available celltypes are:
@@ -229,12 +238,12 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
+        pt.PhlowerTensor
         """
         pass
 
     @abc.abstractmethod
-    def compute_surface_volume(self) -> torch.Tensor:
+    def compute_surface_volume(self) -> pt.PhlowerTensor:
         """Compute (1,)-shaped surface volume.
 
         Available celltypes are:
@@ -242,7 +251,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
+        pt.PhlowerTensor
         """
         pass
 
@@ -252,7 +261,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
         normal_interp_mode: Literal["mean", "conservative"] = "conservative",
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+    ) -> tuple[pt.PhlowerTensor, pt.PhlowerTensor | None]:
         """Compute (dims, n_points, n_points)-shaped isoAM.
 
         Parameters
@@ -272,9 +281,9 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        isoAM: torch.Tensor | None
-            (dims, n_points, n_points)-shaped sparse csr tensor
-        Minv: torch.Tensor | None
+        isoAM: pt.PhlowerTensor | None
+            (dims, n_points, n_points)-shaped sparse coo tensor
+        Minv: pt.PhlowerTensor | None
             if `with_moment_matrix` is True,
                 return (n_points, dims, dims)-shaped tensor
             if `with_moment_matrix` is False,
@@ -289,7 +298,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
         normal_interp_mode: Literal["mean", "conservative"] = "conservative",
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
+    ) -> tuple[pt.PhlowerTensor, pt.PhlowerTensor, pt.PhlowerTensor | None]:
         """Compute (dims, n_points, n_points)-shaped
         Neumann boundary model IsoAM.
 
@@ -312,11 +321,11 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        NIsoAM: torch.Tensor
-            (dims, n_points, n_points)-shaped sparse csr tensor
-        weighted_normals: torch.Tensor
+        NIsoAM: pt.PhlowerTensor
+            (dims, n_points, n_points)-shaped sparse coo tensor
+        weighted_normals: pt.PhlowerTensor
             (n_points, dims)-shaped tensor
-        Minv: torch.Tensor | None
+        Minv: pt.PhlowerTensor | None
             if `with_moment_matrix` is True,
                 return (n_points, dims, dims)-shaped tensor
             if `with_moment_matrix` is False,
@@ -327,9 +336,9 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def compute_cell_point_incidence(
         self, refresh_cache: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Compute (n_cells, n_points)-shaped sparse incidence matrix.
-        The method is cached.
+        The result is cached in the mesh object.
 
         Parameters
         ----------
@@ -339,17 +348,17 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
-            (n_cells, n_points)-shaped sparse csr tensor.
+        pt.PhlowerTensor
+            (n_cells, n_points)-shaped sparse coo tensor.
         """
         pass
 
     @abc.abstractmethod
     def compute_cell_adjacency(
         self, refresh_cache: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Compute (n_cells, n_cells)-shaped sparse adjacency matrix including
-        self-loops. The method is cached.
+        self-loops. The result is cached in the mesh object.
 
         Parameters
         ----------
@@ -359,17 +368,17 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
-            (n_cells, n_cells)-shaped sparse csr tensor.
+        pt.PhlowerTensor
+            (n_cells, n_cells)-shaped sparse coo tensor.
         """
         pass
 
     @abc.abstractmethod
     def compute_point_adjacency(
         self, refresh_cache: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Compute (n_points, n_points)-shaped sparse adjacency matrix
-        including self-loops. The method is cached.
+        including self-loops. The result is cached in the mesh object.
 
         Parameters
         ----------
@@ -379,14 +388,17 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
-            (n_points, n_points)-shaped sparse csr tensor.
+        pt.PhlowerTensor
+            (n_points, n_points)-shaped sparse coo tensor.
         """
         pass
 
     @abc.abstractmethod
-    def compute_point_degree(self, refresh_cache: bool = False) -> torch.Tensor:
+    def compute_point_degree(
+        self, refresh_cache: bool = False
+    ) -> pt.PhlowerTensor:
         """Compute (n_points, n_points)-shaped degree matrix.
+        The result is cached in the mesh object.
 
         Parameters
         ----------
@@ -396,14 +408,17 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
-            (n_points, n_points)-shaped sparse csr tensor.
+        pt.PhlowerTensor
+            (n_points, n_points)-shaped sparse coo tensor.
         """
         pass
 
     @abc.abstractmethod
-    def compute_cell_degree(self, refresh_cache: bool = False) -> torch.Tensor:
+    def compute_cell_degree(
+        self, refresh_cache: bool = False
+    ) -> pt.PhlowerTensor:
         """Compute (n_cells, n_cells)-shaped degree matrix.
+        The result is cached in the mesh object.
 
         Parameters
         ----------
@@ -413,16 +428,17 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
-            (n_cells, n_cells)-shaped sparse csr tensor.
+        pt.PhlowerTensor
+            (n_cells, n_cells)-shaped sparse coo tensor.
         """
         pass
 
     @abc.abstractmethod
     def compute_normalized_point_adjacency(
         self, refresh_cache: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Compute (n_points, n_points)-shaped normalized adjacency matrix.
+        The result is cached in the mesh object.
 
         Parameters
         ----------
@@ -432,16 +448,17 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
-            (n_points, n_points)-shaped sparse csr tensor.
+        pt.PhlowerTensor
+            (n_points, n_points)-shaped sparse coo tensor.
         """
         pass
 
     @abc.abstractmethod
     def compute_normalized_cell_adjacency(
         self, refresh_cache: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Compute (n_cells, n_cells)-shaped normalized adjacency matrix.
+        The result is cached in the mesh object.
 
         Parameters
         ----------
@@ -451,15 +468,15 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
-            (n_cells, n_cells)-shaped sparse csr tensor.
+        pt.PhlowerTensor
+            (n_cells, n_cells)-shaped sparse coo tensor.
         """
         pass
 
     @abc.abstractmethod
     def compute_point_relative_incidence(
         self, other_mesh: IReadOnlyGraphlowMesh
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Compute (n_points_other, n_points_self)-shaped sparse incidence
         matrix based on points.
 
@@ -470,8 +487,8 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
-            (n_points_other, n_points_self)-shaped sparse csr tensor.
+        pt.PhlowerTensor
+            (n_points_other, n_points_self)-shaped sparse coo tensor.
         """
         pass
 
@@ -480,7 +497,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         self,
         other_mesh: IReadOnlyGraphlowMesh,
         minimum_n_sharing: int | None = None,
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Compute (n_cells_other, n_cells_self)-shaped sparse incidence
         matrix based on cells.
 
@@ -494,23 +511,26 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        torch.Tensor[float]
-            (n_cells_other, n_cells_self)-shaped sparse csr tensor.
+        pt.PhlowerTensor
+            (n_cells_other, n_cells_self)-shaped sparse coo tensor.
         """
         pass
 
     @abc.abstractmethod
-    def compute_facet_cell_incidence(self, cache: bool = True) -> torch.Tensor:
+    def compute_facet_cell_incidence(
+        self, refresh_cache: bool = False
+    ) -> pt.PhlowerTensor:
         """Compute (n_facets, n_cells)-shaped sparse incidence matrix.
 
         Parameters
         ----------
-        cache: bool, optional [True]
-            If True, the result is cached.
+        refresh_cache: bool, optional [False]
+            If True, recompute the incidence matrix.
+            Otherwise, return the cached result if available.
 
         Returns
         -------
-        torch.Tensor[float]
-            (n_facets, n_cells)-shaped sparse csr tensor.
+        pt.PhlowerTensor
+            (n_facets, n_cells)-shaped sparse coo tensor.
         """
         pass

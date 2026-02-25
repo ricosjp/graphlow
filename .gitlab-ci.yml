@@ -1,5 +1,5 @@
 variables:
-  PYTHON_VERSION: "3.10"
+  PYTHON_VERSION: "3.11"
   BASE_LAYER: bookworm-slim
   # GitLab CI creates a separate mountpoint for the build directory,
   # so we need to copy instead of using hard links.
@@ -16,7 +16,7 @@ lint:
   stage: test
   before_script:
     - apt update
-    - apt install -y make
+    - apt install -y make git
     - make install
   script:
     - make lint
@@ -27,7 +27,7 @@ cpu-pytest:
   stage: test
   before_script:
     - apt update
-    - apt install -y make libx11-6 libgl1-mesa-glx libxrender1
+    - apt install -y make libx11-6 libgl1-mesa-glx libxrender1 git
     - make install
   script:
     - make cpu-test
@@ -47,7 +47,7 @@ gpu_pytest:
   image: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
   before_script:
     - apt update
-    - apt install -y make
+    - apt install -y make git
     - pip install uv
     - make install
   script:
@@ -59,6 +59,21 @@ gpu_pytest:
   tags:
     - gpu
 
+slow-pytest:
+  stage: test
+  before_script:
+    - apt update
+    - apt install -y make git
+    - make install
+  script:
+    - make slow-test
+  tags:
+    - no-gpu
+    - GenuineIntel
+    - avx2
+    - cpu-ge-8
+    - mem-ge-32gb
+
 coverage:
   stage: test
   needs:
@@ -66,10 +81,15 @@ coverage:
       artifacts: true
     - job: gpu_pytest
       artifacts: true
+  before_script:
+    - apt update
+    - apt install -y make git
+    - make install
   script:
     - uv run coverage combine .coverage.cpu .coverage.gpu
+    - uv run coverage report
     - uv run coverage html -d coverage
-    - uv run coverage xml
+    - uv run coverage xml -o coverage/coverage.xml
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     expose_as: coverage
@@ -78,7 +98,7 @@ coverage:
     reports:
       coverage_report:
         coverage_format: cobertura
-        path: coverage.xml
+        path: coverage/coverage.xml
   tags:
     - no-gpu
     - GenuineIntel
@@ -90,7 +110,7 @@ pages:
   stage: deploy
   before_script:
     - apt update
-    - apt install -y make xvfb libgl1-mesa-glx
+    - apt install -y make xvfb libgl1-mesa-glx git
     - make install
   script:
     - make document

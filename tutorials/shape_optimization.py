@@ -14,9 +14,11 @@ while constraining volume changes and vertex deformation.
 
 ###############################################################################
 # Import necessary modules including :mod:`graphlow`.
+# ---------------------------------------------------
 import itertools
 
 import numpy as np
+import phlower_tensor as pt
 import pyvista as pv
 import torch
 
@@ -24,10 +26,10 @@ import graphlow
 
 
 ###############################################################################
-# Prepare a volumetric mesh
-# --------------------------
-# First, we define a function to generate grid data as the example mesh.
-# If you wish to use your own mesh, you can skip this step.
+# Mesh: create a hexahedral grid
+# ------------------------------
+# Helper to build an example volumetric mesh. You can replace this with
+# your own mesh (e.g. loaded from a file).
 def generate_grid(ni: int, nj: int, nk: int) -> pv.UnstructuredGrid:
     n_cells = (ni - 1) * (nj - 1) * (nk - 1)
 
@@ -60,19 +62,25 @@ def generate_grid(ni: int, nj: int, nk: int) -> pv.UnstructuredGrid:
 
 
 ###############################################################################
-# Define the cost function
-# ------------------------
-# To minimize surface area with constraints,
-# we defined the cost function as follows:
-weight_deformation_constraint = 1.0
-weight_volume_constraint = 10.0
+# Cost function
+# -------------
+# We minimize **surface area** and penalize:
+# - change in total volume (keep volume roughly constant),
+# - large vertex deformations (keep the shape smooth).
+WEIGHT_VOLUME = 10.0
+WEIGHT_DEFORMATION = 1.0
 
 
 def cost_function(
     mesh: graphlow.GraphlowMesh,
     init_total_volume: float,
     init_surface_total_area: float,
-) -> torch.Tensor:
+) -> pt.PhlowerTensor | None:
+    """
+    Cost = (area term) + (volume penalty) + (deformation penalty).
+
+    Returns None if any cell volume is too small (numerical safeguard).
+    """
     deformation = mesh.dict_point_tensor["deformation"]
     surface = mesh.extract_surface(pass_point_data=True)
 
@@ -82,25 +90,30 @@ def cost_function(
     total_volume = torch.sum(volumes)
     total_area = torch.sum(areas)
 
-    if torch.any(volumes < 1e-3 * init_total_volume / mesh.n_cells):
+    # Avoid inverting nearly-degenerate cells
+    min_volume_ratio = 1e-3
+    min_vol = min_volume_ratio * init_total_volume / mesh.n_cells
+    if torch.any(volumes.to_tensor() < min_vol.to_tensor()):
         return None
 
-    cost_area = total_area / init_surface_total_area
-    volume_constraint = (
+    # Normalized terms (order of magnitude ~1)
+    area_term = total_area / init_surface_total_area
+    volume_penalty = (
         (total_volume - init_total_volume) / init_total_volume
     ) ** 2
-    deformation_constraint = torch.mean(deformation * deformation)
+    def_t = deformation.to_tensor()
+    deformation_penalty = torch.mean(def_t * def_t)
+
     return (
-        cost_area
-        + weight_volume_constraint * volume_constraint
-        + weight_deformation_constraint * deformation_constraint
+        area_term
+        + WEIGHT_VOLUME * volume_penalty
+        + WEIGHT_DEFORMATION * deformation_penalty
     )
 
 
 ###############################################################################
-# Visualize
-# ---------
-# Following code generate gif plotter to visualize the result.
+# Visualization: export optimization progress as GIF
+# --------------------------------------------------
 def create_gif_plotter(mesh: pv.UnstructuredGrid) -> pv.Plotter:
     plotter = pv.Plotter(window_size=[800, 600])
     init_mesh = mesh.copy()
@@ -116,27 +129,28 @@ def create_gif_plotter(mesh: pv.UnstructuredGrid) -> pv.Plotter:
 
 
 ###############################################################################
-# Once the cost function and the visualizing function are determined,
-# the remaining step is to write the optimization code
-# that updates the points and deformations
-#
-# This is the example of the optimization code.
-def optimize_shape(input_mesh: pv.UnstructuredGrid):
-    # Optimization setting
-    n_optimization = 2000
-    print_period = int(n_optimization / 100)
+# Optimization loop
+# -----------------
+# 1. Build mesh and keep initial geometry (points, total volume, surface area).
+# 2. Deformation = small MLP: W2 @ tanh(points @ W1).
+# 3. Deformed mesh: points_new = points_init + deformation(points_init).
+# 4. Minimize cost (area + volume/deformation penalties) by gradient descent.
+def optimize_shape(input_mesh: pv.UnstructuredGrid) -> None:
+    # --- Hyperparameters ---
+    n_steps = 2000
+    print_every = max(1, n_steps // 100)
     n_hidden = 64
-    deformation_factor = 1.0
-    lr = 1e-2
-    output_activation = torch.nn.Identity()
+    learning_rate = 1e-2
+    deformation_scale = 1.0  # Reduced if cells become too flat
 
-    # Initialize
+    # --- Center the mesh at the origin ---
     input_mesh.points = input_mesh.points - np.mean(
         input_mesh.points, axis=0, keepdims=True
-    )  # Center mesh position
+    )
 
     mesh = graphlow.GraphlowMesh(input_mesh)
 
+    # --- Reference values (used in the cost) ---
     init_volumes = mesh.compute_volumes().clone()
     init_total_volume = torch.sum(init_volumes)
     init_points = mesh.points.clone()
@@ -145,28 +159,32 @@ def optimize_shape(input_mesh: pv.UnstructuredGrid):
     init_surface_areas = init_surface.compute_areas().clone()
     init_surface_total_area = torch.sum(init_surface_areas)
 
+    # --- Deformation network: (N,3) -> (N,n_hidden) -> (N,3) ---
     w1 = torch.nn.Parameter(torch.randn(3, n_hidden) / n_hidden**0.5)
     w2 = torch.nn.Parameter(torch.randn(n_hidden, 3) / n_hidden**0.5)
-    params = [w1, w2]
-    optimizer = torch.optim.Adam(params, lr=lr)
+    optimizer = torch.optim.Adam([w1, w2], lr=learning_rate)
+    output_activation = torch.nn.Identity()
 
-    def compute_deformation(points: torch.Tensor) -> torch.Tensor:
-        hidden = torch.tanh(torch.einsum("np,pq->nq", points, w1))
-        deformation = output_activation(torch.einsum("np,pq->nq", hidden, w2))
-        return deformation_factor * deformation
+    def compute_deformation(points: pt.PhlowerTensor) -> pt.PhlowerTensor:
+        hidden = torch.tanh(points.to_tensor() @ w1)
+        out = pt.phlower_tensor(
+            output_activation(hidden @ w2), dimension=points.dimension
+        )
+        return deformation_scale * out
 
+    # --- Initial frame for GIF ---
     deformation = compute_deformation(init_points)
     mesh.dict_point_tensor.update({"deformation": deformation}, overwrite=True)
-
     mesh.copy_features_to_pyvista(overwrite=True)
-    mesh.pvmesh.points = mesh.points.detach().numpy()
+    mesh.pvmesh.points = mesh.points.numpy()
     plotter = create_gif_plotter(mesh.pvmesh)
     plotter.write_frame()
 
-    # Optimization loop
-    print(f"\ninitial volume: {torch.sum(mesh.compute_volumes()):.5f}")
+    # --- Minimize cost ---
+    init_vol_display = torch.sum(mesh.compute_volumes()).to_tensor()
+    print(f"\nInitial total volume: {init_vol_display:.5f}")
     print("     i,        cost")
-    for i in range(1, n_optimization + 1):
+    for i in range(1, n_steps + 1):
         optimizer.zero_grad()
 
         deformation = compute_deformation(init_points)
@@ -179,19 +197,22 @@ def optimize_shape(input_mesh: pv.UnstructuredGrid):
             {"points": deformed_points}, overwrite=True
         )
         cost = cost_function(mesh, init_total_volume, init_surface_total_area)
+
         if cost is None:
-            deformation_factor = deformation_factor * 0.9
-            print(f"update deformation_factor: {deformation_factor}")
+            # Cell too thin -> reduce deformation scale and retry
+            deformation_scale *= 0.9
+            print(f"  Scale reduced to {deformation_scale:.3f}; retry step.")
             continue
 
-        if i % print_period == 0:
-            print(f"{i:6d}, {cost:.5e}")
+        if i % print_every == 0:
+            print(f"{i:6d}, {cost.to_tensor().item():.5e}")
             mesh.copy_features_to_pyvista(overwrite=True)
-            mesh.pvmesh.points = mesh.points.detach().numpy()
+            mesh.pvmesh.points = mesh.points.numpy()
             plotter.write_frame()
 
         cost.backward()
         optimizer.step()
+
     plotter.close()
 
 

@@ -5,7 +5,7 @@ Quickstart
 Installation
 --------------
 
-**graphlow** can be installed with pip. Python 3.10 or newer is supported.
+**graphlow** can be installed with pip. Python 3.11 or newer is supported.
 
 .. code-block:: bash
 

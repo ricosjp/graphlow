@@ -3,12 +3,12 @@ import pathlib
 import shutil
 
 import numpy as np
+import phlower_tensor as pt
 import pytest
 import pyvista as pv
 import torch
 
 import graphlow
-from graphlow.util import array_handler
 from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -135,12 +135,14 @@ def test__convert_elemental2nodal_mean(file_name: pathlib.Path, device: str):
     volmesh.send(device=torch.device(device))
     cell_volumes = volmesh.compute_volumes()
     nodal_vols = volmesh.convert_elemental2nodal(cell_volumes)
+    assert nodal_vols.dimension == pt.phlower_dimension_tensor({"L": 3})
+
     desired = (
-        volmesh.pvmesh.compute_cell_quality(quality_measure="volume")
+        volmesh.pvmesh.cell_quality(quality_measure="volume")
         .cell_data_to_point_data()
-        .point_data["CellQuality"]
+        .point_data["volume"]
     )
-    actual = array_handler.convert_to_numpy_scipy(nodal_vols)
+    actual = nodal_vols.to_tensor().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -163,7 +165,9 @@ def test__convert_elemental2nodal_conservative(
     nodal_vols = volmesh.convert_elemental2nodal(
         cell_volumes, mode="conservative"
     )
-    actual = array_handler.convert_to_numpy_scipy(nodal_vols)
+    assert nodal_vols.dimension == pt.phlower_dimension_tensor({"L": 3})
+
+    actual = nodal_vols.to_tensor().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -178,9 +182,10 @@ def test__convert_nodal2elemental_mean(file_name: pathlib.Path, device: str):
     volmesh = graphlow.read(file_name)
     volmesh.send(device=torch.device(device))
     elem_points = volmesh.convert_nodal2elemental(volmesh.points)
-    desired = volmesh.pvmesh.cell_centers().points
+    assert elem_points.dimension == pt.phlower_dimension_tensor({"L": 1})
 
-    actual = array_handler.convert_to_numpy_scipy(elem_points)
+    actual = elem_points.to_tensor().numpy()
+    desired = volmesh.pvmesh.cell_centers().points
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -202,7 +207,9 @@ def test__convert_nodal2elemental_conservative(
     elem_points = volmesh.convert_nodal2elemental(
         volmesh.points, mode="conservative"
     )
-    actual = array_handler.convert_to_numpy_scipy(elem_points)
+    assert elem_points.dimension == pt.phlower_dimension_tensor({"L": 1})
+
+    actual = elem_points.to_tensor().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -232,7 +239,9 @@ def test__compute_area_vecs(
     volmesh.send(device=torch.device(device))
     surfmesh = volmesh.extract_surface()
     area_vecs = surfmesh.compute_area_vecs()
-    actual = array_handler.convert_to_numpy_scipy(area_vecs)
+    assert area_vecs.dimension == pt.phlower_dimension_tensor({"L": 2})
+
+    actual = area_vecs.to_tensor().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -269,10 +278,11 @@ def test__compute_median_nodal(
 ):
     volmesh = graphlow.read(file_name)
     volmesh.send(device=torch.device(device))
-    filtered_data = volmesh.compute_median(
-        torch.from_numpy(data).to(device), mode="nodal", n_hop=n_hop
-    )
-    actual = array_handler.convert_to_numpy_scipy(filtered_data)
+    data = pt.phlower_tensor(data, dimension={"L": 1})
+    filtered_data = volmesh.compute_median(data, mode="nodal", n_hop=n_hop)
+    assert filtered_data.dimension == pt.phlower_dimension_tensor({"L": 1})
+
+    actual = filtered_data.to_tensor().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -309,10 +319,11 @@ def test__compute_median_for_elemental(
 ):
     volmesh = graphlow.read(file_name)
     volmesh.send(device=torch.device(device))
-    filtered_data = volmesh.compute_median(
-        torch.from_numpy(data).to(device), mode="elemental", n_hop=n_hop
-    )
-    actual = array_handler.convert_to_numpy_scipy(filtered_data)
+    data = pt.phlower_tensor(data, dimension={"L": 1})
+    filtered_data = volmesh.compute_median(data, mode="elemental", n_hop=n_hop)
+    assert filtered_data.dimension == pt.phlower_dimension_tensor({"L": 1})
+
+    actual = filtered_data.to_tensor().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -337,8 +348,10 @@ def test__compute_areas(file_name: pathlib.Path, device: str):
     volmesh.send(device=torch.device(device))
     surfmesh = volmesh.extract_surface()
     cell_areas = surfmesh.compute_areas()
+    assert cell_areas.dimension == pt.phlower_dimension_tensor({"L": 2})
+
     desired = surfmesh.pvmesh.compute_cell_sizes().cell_data["Area"]
-    actual = array_handler.convert_to_numpy_scipy(cell_areas)
+    actual = cell_areas.to_tensor().numpy()
     np.testing.assert_almost_equal(actual, desired, decimal=4)
 
 
@@ -361,11 +374,14 @@ def test__compute_surface_volume(file_name: pathlib.Path, device: str):
     volmesh.send(device=torch.device(device))
     surfmesh = volmesh.extract_surface()
     surface_volume = surfmesh.compute_surface_volume()
+    assert surface_volume.dimension == pt.phlower_dimension_tensor({"L": 3})
 
     pv_volmesh = volmesh.pvmesh
     pv_surfmesh = pv_volmesh.extract_surface()
     pv_surface_volume = pv_surfmesh.volume
-    assert math.isclose(surface_volume, pv_surface_volume, rel_tol=1e-6)
+    assert math.isclose(
+        surface_volume.numpy().item(), pv_surface_volume, rel_tol=1e-6
+    )
 
 
 def test__compute_surface_volume_on_non_watertight_mesh():
@@ -391,79 +407,14 @@ def test__compute_surface_volume_on_non_watertight_mesh():
         pathlib.Path("tests/data/vtu/cube/large.vtu"),
     ],
 )
-def test__compute_volumes(file_name: pathlib.Path, device: str):
-    volmesh = graphlow.read(file_name)
-    volmesh.send(device=torch.device(device))
-    cell_volumes = volmesh.compute_volumes()
-    actual = array_handler.convert_to_numpy_scipy(cell_volumes)
-
-    # See below for why `compute_cell_quality`is used
-    # instead of `compute_cell_sizes`
-    # https://colab.research.google.com/drive/1ZkMbVfN-74ZXbDFO2ocva-JEYin6Ux4b?usp=sharing
-    desired = np.abs(
-        volmesh.pvmesh.compute_cell_quality(quality_measure="volume").cell_data[
-            "CellQuality"
-        ]
-    )
-
-    # fix desired for polyhedron cell
-    # because vtkCellQuality doesn't support vtkPolyhedron
-    for i in range(volmesh.pvmesh.n_cells):
-        cell = volmesh.pvmesh.get_cell(i)
-        celltype = cell.type
-        if celltype == pv.CellType.POLYHEDRON:
-            tet_cell_grid = tetrahedralize_cell_for_test(cell)
-            tet_cell_volumes = np.abs(
-                tet_cell_grid.compute_cell_quality(
-                    quality_measure="volume"
-                ).cell_data["CellQuality"]
-            )
-            desired[i] = np.sum(tet_cell_volumes)
-    np.testing.assert_almost_equal(actual, desired, decimal=4)
-
-
-@pytest.mark.with_device
-@pytest.mark.parametrize(
-    "file_name",
-    [
-        # primitives
-        pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
-        pathlib.Path("tests/data/vtu/primitive_cell/pyramid.vtu"),
-        pathlib.Path("tests/data/vtu/primitive_cell/wedge.vtu"),
-        pathlib.Path("tests/data/vtu/primitive_cell/hex.vtu"),
-        pathlib.Path("tests/data/vtu/primitive_cell/poly.vtu"),
-        pathlib.Path("tests/data/vts/cube/mesh.vts"),
-        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
-        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
-    ],
-)
 def test__compute_signed_volumes(file_name: pathlib.Path, device: str):
     volmesh = graphlow.read(file_name)
     volmesh.send(device=torch.device(device))
     cell_volumes = volmesh.compute_volumes()
-    actual = array_handler.convert_to_numpy_scipy(cell_volumes)
+    assert cell_volumes.dimension == pt.phlower_dimension_tensor({"L": 3})
 
-    # See below for why `compute_cell_quality`is used
-    # instead of `compute_cell_sizes`
-    # https://colab.research.google.com/drive/1ZkMbVfN-74ZXbDFO2ocva-JEYin6Ux4b?usp=sharing
-    desired = volmesh.pvmesh.compute_cell_quality(
-        quality_measure="volume"
-    ).cell_data["CellQuality"]
-
-    # fix desired for polyhedron cell
-    # because vtkCellQuality doesn't support vtkPolyhedron
-    celltypes = volmesh.pvmesh.celltypes
-    poly_mask = celltypes == pv.CellType.POLYHEDRON
-    if np.any(poly_mask):
-        polys = volmesh.pvmesh.extract_cells(
-            poly_mask
-        ).cast_to_unstructured_grid()
-        # HACK `compute_cell_quality` should be used here,
-        # but since it would follow the same implementation as we developed,
-        # `compute_cell_sizes` is being used instead.
-        # `compute_cell_sizes` returns correct results for non-twisted cells,
-        # so there is generally no issue.
-        desired[poly_mask] = polys.compute_cell_sizes().cell_data["Volume"]
+    actual = cell_volumes.to_tensor().numpy()
+    desired = volmesh.pvmesh.compute_cell_sizes().cell_data["Volume"]
     np.testing.assert_almost_equal(actual, desired, decimal=4)
 
 
@@ -490,13 +441,17 @@ def test__compute_normals(file_name: pathlib.Path, device: str):
 
     # implemented
     surf_normals = surf.compute_normals()
+    assert surf_normals.dimension == pt.phlower_dimension_tensor({})
+
     facets_normals = facets.compute_normals()
-    actual_surf_normals = array_handler.convert_to_numpy_scipy(surf_normals)
-    actual_facets_normals = array_handler.convert_to_numpy_scipy(facets_normals)
+    assert facets_normals.dimension == pt.phlower_dimension_tensor({})
+
+    actual_surf_normals = surf_normals.to_tensor().numpy()
+    actual_facets_normals = facets_normals.to_tensor().numpy()
 
     # desired
     desired_surf_normals = (
-        surf.pvmesh.extract_surface()
+        surf.pvmesh.extract_surface(algorithm="dataset_surface")
         .compute_normals(
             cell_normals=True,
         )
@@ -504,7 +459,7 @@ def test__compute_normals(file_name: pathlib.Path, device: str):
     )
 
     desired_facets_normals = (
-        facets.pvmesh.extract_surface()
+        facets.pvmesh.extract_surface(algorithm="dataset_surface")
         .compute_normals(
             cell_normals=True,
             # consistent_normals is invalid for internal face
@@ -533,12 +488,12 @@ def test__compute_normals(file_name: pathlib.Path, device: str):
 def test__volume_gradient(file_name: pathlib.Path, device: str):
     volmesh = graphlow.read(file_name)
     volmesh.send(device=torch.device(device))
-    volmesh.points.requires_grad_(True)
+    volmesh.points.to_tensor().requires_grad_(True)
     cell_volumes = volmesh.compute_volumes()
     total_volume = torch.sum(cell_volumes)
     total_volume.backward()
 
-    vol_grad = volmesh.points.grad
+    vol_grad = volmesh.points.to_tensor().grad
 
     for i in range(volmesh.pvmesh.n_cells):
         cell = volmesh.pvmesh.get_cell(i)
@@ -547,13 +502,13 @@ def test__volume_gradient(file_name: pathlib.Path, device: str):
             dV = torch.abs(torch.sum(vol_grad[pids]))
             area = (
                 face.cast_to_unstructured_grid()
-                .compute_cell_quality("area")
-                .cell_data["CellQuality"]
+                .cell_quality(quality_measure="area")
+                .cell_data["area"]
             )
-            np_dV = array_handler.convert_to_numpy_scipy(dV)
-            np.testing.assert_equal(np_dV, area)
+            np.testing.assert_equal(dV.detach().numpy(), area)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "file_name, n_optimization, use_bias, threshold",
     [
@@ -629,8 +584,9 @@ def test__optimize_area_volume(
     optimizer = torch.optim.Adam(params, lr=lr)
 
     def cost_function(
-        deformed_points: torch.Tensor, surface_deformed_points: torch.Tensor
-    ) -> torch.Tensor:
+        deformed_points: pt.PhlowerTensor,
+        surface_deformed_points: pt.PhlowerTensor,
+    ) -> pt.PhlowerTensor:
         mesh.dict_point_tensor.update(
             {"points": deformed_points}, overwrite=True
         )
@@ -644,7 +600,10 @@ def test__optimize_area_volume(
         total_area = torch.sum(areas)
         deformation = deformed_points - initial_points
 
-        if torch.any(volumes < 1e-3 * initial_total_volume / mesh.n_cells):
+        if torch.any(
+            volumes.to_tensor()
+            < 1e-3 * initial_total_volume.to_tensor() / mesh.n_cells
+        ):
             return None, None, None
 
         cost_area = total_area / surface_initial_total_area
@@ -665,10 +624,10 @@ def test__optimize_area_volume(
             total_volume,
         )
 
-    def compute_deformed_points(points: torch.Tensor) -> torch.Tensor:
-        hidden = torch.tanh(torch.einsum("np,pq->nq", points, w1) + b1)
-        deformation = output_activation(
-            torch.einsum("np,pq->nq", hidden, w2) + b2
+    def compute_deformed_points(points: pt.PhlowerTensor) -> pt.PhlowerTensor:
+        hidden = torch.tanh(points.to_tensor() @ w1 + b1)
+        deformation = pt.phlower_tensor(
+            output_activation(hidden @ w2 + b2), dimension=points.dimension
         )
         return points + deformation * deformation_factor
 
@@ -684,7 +643,7 @@ def test__optimize_area_volume(
         )
 
     # Optimization loop
-    logger.info(f"\ninitial volume: {initial_total_volume:.5f}")
+    logger.info(f"\ninitial volume: {initial_total_volume.to_tensor():.5f}")
     logger.info("     i,        area, volume ratio,        cost")
     for i in range(1, n_optimization + 1):
         optimizer.zero_grad()
@@ -704,7 +663,11 @@ def test__optimize_area_volume(
 
         if i % print_period == 0:
             volume_ratio = volume / initial_total_volume
-            logger.info(f"{i:6d}, {area:.5e},  {volume_ratio:.5e}, {cost:.5e}")
+            logger.info(
+                f"{i:6d}, {area.to_tensor():.5e},  \
+                          {volume_ratio.to_tensor():.5e}, \
+                          {cost.to_tensor():.5e}"
+            )
             mesh.dict_point_tensor.update(
                 {"deformation": deformed_points - initial_points},
                 overwrite=True,
@@ -720,7 +683,9 @@ def test__optimize_area_volume(
         optimizer.step()
 
     actual_radius = (
-        torch.mean(torch.norm(surface_deformed_points, dim=1)).detach().numpy()
+        torch.mean(torch.linalg.norm(surface_deformed_points, dim=1))
+        .detach()
+        .numpy()
     )
     desired_radius = (initial_total_volume.numpy() * 3 / 4 / np.pi) ** (1 / 3)
     relative_error = (actual_radius - desired_radius) ** 2 / desired_radius**2

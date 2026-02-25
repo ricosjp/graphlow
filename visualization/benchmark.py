@@ -218,7 +218,7 @@ def plot_volume_polyratio_vs_time(
 
 if __name__ == "__main__":
     benchmark_dir = pathlib.Path(
-        "tests/outputs/benchmark/Linux-CPython-3.10-64bit"
+        "tests/outputs/benchmark/Linux-CPython-3.11-64bit"
     )
     output_dir = pathlib.Path("tests/outputs/benchmark")
     files = benchmark_dir.glob("*.json")
