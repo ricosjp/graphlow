@@ -1,11 +1,13 @@
 from typing import Literal
 
 import numpy as np
+import phlower_tensor as pt
 import pyvista as pv
 import torch
 
 from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
 from graphlow.util.logger import get_logger
+from graphlow.util.phlower_helper import phlower_repeat
 
 logger = get_logger(__name__)
 
@@ -19,15 +21,15 @@ class GeometryProcessor:
     def convert_elemental2nodal(
         self,
         mesh: IReadOnlyGraphlowMesh,
-        elemental_data: torch.Tensor,
+        elemental_data: pt.PhlowerTensor,
         mode: Literal["mean", "conservative"] = "mean",
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Convert elemental data to nodal data.
 
         Parameters
         ----------
         mesh: GraphlowMesh
-        elemental_data: torch.Tensor
+        elemental_data: pt.PhlowerTensor
             elemental data to convert.
         mode: "mean", or "conservative", default: "mean"
             The way to convert.
@@ -45,22 +47,26 @@ class GeometryProcessor:
 
         Returns
         -------
-        torch.Tensor
+        pt.PhlowerTensor
         """
-        pc_inc = (
-            mesh.compute_cell_point_incidence().to_sparse_coo().T
+        pc_inc = mesh.compute_cell_point_incidence().transpose(
+            0, 1
         )  # (n_points, n_cells)
         if mode == "mean":
-            n_connected_cells = pc_inc.sum(dim=1).to_dense()  # (n_points, )
-            mean_pc_inc = pc_inc * n_connected_cells.pow(-1).unsqueeze(
+            n_cells_per_point = (
+                pc_inc.to_tensor().sum(dim=1).to_dense()
+            )  # (n_points,)
+            mean_pc_inc = pc_inc * n_cells_per_point.reciprocal().unsqueeze(
                 1
             )  # (n_points, n_cells)
             nodal_data = mean_pc_inc @ elemental_data
             return nodal_data
         if mode == "conservative":
-            n_points_in_cells = pc_inc.sum(dim=0).to_dense()  # (n_cells,)
-            conservative_pc_inc = pc_inc * n_points_in_cells.pow(-1).unsqueeze(
-                0
+            n_points_per_cell = (
+                pc_inc.to_tensor().sum(dim=0).to_dense()
+            )  # (n_cells,)
+            conservative_pc_inc = (
+                pc_inc * n_points_per_cell.reciprocal().unsqueeze(0)
             )  # (n_points, n_cells)
             nodal_data = conservative_pc_inc @ elemental_data
             return nodal_data
@@ -69,15 +75,15 @@ class GeometryProcessor:
     def convert_nodal2elemental(
         self,
         mesh: IReadOnlyGraphlowMesh,
-        nodal_data: torch.Tensor,
+        nodal_data: pt.PhlowerTensor,
         mode: Literal["mean", "conservative"] = "mean",
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Convert nodal data to elemental data.
 
         Parameters
         ----------
         mesh: GraphlowMesh
-        nodal_data: torch.Tensor
+        nodal_data: pt.PhlowerTensor
             nodal data to convert.
         mode: "mean", or "conservative", default: "mean"
             The way to convert.
@@ -95,22 +101,24 @@ class GeometryProcessor:
 
         Returns
         -------
-        torch.Tensor
+        pt.PhlowerTensor
         """
-        cp_inc = (
-            mesh.compute_cell_point_incidence().to_sparse_coo()
-        )  # (n_cells, n_points)
+        cp_inc = mesh.compute_cell_point_incidence()  # (n_cells, n_points)
         if mode == "mean":
-            n_points_in_cells = cp_inc.sum(dim=1).to_dense()  # (n_cells,)
-            mean_cp_inc = cp_inc * n_points_in_cells.pow(-1).unsqueeze(
+            n_points_per_cell = (
+                cp_inc.to_tensor().sum(dim=1).to_dense()
+            )  # (n_cells,)
+            mean_cp_inc = cp_inc * n_points_per_cell.reciprocal().unsqueeze(
                 1
             )  # (n_cells, n_points)
             nodal_data = mean_cp_inc @ nodal_data
             return nodal_data
         if mode == "conservative":
-            n_connected_nodes = cp_inc.sum(dim=0).to_dense()  # (n_points,)
-            conservative_cp_inc = cp_inc * n_connected_nodes.pow(-1).unsqueeze(
-                0
+            n_cells_per_point = (
+                cp_inc.to_tensor().sum(dim=0).to_dense()
+            )  # (n_points,)
+            conservative_cp_inc = (
+                cp_inc * n_cells_per_point.reciprocal().unsqueeze(0)
             )  # (n_cells, n_points)
             nodal_data = conservative_cp_inc @ nodal_data
             return nodal_data
@@ -119,16 +127,16 @@ class GeometryProcessor:
     def compute_median(
         self,
         mesh: IReadOnlyGraphlowMesh,
-        data: torch.Tensor,
+        data: pt.PhlowerTensor,
         mode: Literal["nodal", "elemental"] = "elemental",
         n_hop: int = 1,
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Perform median filter according with adjacency of the mesh.
 
         Parameters
         ----------
         mesh: GraphlowMesh
-        data: torch.Tensor
+        data: pt.PhlowerTensor
             data to be filtered.
         mode: str, "elemental", or "nodal", default: "elemental"
             specify the mode of the data.
@@ -137,8 +145,10 @@ class GeometryProcessor:
 
         Returns
         -------
-        torch.Tensor
+        pt.PhlowerTensor
         """
+        if n_hop < 0:
+            raise ValueError(f"Invalid n_hop: {n_hop}")
         if n_hop == 0:
             return data
 
@@ -157,21 +167,22 @@ class GeometryProcessor:
 
         N = data.shape[0]
 
-        # torch.linalg.matrix_power for sparse matrix
-        # does not supported power of 1
-        # so we need to handle it separately
-        if n_hop == 1:
-            n_hop_adj = adj
-        else:
-            n_hop_adj = torch.linalg.matrix_power(adj, n_hop)
+        n_hop_adj = adj
+        for _ in range(n_hop - 1):
+            n_hop_adj = n_hop_adj @ adj
 
-        filtered_data = torch.zeros_like(data)
+        out = data.detach().clone()
+        rows, cols = n_hop_adj.indices()
+        # To avoid huge memory consumption, we iterate over the rows
         for i in range(N):
-            nhop_neighbors = n_hop_adj[i].indices().reshape(-1)
-            filtered_data[i] = torch.median(data[nhop_neighbors])
-        return filtered_data
+            nhop_neighbors = cols[rows == i]
+            median_value = torch.median(data[nhop_neighbors])
+            out[i] = median_value
+        return out
 
-    def compute_area_vecs(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
+    def compute_area_vecs(
+        self, mesh: IReadOnlyGraphlowMesh
+    ) -> pt.PhlowerTensor:
         """Compute (n_elements, dims)-shaped area vectors.
 
         Available celltypes are:
@@ -183,18 +194,17 @@ class GeometryProcessor:
 
         Returns
         -------
-        torch.Tensor[float]
+        pt.PhlowerTensor
         """
         area_vecs_by_celltype = {
             pv.CellType.TRIANGLE: self._tri_area_vecs,
             pv.CellType.QUAD: self._quad_area_vecs,
             pv.CellType.POLYGON: self._poly_area_vecs,
         }
-        area_vecs = torch.empty(
-            (mesh.n_cells, mesh.points.shape[1]),
-            device=mesh.device,
-            dtype=mesh.dtype,
-        )
+        area_vecs = pt.phlower_tensor(
+            torch.zeros((mesh.n_cells, mesh.points.shape[1]), dtype=mesh.dtype),
+            dimension={"L": 2},
+        ).to(device=mesh.device)
         celltypes = mesh.pvmesh.celltypes
 
         # non-polygon cells
@@ -220,7 +230,7 @@ class GeometryProcessor:
 
     def compute_areas(
         self, mesh: IReadOnlyGraphlowMesh, allow_negative_area: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Compute (n_elements,)-shaped areas.
 
         Available celltypes are:
@@ -233,18 +243,18 @@ class GeometryProcessor:
 
         Returns
         -------
-        torch.Tensor[float]
+        pt.PhlowerTensor
         """
         area_vecs = mesh.compute_area_vecs()
-        areas = torch.norm(area_vecs, dim=1)
-        if not allow_negative_area and torch.any(areas < 0.0):
-            indices = (areas < 0).nonzero(as_tuple=True)
+        areas: pt.PhlowerTensor = torch.linalg.vector_norm(area_vecs, dim=1)
+        if not allow_negative_area and torch.any(areas.to_tensor() < 0.0):
+            indices = (areas.to_tensor() < 0).nonzero(as_tuple=True)
             raise ValueError(f"Negative area found: cell indices: {indices}")
         return areas
 
     def compute_volumes(
         self, mesh: IReadOnlyGraphlowMesh, allow_negative_volume: bool = True
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Compute (n_elements,)-shaped volumes.
 
         Available celltypes are:
@@ -259,7 +269,7 @@ class GeometryProcessor:
 
         Returns
         -------
-        torch.Tensor[float]
+        pt.PhlowerTensor
         """
         volumes_by_celltype = {
             pv.CellType.TETRA: self._tet_volumes,
@@ -269,9 +279,9 @@ class GeometryProcessor:
             pv.CellType.HEXAHEDRON: self._hex_volumes,
             pv.CellType.POLYHEDRON: self._poly_volumes,
         }
-        volumes = torch.empty(
-            mesh.n_cells, device=mesh.device, dtype=mesh.dtype
-        )
+        volumes = pt.phlower_tensor(
+            torch.zeros(mesh.n_cells, dtype=mesh.dtype), dimension={"L": 3}
+        ).to(device=mesh.device)
         celltypes = mesh.pvmesh.celltypes
 
         # non-polyhedron cells
@@ -296,12 +306,12 @@ class GeometryProcessor:
             )
             volumes[poly_mask] = self._poly_volumes(polys)
 
-        if not allow_negative_volume and torch.any(volumes < 0.0):
-            indices = (volumes < 0).nonzero(as_tuple=True)
+        if not allow_negative_volume and torch.any(volumes.to_tensor() < 0.0):
+            indices = (volumes.to_tensor() < 0).nonzero(as_tuple=True)
             raise ValueError(f"Negative volume found: cell indices: {indices}")
         return volumes
 
-    def compute_normals(self, mesh: IReadOnlyGraphlowMesh) -> torch.Tensor:
+    def compute_normals(self, mesh: IReadOnlyGraphlowMesh) -> pt.PhlowerTensor:
         """Compute (n_elements, dims)-shaped normals.
 
         Available celltypes are:
@@ -313,16 +323,16 @@ class GeometryProcessor:
 
         Returns
         -------
-        torch.Tensor[float]
+        pt.PhlowerTensor
         """
         area_vecs = mesh.compute_area_vecs()
-        areas = torch.norm(area_vecs, dim=1, keepdim=True)
+        areas = torch.linalg.vector_norm(area_vecs, dim=1, keepdim=True)
         normals = area_vecs / areas
         return normals
 
     def compute_surface_volume(
         self, mesh: IReadOnlyGraphlowMesh
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         """Compute (1,)-shaped surface volume.
 
         Available celltypes are:
@@ -334,7 +344,7 @@ class GeometryProcessor:
 
         Returns
         -------
-        torch.Tensor[float]
+        pt.PhlowerTensor
         """
         surface_mesh = mesh.extract_surface(pass_point_data=True)
         boundary = surface_mesh.pvmesh.extract_feature_edges(
@@ -350,11 +360,10 @@ class GeometryProcessor:
             pv.CellType.QUAD: self._quad_cone_volumes,
             pv.CellType.POLYGON: self._poly_cone_volumes,
         }
-        cone_volumes = torch.empty(
-            (surface_mesh.n_cells,),
-            device=surface_mesh.device,
-            dtype=surface_mesh.dtype,
-        )
+        cone_volumes = pt.phlower_tensor(
+            torch.zeros(surface_mesh.n_cells, dtype=surface_mesh.dtype),
+            dimension={"L": 3},
+        ).to(device=surface_mesh.device)
         celltypes = surface_mesh.pvmesh.celltypes
 
         # non-polygon cells
@@ -387,26 +396,27 @@ class GeometryProcessor:
     #
     # Area function
     #
-    def _tri_area_vecs(self, cell_points: torch.Tensor) -> torch.Tensor:
+    def _tri_area_vecs(self, cell_points: pt.PhlowerTensor) -> pt.PhlowerTensor:
         v01 = cell_points[:, 1] - cell_points[:, 0]  # n_cell, dim
         v02 = cell_points[:, 2] - cell_points[:, 0]
         cross = torch.linalg.cross(v01, v02)  # n_cell, dim
         return 0.5 * cross
 
-    def _quad_area_vecs(self, cell_points: torch.Tensor) -> torch.Tensor:
+    def _quad_area_vecs(
+        self, cell_points: pt.PhlowerTensor
+    ) -> pt.PhlowerTensor:
         v1 = cell_points
         v2 = torch.roll(v1, shifts=-1, dims=1)
         cross = torch.linalg.cross(v1, v2)
         return 0.5 * torch.sum(cross, dim=1)
 
     def _poly_area_vecs(
-        self, points: torch.Tensor, polys: IReadOnlyGraphlowMesh
-    ) -> torch.Tensor:
-        area_vecs = torch.empty(
-            (polys.n_cells, points.shape[1]),
-            device=points.device,
-            dtype=points.dtype,
-        )
+        self, points: pt.PhlowerTensor, polys: IReadOnlyGraphlowMesh
+    ) -> pt.PhlowerTensor:
+        area_vecs = pt.phlower_tensor(
+            torch.zeros(polys.n_cells, points.shape[1], dtype=points.dtype),
+            dimension={"L": 2},
+        ).to(device=points.device)
         for i in range(polys.n_cells):
             cell = polys.pvmesh.get_cell(i)
             face = torch.tensor(cell.point_ids, dtype=torch.int)
@@ -419,14 +429,18 @@ class GeometryProcessor:
     #
     # Cone volume function
     #
-    def _tri_cone_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+    def _tri_cone_volumes(
+        self, cell_points: pt.PhlowerTensor
+    ) -> pt.PhlowerTensor:
         v01 = cell_points[:, 1] - cell_points[:, 0]  # n_cell, dim
         v02 = cell_points[:, 2] - cell_points[:, 0]
         cross = torch.linalg.cross(v01, v02)  # n_cell, dim
         v0 = cell_points[:, 0]
         return torch.sum(cross * v0, dim=1) / 6.0
 
-    def _quad_cone_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+    def _quad_cone_volumes(
+        self, cell_points: pt.PhlowerTensor
+    ) -> pt.PhlowerTensor:
         v1 = cell_points  # n_cell, n_point, dim
         v2 = torch.roll(v1, shifts=-1, dims=1)
         cross = torch.sum(torch.linalg.cross(v1, v2), dim=1)  # n_cell, dim
@@ -434,13 +448,12 @@ class GeometryProcessor:
         return torch.sum(cross * v0, dim=1) / 6.0
 
     def _poly_cone_volumes(
-        self, points: torch.Tensor, polys: IReadOnlyGraphlowMesh
-    ) -> torch.Tensor:
-        cone_volumes = torch.empty(
-            (polys.n_cells,),
-            device=points.device,
-            dtype=points.dtype,
-        )
+        self, points: pt.PhlowerTensor, polys: IReadOnlyGraphlowMesh
+    ) -> pt.PhlowerTensor:
+        cone_volumes = pt.phlower_tensor(
+            torch.zeros(polys.n_cells, dtype=points.dtype),
+            dimension={"L": 3},
+        ).to(device=points.device)
         for i in range(polys.n_cells):
             cell = polys.pvmesh.get_cell(i)
             face = torch.tensor(cell.point_ids, dtype=torch.int)
@@ -454,74 +467,83 @@ class GeometryProcessor:
     #
     # Volume function
     #
-    def _tet_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+    def _tet_volumes(self, cell_points: pt.PhlowerTensor) -> pt.PhlowerTensor:
         v01 = cell_points[:, 1] - cell_points[:, 0]  # n_cell, dim
         v02 = cell_points[:, 2] - cell_points[:, 0]
         v03 = cell_points[:, 3] - cell_points[:, 0]
         cross = torch.linalg.cross(v01, v02)  # n_cell, dim
         return torch.sum(cross * v03, dim=1) / 6.0
 
-    def _pyramid_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+    def _pyramid_volumes(
+        self, cell_points: pt.PhlowerTensor
+    ) -> pt.PhlowerTensor:
         quad_idx = torch.tensor([0, 1, 2, 3], dtype=torch.int)
         quads = cell_points[:, quad_idx]  # n_cell, n_point, dim
         quad_centers = torch.mean(quads, dim=1)  # n_cell, dim
         tops = cell_points[:, 4]  # n_cell, dim
         center2top = tops - quad_centers  # n_cell, dim
-        v1 = quads - tops.unsqueeze(1)
+        v1 = quads - torch.unsqueeze(tops, dim=1)
         v2 = torch.roll(v1, shifts=-1, dims=1)
         cross = torch.linalg.cross(v1, v2)  # n_cell, n_point, dim
-        return torch.sum(cross * center2top.unsqueeze(1), dim=(1, 2)) / 6.0
+        return (
+            torch.sum(cross * torch.unsqueeze(center2top, dim=1), dim=(1, 2))
+            / 6.0
+        )
 
-    def _wedge_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+    def _wedge_volumes(self, cell_points: pt.PhlowerTensor) -> pt.PhlowerTensor:
         # divide the wedge into 2 tets + 3 pyramids
         # This is a better solution than 3 tets because
         # if the wedge is twisted then the 3 quads will be twisted.
         tops = torch.mean(cell_points, dim=1, keepdim=True)  # n_cell, 1, dim
-        quad_tops = tops.repeat(1, 3, 1)
-        tet_tops = tops.repeat(1, 2, 1)
+        quad_tops = phlower_repeat(tops, 1, 3, 1)
+        tet_tops = phlower_repeat(tops, 1, 2, 1)
 
         # pyramid
         quad_idx = torch.tensor(
-            [[0, 3, 4, 1], [1, 4, 5, 2], [0, 2, 5, 3]], dtype=torch.int
+            [[0, 1, 4, 3], [1, 2, 5, 4], [2, 0, 3, 5]], dtype=torch.int
         )
         quads = cell_points[:, quad_idx]  # n_cell, n_face, n_point, dim
         quad_centers = torch.mean(quads, dim=2)  # n_cell, n_face, dim
 
         center2top_quads = quad_tops - quad_centers  # n_cell, n_face, dim
-        v1_quads = quads - tops.unsqueeze(1)
+        v1_quads = quads - torch.unsqueeze(tops, dim=1)
         v2_quads = torch.roll(v1_quads, shifts=-1, dims=2)
         cross_quads = torch.linalg.cross(
             v1_quads, v2_quads
         )  # n_cell, n_face, n_point, dim
         pyramid_volumes = (
             torch.sum(
-                cross_quads * center2top_quads.unsqueeze(2), dim=(1, 2, 3)
+                cross_quads * torch.unsqueeze(center2top_quads, dim=2),
+                dim=(1, 2, 3),
             )
             / 6.0
         )
 
         # tetra
-        tri_idx = torch.tensor([[0, 1, 2], [3, 5, 4]], dtype=torch.int)
+        tri_idx = torch.tensor([[0, 2, 1], [3, 4, 5]], dtype=torch.int)
         tris = cell_points[:, tri_idx]  # n_cell, n_face, n_point, dim
         tri_centers = torch.mean(tris, dim=2)  # n_cell, n_face, dim
 
         center2top_tris = tet_tops - tri_centers  # n_cell, n_face, dim
-        v1_tris = tris - tops.unsqueeze(1)
+        v1_tris = tris - torch.unsqueeze(tops, dim=1)
         v2_tris = torch.roll(v1_tris, shifts=-1, dims=2)
         cross_tris = torch.linalg.cross(
             v1_tris, v2_tris
         )  # n_cell, n_face, n_point, dim
         tet_volumes = (
-            torch.sum(cross_tris * center2top_tris.unsqueeze(2), dim=(1, 2, 3))
+            torch.sum(
+                cross_tris * torch.unsqueeze(center2top_tris, dim=2),
+                dim=(1, 2, 3),
+            )
             / 6.0
         )
 
         return pyramid_volumes + tet_volumes
 
-    def _voxel_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+    def _voxel_volumes(self, cell_points: pt.PhlowerTensor) -> pt.PhlowerTensor:
         # divide the voxel into 6 pyramids
         tops = torch.mean(cell_points, dim=1, keepdim=True)  # n_cell, 1, dim
-        quad_tops = tops.repeat(1, 6, 1)
+        quad_tops = phlower_repeat(tops, 1, 6, 1)
 
         quad_idx = torch.tensor(
             [
@@ -537,23 +559,24 @@ class GeometryProcessor:
         quads = cell_points[:, quad_idx]  # n_cell, n_face, n_point, dim
         quad_centers = torch.mean(quads, dim=2)  # n_cell, n_face, dim
         center2top_quads = quad_tops - quad_centers  # n_cell, n_face, dim
-        v1_quads = quads - tops.unsqueeze(1)
+        v1_quads = quads - torch.unsqueeze(tops, dim=1)
         v2_quads = torch.roll(v1_quads, shifts=-1, dims=2)
         cross_quads = torch.linalg.cross(
             v1_quads, v2_quads
         )  # n_cell, n_face, n_point, dim
         volumes = (
             torch.sum(
-                cross_quads * center2top_quads.unsqueeze(2), dim=(1, 2, 3)
+                cross_quads * torch.unsqueeze(center2top_quads, dim=2),
+                dim=(1, 2, 3),
             )
             / 6.0
         )
         return volumes
 
-    def _hex_volumes(self, cell_points: torch.Tensor) -> torch.Tensor:
+    def _hex_volumes(self, cell_points: pt.PhlowerTensor) -> pt.PhlowerTensor:
         # divide the hex into 6 pyramids
         tops = torch.mean(cell_points, dim=1, keepdim=True)  # n_cell, 1, dim
-        quad_tops = tops.repeat(1, 6, 1)
+        quad_tops = phlower_repeat(tops, 1, 6, 1)
 
         quad_idx = torch.tensor(
             [
@@ -569,24 +592,25 @@ class GeometryProcessor:
         quads = cell_points[:, quad_idx]  # n_cell, n_face, n_point, dim
         quad_centers = torch.mean(quads, dim=2)  # n_cell, n_face, dim
         center2top_quads = quad_tops - quad_centers  # n_cell, n_face, dim
-        v1_quads = quads - tops.unsqueeze(1)
+        v1_quads = quads - torch.unsqueeze(tops, dim=1)
         v2_quads = torch.roll(v1_quads, shifts=-1, dims=2)
         cross_quads = torch.linalg.cross(
             v1_quads, v2_quads
         )  # n_cell, n_face, n_point, dim
         volumes = (
             torch.sum(
-                cross_quads * center2top_quads.unsqueeze(2), dim=(1, 2, 3)
+                cross_quads * torch.unsqueeze(center2top_quads, dim=2),
+                dim=(1, 2, 3),
             )
             / 6.0
         )
         return volumes
 
-    def _poly_volumes(self, polys: IReadOnlyGraphlowMesh) -> torch.Tensor:
+    def _poly_volumes(self, polys: IReadOnlyGraphlowMesh) -> pt.PhlowerTensor:
         facets = polys.extract_facets(pass_point_data=True)
         facet_centers = facets.convert_nodal2elemental(facets.points)
         area_vecs = facets.compute_area_vecs()
         cone_volumes = torch.sum(area_vecs * facet_centers, dim=1) / 3.0
-        cf_inc = facets.compute_facet_cell_incidence().to_sparse_coo().T
+        cf_inc = facets.compute_facet_cell_incidence().transpose(0, 1)
         cell_volumes = cf_inc @ cone_volumes
         return cell_volumes

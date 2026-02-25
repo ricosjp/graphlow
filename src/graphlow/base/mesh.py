@@ -1,21 +1,33 @@
 from __future__ import annotations
 
 import pathlib
-from typing import Any, Literal
+from enum import StrEnum
+from typing import Literal
 
 import numpy as np
+import phlower_tensor as pt
 import pyvista as pv
 import torch
+from phlower_tensor._tensor._dimension import PhysicDimensionLikeObject
+from phlower_tensor.collections import (
+    IPhlowerTensorCollections,
+    phlower_tensor_collection,
+)
+from pyvista.core._typing_core import VectorLike
 from scipy import sparse as sp
 
-from graphlow.base.dict_tensor import GraphlowDictTensor
 from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
-from graphlow.base.tensor_property import GraphlowTensorProperty
 from graphlow.processors.geometry_processor import GeometryProcessor
 from graphlow.processors.graph_processor import GraphProcessor
 from graphlow.processors.isoAM_processor import IsoAMProcessor
-from graphlow.util import array_handler, constants
-from graphlow.util.enums import FeatureName, SparseMatrixName
+from graphlow.util import constants
+from graphlow.util.enums import (
+    DEFAULT_DIMENSIONS,
+    PRECISION_TO_DTYPE,
+    FeatureName,
+    FloatPrecision,
+    SparseMatrixName,
+)
 from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,12 +37,14 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
     def __init__(
         self,
         pvmesh: pv.UnstructuredGrid,
+        dict_dimensions: dict[StrEnum, PhysicDimensionLikeObject] | None = None,
+        dict_is_time_series: dict[StrEnum, bool] | None = None,
+        float_precision: FloatPrecision | int = FloatPrecision.FLOAT32,
+        device: torch.device | str | None = None,
         *,
-        dict_point_tensor: GraphlowDictTensor | None = None,
-        dict_cell_tensor: GraphlowDictTensor | None = None,
-        dict_sparse_tensor: GraphlowDictTensor | None = None,
-        device: torch.device | int = -1,
-        dtype: torch.dtype | type | None = None,
+        dict_point_tensor: IPhlowerTensorCollections | None = None,
+        dict_cell_tensor: IPhlowerTensorCollections | None = None,
+        dict_sparse_tensor: IPhlowerTensorCollections | None = None,
     ):
         """Initialize GraphlowMesh object.
 
@@ -38,48 +52,65 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         ----------
         mesh: pyvista.PointGrid
             Mesh data.
-        dict_point_tensor: GraphlowDictTensor | None
-        dict_tensor: dict[str, graphlow.ArrayDataType]
-            Dict of tensor data.
-        device: torch.device | int
-            Device ID. int < 0 implies CPU.
-        dtype: torch.dtype | type | None
-            Data type.
+        dict_dimensions: DictDimensions | None
+            Dimensions for each key in
+            dict_point_tensor, dict_cell_tensor, and dict_sparse_tensor.
+        dict_is_time_series: DictIsTimeSeries | None
+            Specifies if the data is time series or not. Can be specified
+            for each value by inputting dict[Key, bool].
+        float_precision: FloatPrecision | int | None
+            Float precision. 32 or 64. Default is 32.
+        device: torch.device | str | None
+            Device.
+        dict_point_tensor: DictTensors | None
+            Tensor dictionary for points.
+        dict_cell_tensor: DictTensors | None
+            Tensor dictionary for cells.
+        dict_sparse_tensor: DictSparseTensors | None
+            Sparse tensor dictionary. Keys are SparseMatrixName.
         """
         self._geometry_processor = GeometryProcessor()
         self._graph_processor = GraphProcessor()
         self._isoAM_processor = IsoAMProcessor()
 
-        self._tensor_property = GraphlowTensorProperty(
-            device=device, dtype=dtype
-        )
+        self._dict_dimensions = dict_dimensions or {}
+        self._dict_is_time_series = dict_is_time_series or {}
+        self._float_precision = FloatPrecision(float_precision)
+        self._dtype = PRECISION_TO_DTYPE[self._float_precision]
 
         self._pvmesh = pvmesh.cast_to_unstructured_grid()
-        self._dict_point_tensor = dict_point_tensor or GraphlowDictTensor(
-            {}, length=self.n_points, device=self.device, dtype=self.dtype
+
+        self._dict_point_tensor = (
+            dict_point_tensor or phlower_tensor_collection(values={})
         )
+        self._dict_cell_tensor = dict_cell_tensor or phlower_tensor_collection(
+            values={}
+        )
+        self._dict_sparse_tensor = (
+            dict_sparse_tensor or phlower_tensor_collection(values={})
+        )
+
         if FeatureName.POINTS not in self._dict_point_tensor:
             self._dict_point_tensor.update(
-                {FeatureName.POINTS: self.pvmesh.points}
+                {
+                    FeatureName.POINTS: pt.phlower_tensor(
+                        self.pvmesh.points,
+                        dimension=DEFAULT_DIMENSIONS[FeatureName.POINTS],
+                        dtype=self._dtype,
+                        device=device,
+                    )
+                }
             )
-        self._dict_cell_tensor = dict_cell_tensor or GraphlowDictTensor(
-            {}, length=self.n_cells, device=self.device, dtype=self.dtype
-        )
-        self._dict_sparse_tensor = dict_sparse_tensor or GraphlowDictTensor(
-            {}, length=None, device=self.device, dtype=self.dtype
-        )
+        self._device = self._dict_point_tensor[FeatureName.POINTS].device
         self.copy_features_from_pyvista(overwrite=True)
-
-        self.send()
-        return
 
     @property
     def pvmesh(self) -> pv.UnstructuredGrid:
         return self._pvmesh
 
     @property
-    def points(self) -> torch.Tensor:
-        return self.dict_point_tensor[FeatureName.POINTS]
+    def points(self) -> pt.PhlowerTensor:
+        return self._dict_point_tensor[FeatureName.POINTS]
 
     @property
     def n_points(self) -> int:
@@ -90,24 +121,28 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         return self._pvmesh.n_cells
 
     @property
-    def dict_point_tensor(self) -> GraphlowDictTensor:
+    def dict_point_tensor(self) -> IPhlowerTensorCollections:
         return self._dict_point_tensor
 
     @property
-    def dict_cell_tensor(self) -> GraphlowDictTensor:
+    def dict_cell_tensor(self) -> IPhlowerTensorCollections:
         return self._dict_cell_tensor
 
     @property
-    def dict_sparse_tensor(self) -> GraphlowDictTensor:
+    def dict_sparse_tensor(self) -> IPhlowerTensorCollections:
         return self._dict_sparse_tensor
 
     @property
+    def float_precision(self) -> FloatPrecision:
+        return self._float_precision
+
+    @property
     def device(self) -> torch.device:
-        return self._tensor_property.device
+        return self._device
 
     @property
     def dtype(self) -> torch.dtype:
-        return self._tensor_property.dtype
+        return self._dtype
 
     def save(
         self,
@@ -164,36 +199,31 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             if isinstance(self.pvmesh, pv.PolyData):
                 self.pvmesh.save(file_name, binary=binary)
                 return
-            poly_data = self.pvmesh.extract_surface()
+            poly_data = self.pvmesh.extract_surface(algorithm="dataset_surface")
             poly_data.save(file_name, binary=binary)
             logger.info(f"File writtein in: {file_name}")
             return
 
         raise ValueError(f"Unexpected extension: {ext}")
 
-    def send(
-        self,
-        *,
-        device: torch.device | int | None = None,
-        dtype: torch.dtype | type | None = None,
-    ):
-        """Convert features to the specified device and dtype. It does not
-        modify pyvista mesh.
+    def send(self, device: str | torch.device, non_blocking: bool = False):
+        """Send features to the specified device.
 
         Parameters
         ----------
-        device: torch.device | int | None
-        dtype: torch.dtype | type | None
+        device: str | torch.device
+            Device to send the features to.
+        non_blocking: bool
+            If True, the copy will be done asynchronously with respect to the
+            host. For more details, see
+            https://pytorch.org/docs/stable/tensor_attributes.html#torch.Tensor.to.
+            The default is False.
         """
-        self._tensor_property.device = device or self.device
-        self._tensor_property.dtype = dtype or self.dtype
+        self._dict_point_tensor.to(device=device, non_blocking=non_blocking)
+        self._dict_cell_tensor.to(device=device, non_blocking=non_blocking)
+        self._device = self.points.device
 
-        self._dict_point_tensor.send(device=self.device, dtype=self.dtype)
-        self._dict_cell_tensor.send(device=self.device, dtype=self.dtype)
-        self._dict_sparse_tensor.send(device=self.device, dtype=self.dtype)
-        return
-
-    def copy_features_from_pyvista(self, *, overwrite: bool = False):
+    def copy_features_from_pyvista(self, overwrite: bool = False):
         """Copy point and cell data from pyvista mesh.
 
         Parameters
@@ -201,13 +231,16 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         overwrite: bool
             If True, allow overwriting exsiting items. The default is False.
         """
-        self.dict_point_tensor.update(
-            self.pvmesh.point_data, overwrite=overwrite
+        point_tensors = self._convert_pvdataset_to_phlower_tensors(
+            self.pvmesh.point_data
         )
-        self.dict_cell_tensor.update(self.pvmesh.cell_data, overwrite=overwrite)
-        return
+        cell_tensors = self._convert_pvdataset_to_phlower_tensors(
+            self.pvmesh.cell_data
+        )
+        self.dict_point_tensor.update(point_tensors, overwrite=overwrite)
+        self.dict_cell_tensor.update(cell_tensors, overwrite=overwrite)
 
-    def copy_features_to_pyvista(self, *, overwrite: bool = False):
+    def copy_features_to_pyvista(self, overwrite: bool = False):
         """Copy point and cell tensor data to pyvista mesh.
 
         Parameters
@@ -215,17 +248,42 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         overwrite: bool
             If True, allow overwriting exsiting items. The default is False.
         """
-        self.update_pyvista_data(
+        self._update_pyvista_data(
             self.dict_point_tensor, self.pvmesh.point_data, overwrite=overwrite
         )
-        self.update_pyvista_data(
+        self._update_pyvista_data(
             self.dict_cell_tensor, self.pvmesh.cell_data, overwrite=overwrite
         )
-        return
 
-    def update_pyvista_data(
+    def _convert_pvdataset_to_phlower_tensors(
+        self, dataset_attributes: pv.DataSetAttributes
+    ) -> dict[str, pt.PhlowerTensor]:
+        """Convert PyVista dataset attributes to a dict of PhlowerTensor.
+
+        Parameters
+        ----------
+        dataset_attributes : pyvista.DataSetAttributes
+            Attributes such as ``pvmesh.point_data`` or ``pvmesh.cell_data``.
+
+        Returns
+        -------
+        dict[str, phlower_tensor.PhlowerTensor]
+            Mapping from attribute key to tensorized value.
+        """
+        out: dict[str, pt.PhlowerTensor] = {}
+        for key, value in dataset_attributes.items():
+            out[key] = pt.phlower_tensor(
+                value,
+                dimension=self._dict_dimensions.get(key, {}),
+                is_time_series=self._dict_is_time_series.get(key, False),
+                dtype=self.dtype,
+                device=self.device,
+            )
+        return out
+
+    def _update_pyvista_data(
         self,
-        dict_tensor: GraphlowDictTensor,
+        dict_tensor: IPhlowerTensorCollections,
         pyvista_dataset: pv.DataSetAttributes,
         *,
         overwrite: bool = False,
@@ -234,7 +292,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
         Parameters
         ----------
-        dict_tensor: graphlow.GraphlowDictTensor
+        dict_tensor: IPhlowerTensorCollections
             DataSet to update. Typically dict_point_tensor or dict_cell_tensor.
         pyvista_dataset: pyvista.DataSetAttributes
             DataSet to be updated. Typically point_data or cell_data.
@@ -242,12 +300,10 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             If True, allow overwriting exsiting items. The default is False.
         """
         if not overwrite:
-            for key in dict_tensor.keys():
-                if key in pyvista_dataset:
-                    keys = list(pyvista_dataset.keys())
-                    raise ValueError(f"{key} already exists in {keys}")
-        pyvista_dataset.update(dict_tensor.convert_to_numpy_scipy())
-        return
+            conflicting = set(dict_tensor.keys()) & set(pyvista_dataset.keys())
+            if conflicting:
+                raise ValueError(f"Keys already exist: {sorted(conflicting)}")
+        pyvista_dataset.update(dict_tensor.to_numpy())
 
     def add_original_index(self):
         """Set original indices to points and cells. We do not use
@@ -259,7 +315,6 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         self.pvmesh.cell_data[FeatureName.ORIGINAL_INDEX] = np.arange(
             self.pvmesh.n_cells
         )
-        return
 
     def extract_surface(
         self,
@@ -289,27 +344,29 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             self.add_original_index()
 
         pv_surface = self.pvmesh.extract_surface(
-            pass_pointid=False, pass_cellid=False
+            algorithm="dataset_surface", pass_pointid=False, pass_cellid=False
         )
 
         surface = GraphlowMesh(
             pv_surface,
+            dict_dimensions=self._dict_dimensions,
+            dict_is_time_series=self._dict_is_time_series,
+            float_precision=self.float_precision,
             device=self.device,
-            dtype=self.dtype,
         )
         if not pass_point_data:
             return surface
 
-        point_rel_incidence = self.compute_point_relative_incidence(surface)
-        point_tensor = self.dict_point_tensor.extract_by_rel_incidence(
-            point_rel_incidence
+        point_rel_inc = self.compute_point_relative_incidence(surface)
+        new_point_tensors = self.dict_point_tensor.apply(
+            lambda x: point_rel_inc @ x
         )
-        surface.dict_point_tensor.update(point_tensor, overwrite=True)
+        surface.dict_point_tensor.update(new_point_tensors, overwrite=True)
         return surface
 
     def extract_cells(
         self,
-        ind: Any,
+        ind: VectorLike[int],
         invert: bool = False,
         add_original_index: bool = True,
         pass_point_data: bool = False,
@@ -351,25 +408,27 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
         extracted = GraphlowMesh(
             pv_extracted,
+            dict_dimensions=self._dict_dimensions,
+            dict_is_time_series=self._dict_is_time_series,
+            float_precision=self.float_precision,
             device=self.device,
-            dtype=self.dtype,
         )
 
         if pass_point_data:
-            point_rel_incidence = self.compute_point_relative_incidence(
-                extracted
+            point_rel_inc = self.compute_point_relative_incidence(extracted)
+            new_point_tensors = self.dict_point_tensor.apply(
+                lambda x: point_rel_inc @ x
             )
-            point_tensor = self.dict_point_tensor.extract_by_rel_incidence(
-                point_rel_incidence
+            extracted.dict_point_tensor.update(
+                new_point_tensors, overwrite=True
             )
-            extracted.dict_point_tensor.update(point_tensor, overwrite=True)
 
         if pass_cell_data:
-            cell_rel_incidence = self.compute_cell_relative_incidence(extracted)
-            cell_tensor = self.dict_cell_tensor.extract_by_rel_incidence(
-                cell_rel_incidence
+            cell_rel_inc = self.compute_cell_relative_incidence(extracted)
+            new_cell_tensors = self.dict_cell_tensor.apply(
+                lambda x: cell_rel_inc @ x
             )
-            extracted.dict_cell_tensor.update(cell_tensor, overwrite=True)
+            extracted.dict_cell_tensor.update(new_cell_tensors, overwrite=True)
 
         return extracted
 
@@ -401,33 +460,32 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         if add_original_index or pass_point_data:
             self.add_original_index()
         poly, scipy_fc_inc = self._extract_facets_impl()
-        fc_inc = array_handler.convert_to_torch_sparse_csr(
-            scipy_fc_inc.astype(float),
-            device=self.device,
-            dtype=self.dtype,
+        fc_inc = pt.phlower_array(scipy_fc_inc).to_tensor().to(self.dtype)
+        fc_inc = pt.phlower_tensor(fc_inc.coalesce(), dimension={}).to(
+            device=self.device
         )
-        dict_sparse_tensor = GraphlowDictTensor(
-            {SparseMatrixName.FACET_CELL_INCIDENCE: fc_inc},
-            device=self.device,
-            dtype=self.dtype,
+
+        self.dict_sparse_tensor.update(
+            {SparseMatrixName.FACET_CELL_INCIDENCE: fc_inc}, overwrite=True
         )
-        self.dict_sparse_tensor.update(dict_sparse_tensor, overwrite=True)
 
         extracted = GraphlowMesh(
             poly.cast_to_unstructured_grid(),
-            dict_sparse_tensor=dict_sparse_tensor,
+            dict_dimensions=self._dict_dimensions,
+            dict_is_time_series=self._dict_is_time_series,
+            float_precision=self.float_precision,
             device=self.device,
-            dtype=self.dtype,
+            dict_sparse_tensor=self.dict_sparse_tensor,
         )
 
         if not pass_point_data:
             return extracted
 
-        point_rel_incidence = self.compute_point_relative_incidence(extracted)
-        point_tensor = self.dict_point_tensor.extract_by_rel_incidence(
-            point_rel_incidence
+        point_rel_inc = self.compute_point_relative_incidence(extracted)
+        new_point_tensors = self.dict_point_tensor.apply(
+            lambda x: point_rel_inc @ x
         )
-        extracted.dict_point_tensor.update(point_tensor, overwrite=True)
+        extracted.dict_point_tensor.update(new_point_tensors, overwrite=True)
         return extracted
 
     def _extract_facets_impl(self) -> tuple[pv.PolyData, sp.csr_array]:
@@ -450,8 +508,11 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
         n_facets = 0
         n_cells = vol.n_cells
-        cell_centers = torch.from_numpy(self.pvmesh.cell_centers().points).to(
-            device=self.device, dtype=self.dtype
+        cell_centers = pt.phlower_tensor(
+            self.pvmesh.cell_centers().points,
+            dimension=DEFAULT_DIMENSIONS[FeatureName.POINTS],
+            dtype=self.dtype,
+            device=self.device,
         )
 
         facet_idmap = {}
@@ -472,7 +533,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
                     side_vec, torch.roll(side_vec, shifts=-1, dims=0)
                 )
                 normal = torch.mean(cross, dim=0)
-                dot = torch.dot(cc2fc, normal)
+                dot = torch.dot(cc2fc.to_tensor(), normal.to_tensor())
                 sign_value = 0
                 if dot < 0:
                     sign_value = -1
@@ -494,9 +555,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
                 row_indices.append(facet_id)
                 col_indices.append(cell_id)
 
-        poly = pv.PolyData(
-            array_handler.convert_to_numpy_scipy(self.points), polygon_cells
-        )
+        poly = pv.PolyData(self.points.to_numpy(), polygon_cells)
         for k, v in vol.point_data.items():
             poly.point_data[k] = v
         scipy_fc_inc = sp.csr_array(
@@ -507,47 +566,49 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
     def convert_elemental2nodal(
         self,
-        elemental_data: torch.Tensor,
+        elemental_data: pt.PhlowerTensor,
         mode: Literal["mean", "conservative"] = "mean",
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         return self._geometry_processor.convert_elemental2nodal(
             self, elemental_data, mode
         )
 
     def convert_nodal2elemental(
         self,
-        nodal_data: torch.Tensor,
+        nodal_data: pt.PhlowerTensor,
         mode: Literal["mean", "conservative"] = "mean",
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         return self._geometry_processor.convert_nodal2elemental(
             self, nodal_data, mode
         )
 
     def compute_median(
         self,
-        data: torch.Tensor,
+        data: pt.PhlowerTensor,
         mode: Literal["elemental", "nodal"] = "elemental",
         n_hop: int = 1,
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         return self._geometry_processor.compute_median(self, data, mode, n_hop)
 
-    def compute_area_vecs(self) -> torch.Tensor:
+    def compute_area_vecs(self) -> pt.PhlowerTensor:
         return self._geometry_processor.compute_area_vecs(self)
 
-    def compute_areas(self, allow_negative_area: bool = False) -> torch.Tensor:
+    def compute_areas(
+        self, allow_negative_area: bool = False
+    ) -> pt.PhlowerTensor:
         return self._geometry_processor.compute_areas(self, allow_negative_area)
 
     def compute_volumes(
         self, allow_negative_volume: bool = True
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         return self._geometry_processor.compute_volumes(
             self, allow_negative_volume
         )
 
-    def compute_normals(self) -> torch.Tensor:
+    def compute_normals(self) -> pt.PhlowerTensor:
         return self._geometry_processor.compute_normals(self)
 
-    def compute_surface_volume(self) -> torch.Tensor:
+    def compute_surface_volume(self) -> pt.PhlowerTensor:
         return self._geometry_processor.compute_surface_volume(self)
 
     def compute_isoAM(
@@ -555,7 +616,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
         normal_interp_mode: Literal["mean", "conservative"] = "conservative",
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+    ) -> tuple[pt.PhlowerTensor, pt.PhlowerTensor | None]:
         return self._isoAM_processor.compute_isoAM(
             self, with_moment_matrix, consider_volume, normal_interp_mode
         )
@@ -566,7 +627,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
         normal_interp_mode: Literal["mean", "conservative"] = "conservative",
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
+    ) -> tuple[pt.PhlowerTensor, pt.PhlowerTensor, pt.PhlowerTensor | None]:
         return self._isoAM_processor.compute_isoAM_with_neumann(
             self,
             normal_weight,
@@ -577,46 +638,50 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
     def compute_cell_point_incidence(
         self, refresh_cache: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         return self._graph_processor.compute_cell_point_incidence(
             self, refresh_cache
         )
 
     def compute_cell_adjacency(
         self, refresh_cache: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         return self._graph_processor.compute_cell_adjacency(self, refresh_cache)
 
     def compute_point_adjacency(
         self, refresh_cache: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         return self._graph_processor.compute_point_adjacency(
             self, refresh_cache
         )
 
-    def compute_point_degree(self, refresh_cache: bool = False) -> torch.Tensor:
+    def compute_point_degree(
+        self, refresh_cache: bool = False
+    ) -> pt.PhlowerTensor:
         return self._graph_processor.compute_point_degree(self, refresh_cache)
 
-    def compute_cell_degree(self, refresh_cache: bool = False) -> torch.Tensor:
+    def compute_cell_degree(
+        self, refresh_cache: bool = False
+    ) -> pt.PhlowerTensor:
         return self._graph_processor.compute_cell_degree(self, refresh_cache)
 
     def compute_normalized_point_adjacency(
         self, refresh_cache: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         return self._graph_processor.compute_normalized_point_adjacency(
             self, refresh_cache
         )
 
     def compute_normalized_cell_adjacency(
         self, refresh_cache: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         return self._graph_processor.compute_normalized_cell_adjacency(
             self, refresh_cache
         )
 
     def compute_point_relative_incidence(
         self, other_mesh: IReadOnlyGraphlowMesh
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         return self._graph_processor.compute_point_relative_incidence(
             self, other_mesh
         )
@@ -625,7 +690,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         self,
         other_mesh: IReadOnlyGraphlowMesh,
         minimum_n_sharing: int | None = None,
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         return self._graph_processor.compute_cell_relative_incidence(
             self,
             other_mesh,
@@ -634,7 +699,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
 
     def compute_facet_cell_incidence(
         self, refresh_cache: bool = False
-    ) -> torch.Tensor:
+    ) -> pt.PhlowerTensor:
         if (
             not refresh_cache
             and SparseMatrixName.FACET_CELL_INCIDENCE in self.dict_sparse_tensor

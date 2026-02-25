@@ -10,6 +10,9 @@ include = [
   "LICENSE",
 ]
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [project]
 name = "graphlow"
 version = "0.0.2"
@@ -17,14 +20,14 @@ description = "graphlow provides graph processing features for physical simulati
 readme = "README.md"
 license = { text = "Apache-2.0" }
 authors = [{ name = "RICOS Co. Ltd." }]
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.13"
 classifiers = ["Programming Language :: Python"]
 dependencies = [
-    "vtk==9.3.1",
+    # "phlower-tensor>=0.1.1",
+    "phlower-tensor @ git+https://github.com/ricosjp/phlower-tensor.git@main",
     "pyvista>=0.43",
     "scipy>=1.14.0",
     "torch>=2.6.0",
-    "torchvision>=0.21.0",
 ]
 
 [dependency-groups]
@@ -74,11 +77,12 @@ markers = [
     "with_benchmark: Run test with the --benchmark-autosave option",
     "with_profile: Run test with memray / pyinstrument",
     "with_device: Run test with the --gpu option to use GPU",
+    "slow: Run test with the --slow option to use slow tests",
 ]
 addopts = [
     "--import-mode=importlib",
     "-m",
-    "not with_benchmark and not with_profile and not with_device",
+    "not with_benchmark and not with_profile and not slow",
 ]
 
 [tool.coverage.report]
@@ -91,5 +95,5 @@ exclude_also = [
 ]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 ignore_missing_imports = true

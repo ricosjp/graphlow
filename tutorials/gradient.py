@@ -1,10 +1,11 @@
 """
 Compute gradient of scalar field on a mesh
 ==========================================
-:mod:`graphlow` can treat a mesh as a graph and
-compute gradients of physical quantities given on the graph.
+:mod:`graphlow` treats a mesh as a graph and can compute
+gradients of scalar fields defined on the nodes.
 
-This tutorial shows how to compute the gradient of a scalar field on a mesh.
+This tutorial: define φ(x,y), build the isoAM gradient operator,
+then compute ∇φ and visualize it.
 
 .. image:: ./images/sphx_glr_gradient_001.png
     :width: 300
@@ -13,7 +14,9 @@ This tutorial shows how to compute the gradient of a scalar field on a mesh.
 
 ###############################################################################
 # Import necessary modules including :mod:`graphlow`.
+# ---------------------------------------------------
 import numpy as np
+import phlower_tensor as pt
 import pyvista as pv
 import torch
 
@@ -21,10 +24,9 @@ import graphlow
 
 
 ###############################################################################
-# Prepare grid mesh
-# -----------------
-# First, we define a function to generate grid data as the example mesh.
-# If you wish to use your own mesh, you can skip this step.
+# Mesh: create a 2D grid
+# ----------------------
+# Flat grid in the xy-plane. You can replace this with your own mesh.
 def generate_grid(ni: int, nj: int) -> pv.StructuredGrid:
     x = np.linspace(-1, 1, ni, dtype=np.float32)
     y = np.linspace(-1, 1, nj, dtype=np.float32)
@@ -35,43 +37,60 @@ def generate_grid(ni: int, nj: int) -> pv.StructuredGrid:
 
 
 ###############################################################################
-# Define a scalar field
-# ---------------------
-# Next, we define a scalar field that depends on the coordinates.
-# We define a scalar field as follows:
+# Scalar field φ
+# --------------
+# Example: φ = x² − y². You can change the formula.
 #
 # .. math::
 #    \phi = x^2 - y^2
 #
-# You can modify the scalar field as you like.
-def scalar_field(pos: np.ndarray) -> np.ndarray:
+def scalar_field(pos: np.ndarray) -> pt.PhlowerTensor:
+    """Evaluate φ at each point. pos: (n_points, 3) or (n_points, 2)."""
     x = pos[:, 0]
     y = pos[:, 1]
-    return x * x - y * y
+    phi = x * x - y * y
+    return pt.phlower_tensor(phi, dimension={"Theta": 1})
 
 
 ###############################################################################
-# Compute gradient
-# ----------------
-# To compute the gradient of a physical quantity using graphlow,
-# we use :func:`compute_isoAM`.
+# Gradient via isoAM
+# ------------------
+# :func:`compute_isoAM` returns a gradient operator (one matrix per dimension).
+# Applying it to nodal values φ gives ∂φ/∂x, ∂φ/∂y, ∂φ/∂z; we stack into
+# (n_points, 3) gradient vectors.
 def compute_gradient(
-    mesh: graphlow.GraphlowMesh, phi: np.ndarray
-) -> torch.Tensor:
-    grad_adjs, _ = mesh.compute_isoAM(with_moment_matrix=True)
-    grad_x = grad_adjs[0] @ phi
-    grad_y = grad_adjs[1] @ phi
-    grad_z = grad_adjs[2] @ phi
-    grad_vectors = torch.stack((grad_x, grad_y, grad_z), dim=-1)
+    mesh: graphlow.GraphlowMesh,
+    phi: pt.PhlowerTensor,
+) -> pt.PhlowerTensor:
+    """
+    Compute ∇φ at each node.
+
+    Parameters
+    ----------
+    mesh : GraphlowMesh
+        Mesh with points and connectivity.
+    phi : array or tensor
+        Scalar field values, shape (n_points,).
+
+    Returns
+    -------
+    torch.Tensor
+        Gradient vectors, shape (n_points, 3).
+    """
+    isoAM, _ = mesh.compute_isoAM(with_moment_matrix=True)
+
+    # isoAM[k] @ phi -> k-th component of gradient
+    gx = isoAM[0] @ phi
+    gy = isoAM[1] @ phi
+    gz = isoAM[2] @ phi
+    grad_vectors = torch.stack((gx, gy, gz), dim=-1)
     return grad_vectors
 
 
 ###############################################################################
-# Visualize
-# ---------
-# To visualize the the scalar field and its gradient,
-# we define the following function.
-def draw(grid: pv.StructuredGrid):
+# Visualization: scalar field + gradient arrows
+# ---------------------------------------------
+def draw(grid: pv.StructuredGrid) -> None:
     plotter = pv.Plotter(window_size=[800, 600])
     plotter.add_mesh(grid, scalars="phi", show_edges=True)
     plotter.add_arrows(
@@ -82,21 +101,25 @@ def draw(grid: pv.StructuredGrid):
 
 
 ###############################################################################
-# Main
-# ----
-# Finally, we define the main function to run the tutorial.
-ni = 11
-nj = 11
+# Run the tutorial
+# ----------------
+GRID_NI = 11
+GRID_NJ = 11
 
 
-def main():
-    grid = generate_grid(ni, nj)
+def main() -> None:
+    # 1. Build mesh
+    grid = generate_grid(GRID_NI, GRID_NJ)
     mesh = graphlow.GraphlowMesh(grid)
 
-    phi = scalar_field(mesh.points)
+    # 2. φ at each node (from coordinates)
+    phi = scalar_field(mesh.points.numpy())
+
+    # 3. ∇φ
     grad_phi = compute_gradient(mesh, phi)
 
-    grid["phi"] = phi.numpy()
+    # 4. Attach to grid for visualization
+    grid["phi"] = np.asarray(phi)
     grid["grad_phi"] = grad_phi.numpy()
 
     draw(grid)

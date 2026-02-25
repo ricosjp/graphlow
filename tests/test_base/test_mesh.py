@@ -2,12 +2,12 @@ import pathlib
 import shutil
 
 import numpy as np
+import phlower_tensor as pt
 import pytest
 import pyvista as pv
 import torch
 
 import graphlow
-from graphlow.util import array_handler
 from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -37,7 +37,7 @@ def test__save_overwrite_features(
     # Raise ValueError when overwriting
     with pytest.raises(ValueError) as e:
         mesh.save(output_file_name)
-    assert "already exists" in str(e.value)
+    assert "already exist" in str(e.value)
 
     # Overwrite
     mesh.save(output_file_name, overwrite_features=True)
@@ -89,14 +89,14 @@ def test__extract_surface(file_name: pathlib.Path, desired_file: pathlib.Path):
     mesh = graphlow.read(file_name)
     desired = graphlow.read(desired_file)
 
-    mesh.points.requires_grad_()
-    assert mesh.points.requires_grad
+    mesh.points.to_tensor().requires_grad_()
+    assert mesh.points.to_tensor().requires_grad
 
     surface = mesh.extract_surface(pass_point_data=False)
-    assert not surface.points.requires_grad
+    assert not surface.points.to_tensor().requires_grad
 
     surface = mesh.extract_surface(pass_point_data=True)
-    assert surface.points.requires_grad
+    assert surface.points.to_tensor().requires_grad
 
     np.testing.assert_almost_equal(surface.pvmesh.points, desired.pvmesh.points)
     np.testing.assert_array_equal(surface.pvmesh.cells, desired.pvmesh.cells)
@@ -116,14 +116,14 @@ def test__extract_cells(
         cellids_to_extract
     ).cast_to_unstructured_grid()
 
-    mesh.points.requires_grad_()
-    assert mesh.points.requires_grad
+    mesh.points.to_tensor().requires_grad_()
+    assert mesh.points.to_tensor().requires_grad
 
     cells = mesh.extract_cells(cellids_to_extract, pass_point_data=False)
-    assert not cells.points.requires_grad
+    assert not cells.points.to_tensor().requires_grad
 
     cells = mesh.extract_cells(cellids_to_extract, pass_point_data=True)
-    assert cells.points.requires_grad
+    assert cells.points.to_tensor().requires_grad
 
     np.testing.assert_almost_equal(
         cells.pvmesh.cast_to_unstructured_grid().cells, desired.cells
@@ -239,28 +239,9 @@ def test__extract_facets(file_name: pathlib.Path):
     mesh = graphlow.read(file_name)
     _, scipy_fc_inc = mesh._extract_facets_impl()
     torch_fc_inc = mesh.compute_facet_cell_incidence()
-    desired = array_handler.convert_to_dense_numpy(scipy_fc_inc)
-    actual = array_handler.convert_to_dense_numpy(torch_fc_inc)
+    desired = scipy_fc_inc.toarray()
+    actual = torch_fc_inc.to_tensor().to_dense().numpy()
     np.testing.assert_almost_equal(actual, desired)
-
-
-@pytest.mark.parametrize(
-    "file_name",
-    [
-        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
-    ],
-)
-def test__send_float16(file_name: pathlib.Path):
-    mesh = graphlow.read(file_name)
-    mesh.send(dtype=torch.float16)
-
-    mesh.dict_point_tensor.update({"feature": mesh.points[:, 0] ** 2})
-    assert mesh.dict_point_tensor["feature"].dtype == torch.float16
-
-    mesh.compute_cell_adjacency()
-    assert mesh.dict_sparse_tensor["cell_adjacency"].dtype == torch.float16
-
-    mesh.copy_features_to_pyvista()
 
 
 @pytest.mark.parametrize(
@@ -273,7 +254,7 @@ def test__optimize(file_name: pathlib.Path):
     # Optimization setting
     n_optimization = 500
     print_period = 10
-    target_lz = 3.0
+    target_lz = pt.phlower_tensor(3.0, dimension={"L": 1})
     weight_l2 = 1e-6
     desired_coeff = np.array([0.0, 0.0, 2.0])
 
@@ -282,12 +263,12 @@ def test__optimize(file_name: pathlib.Path):
         shutil.rmtree(output_directory)
 
     def cost_function(
-        deformed_points: torch.Tensor, deformation: torch.Tensor
-    ) -> torch.Tensor:
+        deformed_points: pt.PhlowerTensor, deformation: pt.PhlowerTensor
+    ) -> pt.PhlowerTensor:
         z = deformed_points[:, -1]
         lz = torch.max(z) - torch.min(z)
         loss_lz = (lz - target_lz) ** 2
-        norm_deformation = torch.einsum("ip,ip->", deformation, deformation)
+        norm_deformation = torch.sum(deformation * deformation)
         return loss_lz + weight_l2 * norm_deformation
 
     # Initialize
@@ -301,7 +282,7 @@ def test__optimize(file_name: pathlib.Path):
     for i in range(1, n_optimization + 1):
         optimizer.zero_grad()
 
-        deformation = torch.einsum("np,p->np", points, deform_coeff)
+        deformation = points * deform_coeff
         deformed_points = points + deformation
 
         cost = cost_function(deformed_points, deformation)
@@ -310,7 +291,10 @@ def test__optimize(file_name: pathlib.Path):
             cx = deform_coeff[0]
             cy = deform_coeff[1]
             cz = deform_coeff[2]
-            logger.info(f"{i:4d}, {cx:8.5f}, {cy:8.5f}, {cz:8.5f}, {cost:.5e}")
+            logger.info(
+                f"{i:4d}, {cx:8.5f}, {cy:8.5f}, {cz:8.5f}, \
+                    {cost.to_tensor():.5e}"
+            )
             mesh.dict_point_tensor.update(
                 {"deformation": deformation}, overwrite=True
             )
@@ -340,7 +324,7 @@ def test__optimize_ball(file_name: pathlib.Path):
     print_period = 100
     weight_norm_constraint = 1e-2
     n_hidden = 16
-    desired_radius = 0.7
+    desired_radius = pt.phlower_tensor(0.7, dimension={"L": 1})
 
     output_directory = pathlib.Path("tests/outputs/ball_optimization")
     if output_directory.exists():
@@ -363,8 +347,9 @@ def test__optimize_ball(file_name: pathlib.Path):
     optimizer = torch.optim.Adam([w1, w2], lr=1e-2)
 
     def cost_function(
-        deformed_points: torch.Tensor, surface_deformed_points: torch.Tensor
-    ) -> torch.Tensor:
+        deformed_points: pt.PhlowerTensor,
+        surface_deformed_points: pt.PhlowerTensor,
+    ) -> pt.PhlowerTensor:
         mesh.dict_point_tensor.update(
             {"points": deformed_points}, overwrite=True
         )
@@ -379,9 +364,9 @@ def test__optimize_ball(file_name: pathlib.Path):
             + weight_norm_constraint * norm_constraint
         )
 
-    def compute_deformed_points(points: torch.Tensor) -> torch.Tensor:
-        hidden = torch.tanh(torch.einsum("np,pq->nq", points, w1))
-        deformation = torch.einsum("np,pq->nq", hidden, w2)
+    def compute_deformed_points(points: pt.PhlowerTensor) -> pt.PhlowerTensor:
+        hidden = torch.tanh(points.to_tensor() @ w1)
+        deformation = pt.phlower_tensor(hidden @ w2, dimension=points.dimension)
         return points + deformation
 
     # Optimization loop
@@ -397,7 +382,7 @@ def test__optimize_ball(file_name: pathlib.Path):
         cost = cost_function(deformed_points, surface_deformed_points)
 
         if i % print_period == 0:
-            logger.info(f"{i:4d}, {cost:.5e}")
+            logger.info(f"{i:4d}, {cost.to_tensor():.5e}")
             mesh.dict_point_tensor.update(
                 {"deformation": deformed_points - initial_points},
                 overwrite=True,
@@ -412,7 +397,9 @@ def test__optimize_ball(file_name: pathlib.Path):
         optimizer.step()
 
     actual_radius = (
-        torch.mean(torch.norm(surface_deformed_points, dim=1)).detach().numpy()
+        torch.mean(torch.linalg.norm(surface_deformed_points, dim=1))
+        .detach()
+        .numpy()
     )
     np.testing.assert_almost_equal(actual_radius, desired_radius, decimal=3)
 
@@ -457,3 +444,23 @@ def test__compute_cell_relative_incidence(file_name: pathlib.Path):
 
     # Check only if it runs since the main part is in graph_processor
     mesh.compute_cell_relative_incidence(surface, minimum_n_sharing=3)
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+    ],
+)
+def test__read_with_dict_dimensions(file_name: pathlib.Path):
+    dict_dimensions = {"U": {"T": -1, "L": 1}, "X": {"Theta": 1}}
+    mesh = graphlow.read(file_name, dict_dimensions=dict_dimensions)
+
+    points = mesh.points
+    assert points.dimension == pt.phlower_dimension_tensor({"L": 1})
+
+    U = mesh.dict_cell_tensor["U"]
+    assert U.dimension == pt.phlower_dimension_tensor({"T": -1, "L": 1})
+
+    X = mesh.dict_point_tensor["X"]
+    assert X.dimension == pt.phlower_dimension_tensor({"Theta": 1})

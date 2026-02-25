@@ -2,13 +2,13 @@ import pathlib
 from collections.abc import Callable
 
 import numpy as np
+import phlower_tensor as pt
 import pytest
 import pyvista as pv
 import torch
 
 import graphlow
 from graphlow.processors.isoAM_processor import IsoAMProcessor
-from graphlow.util import array_handler
 from graphlow.util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -39,14 +39,14 @@ def test___compute_weight_from_volume(
 ):
     mesh = graphlow.read(file_name)
     mesh.send(device=torch.device(device))
-    adj = mesh.compute_point_adjacency().to_sparse_coo()
+    adj = mesh.compute_point_adjacency().to_tensor().to_sparse_coo()
     isoAM_processor = IsoAMProcessor()
 
     weights_nnz = isoAM_processor._compute_weights_nnz_from_volume(mesh)
     Wij = torch.sparse_coo_tensor(
-        adj.indices(), weights_nnz, (mesh.n_points, mesh.n_points)
+        adj.indices(), weights_nnz.to_tensor(), (mesh.n_points, mesh.n_points)
     )
-    actual = array_handler.convert_to_dense_numpy(Wij)
+    actual = Wij.to_dense().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -134,7 +134,9 @@ def test___create_grad_operator_from(
     adj = torch.from_numpy(np_adj).to_sparse_coo().to(torch.device(device))
     i_indices, j_indices = adj.indices()
 
-    points = torch.from_numpy(np_points).to(torch.device(device))
+    points = pt.phlower_tensor(
+        torch.from_numpy(np_points), dimension={"L": 1}
+    ).to(torch.device(device))
     n_points = points.shape[0]
 
     diff = points[j_indices] - points[i_indices]  # (nnz, dim)
@@ -143,7 +145,7 @@ def test___create_grad_operator_from(
     grad_op = isoAM_processor._create_grad_operator_from(
         i_indices, j_indices, n_points, diff
     )
-    actual = array_handler.convert_to_dense_numpy(grad_op)
+    actual = grad_op.to_tensor().to_dense().cpu().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -180,7 +182,7 @@ def test___compute_normals_on_surface_points(
     isoAM_processor = IsoAMProcessor()
 
     normals = isoAM_processor._compute_normals_on_surface_points(mesh)
-    actual = array_handler.convert_to_numpy_scipy(normals)
+    actual = normals.to_tensor().numpy()
     np.testing.assert_almost_equal(actual, desired, decimal=6)
 
 
@@ -283,16 +285,21 @@ def test__compute_moment_matrix(
     adj = torch.from_numpy(np_adj).to_sparse_coo().to(torch.device(device))
     i_indices, j_indices = adj.indices()
 
-    points = torch.from_numpy(np_points).to(torch.device(device))
+    points = pt.phlower_tensor(
+        torch.from_numpy(np_points), dimension={"L": 1}
+    ).to(torch.device(device))
     isoAM_processor = IsoAMProcessor()
 
-    weights = torch.ones(
-        i_indices.shape[0], device=points.device, dtype=points.dtype
-    )
+    weights = pt.phlower_tensor(
+        torch.ones(
+            i_indices.shape[0], device=points.device, dtype=points.dtype
+        ),
+        dimension={},
+    ).to(device=points.device)
     M = isoAM_processor._compute_moment_matrix(
         i_indices, j_indices, points, weights
     )
-    actual = array_handler.convert_to_dense_numpy(M)
+    actual = M.to_tensor().to_dense().cpu().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -333,7 +340,7 @@ def test__compute_isoAM_without_moment_matrix(
     mesh = graphlow.read(file_name)
     mesh.send(device=torch.device(device))
     grad_adjs, _ = mesh.compute_isoAM(with_moment_matrix=False)
-    actual = array_handler.convert_to_dense_numpy(grad_adjs)
+    actual = grad_adjs.to_tensor().to_dense().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -376,7 +383,7 @@ def test__compute_isoAM_consider_volume(
     grad_adjs, _ = mesh.compute_isoAM(
         with_moment_matrix=False, consider_volume=True
     )
-    actual = array_handler.convert_to_dense_numpy(grad_adjs)
+    actual = grad_adjs.to_tensor().to_dense().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -444,11 +451,11 @@ def test__compute_isoAM_with_moment_matrix(
     mesh = graphlow.read(file_name)
     mesh.send(device=torch.device(device))
     grad_adjs, minv = mesh.compute_isoAM(with_moment_matrix=True)
-    actual_grad_adjs = array_handler.convert_to_dense_numpy(grad_adjs)
+    actual_grad_adjs = grad_adjs.to_tensor().to_dense().numpy()
     np.testing.assert_almost_equal(
         actual_grad_adjs, desired_grad_adjs, decimal=6
     )
-    actual_minv = array_handler.convert_to_dense_numpy(minv)
+    actual_minv = minv.to_tensor().to_dense().numpy()
     np.testing.assert_almost_equal(actual_minv, desired_minv, decimal=6)
 
 
@@ -589,13 +596,13 @@ def test__compute_isoAM_with_neumann(
     grad_adjs, wnormals, minv = mesh.compute_isoAM_with_neumann(
         normal_weight=normal_weight, with_moment_matrix=True
     )
-    actual_grad_adjs = array_handler.convert_to_dense_numpy(grad_adjs)
+    actual_grad_adjs = grad_adjs.to_tensor().to_dense().numpy()
     np.testing.assert_almost_equal(
         actual_grad_adjs, desired_grad_adjs, decimal=6
     )
-    actual_wnormals = array_handler.convert_to_dense_numpy(wnormals)
+    actual_wnormals = wnormals.to_tensor().numpy()
     np.testing.assert_almost_equal(actual_wnormals, desired_wnormals, decimal=6)
-    actual_minv = array_handler.convert_to_dense_numpy(minv)
+    actual_minv = minv.to_tensor().to_dense().numpy()
     np.testing.assert_almost_equal(actual_minv, desired_minv, decimal=6)
 
 
@@ -655,20 +662,19 @@ def test__compute_isoAM_for_surface_mesh(
     X, Y = np.meshgrid(x, y, indexing="xy")
     Z = np.zeros([ni, nj], dtype=np.float32)
     grid = pv.StructuredGrid(X, Y, Z)
-    mesh = graphlow.GraphlowMesh(grid)
-    mesh.send(device=torch.device(device))
+    mesh = graphlow.GraphlowMesh(grid, device=torch.device(device))
     grad_adjs, _ = mesh.compute_isoAM(with_moment_matrix=True)
 
-    phi = torch.from_numpy(scalar_field(grid.points)).to(torch.device(device))
+    phi = pt.phlower_tensor(
+        torch.from_numpy(scalar_field(grid.points)), dimension={"Theta": 1}
+    ).to(torch.device(device))
     actual_grad_x_phi = grad_adjs[0] @ phi
     actual_grad_y_phi = grad_adjs[1] @ phi
     actual_grad_z_phi = grad_adjs[2] @ phi
     actual_grad_vector = torch.stack(
         [actual_grad_x_phi, actual_grad_y_phi, actual_grad_z_phi], dim=1
     )
-    actual_grad_vector = array_handler.convert_to_numpy_scipy(
-        actual_grad_vector
-    )
+    actual_grad_vector = actual_grad_vector.to_tensor().cpu().numpy()
 
     np.testing.assert_almost_equal(actual_grad_vector, desired_grad, decimal=6)
 
@@ -683,7 +689,7 @@ def test___compute_normals_on_surface_points_not_nan():
     filter_small_pv_normals = np.linalg.norm(pv_normals, axis=1) < 1e-8
 
     normals = isoAM_processor._compute_normals_on_surface_points(mesh)
-    actual = array_handler.convert_to_numpy_scipy(normals)
+    actual = normals.to_tensor().numpy()
 
     assert not np.any(np.isnan(actual))
     np.testing.assert_almost_equal(actual[filter_small_pv_normals], 0.0)
@@ -701,9 +707,7 @@ def test__compute_isoAM_with_neumann_not_nan():
     )
 
     for grad_adj in grad_adjs:
-        assert not np.any(
-            np.isnan(array_handler.convert_to_dense_numpy(grad_adj))
-        )
+        assert not np.any(np.isnan(grad_adj.to_tensor().to_dense().numpy()))
 
     assert not np.any(np.isnan(wnormals.numpy()))
-    assert not np.any(np.isnan(minv.numpy()))
+    assert not np.any(np.isnan(minv.to_tensor().to_dense().numpy()))
