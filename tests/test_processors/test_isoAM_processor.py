@@ -1,5 +1,6 @@
 import pathlib
 from collections.abc import Callable
+from unittest.mock import patch
 
 import numpy as np
 import phlower_tensor as pt
@@ -8,120 +9,53 @@ import pyvista as pv
 import torch
 
 import graphlow
-from graphlow.processors.isoAM_processor import IsoAMProcessor
+from graphlow.processors.isoAM_processor import (
+    IsoAMProcessor,
+    _compute_normals_on_surface_points,
+    _compute_rawAM_and_moment_inv,
+    _create_grad_operator_from,
+)
+from graphlow.util.enums import FloatPrecision
 from graphlow.util.logger import get_logger
+from graphlow.util.phlower_helper import phlower_ones
 
 logger = get_logger(__name__)
 
 
 @pytest.mark.with_device
 @pytest.mark.parametrize(
-    "file_name, desired",
-    [
-        (
-            pathlib.Path("tests/data/vtu/primitive_cell/octahedron.vtu"),
-            np.array(
-                [
-                    [1.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
-                    [2.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0],
-                    [2.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0],
-                    [2.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-                    [2.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0],
-                    [2.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0],
-                    [2.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0],
-                ]
-            ),
-        )
-    ],
-)
-def test___compute_weight_from_volume(
-    file_name: pathlib.Path, desired: np.ndarray, device: str
-):
-    mesh = graphlow.read(file_name)
-    mesh.send(device=torch.device(device))
-    adj = mesh.compute_point_adjacency().to_tensor().to_sparse_coo()
-    isoAM_processor = IsoAMProcessor()
-
-    weights_nnz = isoAM_processor._compute_weights_nnz_from_volume(mesh)
-    Wij = torch.sparse_coo_tensor(
-        adj.indices(), weights_nnz.to_tensor(), (mesh.n_points, mesh.n_points)
-    )
-    actual = Wij.to_dense().numpy()
-    np.testing.assert_almost_equal(actual, desired)
-
-
-@pytest.mark.with_device
-@pytest.mark.parametrize(
-    "np_adj, np_points, desired",
+    "rawAM, desired",
     [
         (
             np.array(
                 [
-                    # 0, 1, 2, 3, 4, 5, 6, 7, 8
-                    [1, 1, 0, 1, 0, 0, 0, 0, 0],
-                    [1, 1, 1, 0, 1, 0, 0, 0, 0],
-                    [0, 1, 1, 0, 0, 1, 0, 0, 0],
-                    [1, 0, 0, 1, 1, 0, 1, 0, 0],
-                    [0, 1, 0, 1, 1, 1, 0, 1, 0],
-                    [0, 0, 1, 0, 1, 1, 0, 0, 1],
-                    [0, 0, 0, 1, 0, 0, 1, 1, 0],
-                    [0, 0, 0, 0, 1, 0, 1, 1, 1],
-                    [0, 0, 0, 0, 0, 1, 0, 1, 1],
+                    [
+                        # 0, 1, 2, 3, 4, 5, 6, 7, 8
+                        [1, 1, 0, 1, 0, 0, 0, 0, 0],
+                        [1, 1, 1, 0, 1, 0, 0, 0, 0],
+                        [0, 1, 1, 0, 0, 1, 0, 0, 0],
+                        [1, 0, 0, 1, 1, 0, 1, 0, 0],
+                        [0, 1, 0, 1, 1, 1, 0, 1, 0],
+                        [0, 0, 1, 0, 1, 1, 0, 0, 1],
+                        [0, 0, 0, 1, 0, 0, 1, 1, 0],
+                        [0, 0, 0, 0, 1, 0, 1, 1, 1],
+                        [0, 0, 0, 0, 0, 1, 0, 1, 1],
+                    ]
                 ]
             ),
             np.array(
                 [
-                    [0.0, 0.0, 2.0],
-                    [1.0, 0.0, 1.0],
-                    [2.0, 0.0, 0.0],
-                    [0.0, 1.0, 2.0],
-                    [1.0, 1.0, 1.0],
-                    [2.0, 1.0, 0.0],
-                    [0.0, 2.0, 2.0],
-                    [1.0, 2.0, 1.0],
-                    [2.0, 2.0, 0.0],
-                ]
-            ),
-            np.array(
-                [
-                    # x
                     [
-                        # 0,  1,  2,  3,  4,  5,  6,  7,  8
-                        [-1, 1, 0, 0, 0, 0, 0, 0, 0],
-                        [-1, 0, 1, 0, 0, 0, 0, 0, 0],
-                        [0, -1, 1, 0, 0, 0, 0, 0, 0],
-                        [0, 0, 0, -1, 1, 0, 0, 0, 0],
-                        [0, 0, 0, -1, 0, 1, 0, 0, 0],
-                        [0, 0, 0, 0, -1, 1, 0, 0, 0],
-                        [0, 0, 0, 0, 0, 0, -1, 1, 0],
-                        [0, 0, 0, 0, 0, 0, -1, 0, 1],
-                        [0, 0, 0, 0, 0, 0, 0, -1, 1],
-                    ],
-                    # y
-                    [
-                        # 0,  1,  2,  3,  4,  5,  6,  7,  8
-                        [-1, 0, 0, 1, 0, 0, 0, 0, 0],
-                        [0, -1, 0, 0, 1, 0, 0, 0, 0],
-                        [0, 0, -1, 0, 0, 1, 0, 0, 0],
-                        [-1, 0, 0, 0, 0, 0, 1, 0, 0],
-                        [0, -1, 0, 0, 0, 0, 0, 1, 0],
-                        [0, 0, -1, 0, 0, 0, 0, 0, 1],
-                        [0, 0, 0, -1, 0, 0, 1, 0, 0],
-                        [0, 0, 0, 0, -1, 0, 0, 1, 0],
-                        [0, 0, 0, 0, 0, -1, 0, 0, 1],
-                    ],
-                    # z
-                    [
-                        # 0,  1,  2,  3,  4,  5,  6,  7,  8
-                        [1, -1, 0, 0, 0, 0, 0, 0, 0],
-                        [1, 0, -1, 0, 0, 0, 0, 0, 0],
-                        [0, 1, -1, 0, 0, 0, 0, 0, 0],
-                        [0, 0, 0, 1, -1, 0, 0, 0, 0],
-                        [0, 0, 0, 1, 0, -1, 0, 0, 0],
-                        [0, 0, 0, 0, 1, -1, 0, 0, 0],
-                        [0, 0, 0, 0, 0, 0, 1, -1, 0],
-                        [0, 0, 0, 0, 0, 0, 1, 0, -1],
-                        [0, 0, 0, 0, 0, 0, 0, 1, -1],
+                        # 0, 1, 2, 3, 4, 5, 6, 7, 8
+                        [-2, 1, 0, 1, 0, 0, 0, 0, 0],
+                        [1, -3, 1, 0, 1, 0, 0, 0, 0],
+                        [0, 1, -2, 0, 0, 1, 0, 0, 0],
+                        [1, 0, 0, -3, 1, 0, 1, 0, 0],
+                        [0, 1, 0, 1, -4, 1, 0, 1, 0],
+                        [0, 0, 1, 0, 1, -3, 0, 0, 1],
+                        [0, 0, 0, 1, 0, 0, -2, 1, 0],
+                        [0, 0, 0, 0, 1, 0, 1, -3, 1],
+                        [0, 0, 0, 0, 0, 1, 0, 1, -2],
                     ],
                 ]
             ),
@@ -129,23 +63,13 @@ def test___compute_weight_from_volume(
     ],
 )
 def test___create_grad_operator_from(
-    np_adj: np.ndarray, np_points: np.ndarray, desired: np.ndarray, device: str
+    rawAM: np.ndarray, desired: np.ndarray, device: str
 ):
-    adj = torch.from_numpy(np_adj).to_sparse_coo().to(torch.device(device))
-    i_indices, j_indices = adj.indices()
-
-    points = pt.phlower_tensor(
-        torch.from_numpy(np_points), dimension={"L": 1}
-    ).to(torch.device(device))
-    n_points = points.shape[0]
-
-    diff = points[j_indices] - points[i_indices]  # (nnz, dim)
-    isoAM_processor = IsoAMProcessor()
-
-    grad_op = isoAM_processor._create_grad_operator_from(
-        i_indices, j_indices, n_points, diff
+    rawAM = pt.phlower_tensor(
+        torch.from_numpy(rawAM).to_sparse_coo(), dimension={}
     )
-    actual = grad_op.to_tensor().to_dense().cpu().numpy()
+    grad_op = _create_grad_operator_from(rawAM)
+    actual = grad_op.to_tensor().cpu().to_dense().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -177,12 +101,9 @@ def test___create_grad_operator_from(
 def test___compute_normals_on_surface_points(
     file_name: pathlib.Path, desired: np.ndarray, device: str
 ):
-    mesh = graphlow.read(file_name)
-    mesh.send(device=torch.device(device))
-    isoAM_processor = IsoAMProcessor()
-
-    normals = isoAM_processor._compute_normals_on_surface_points(mesh)
-    actual = normals.to_tensor().numpy()
+    mesh = graphlow.read(file_name, device=device)
+    normals = _compute_normals_on_surface_points(mesh)
+    actual = normals.to_tensor().cpu().numpy()
     np.testing.assert_almost_equal(actual, desired, decimal=6)
 
 
@@ -282,24 +203,24 @@ def test___compute_normals_on_surface_points(
 def test__compute_moment_matrix(
     np_adj: np.ndarray, np_points: np.ndarray, desired: np.ndarray, device: str
 ):
-    adj = torch.from_numpy(np_adj).to_sparse_coo().to(torch.device(device))
-    i_indices, j_indices = adj.indices()
+    adj = pt.phlower_tensor(
+        torch.from_numpy(np_adj).to_sparse_coo(), dimension={}
+    ).to(device=torch.device(device))
+    i_indices, _ = adj.indices()
 
-    points = pt.phlower_tensor(
-        torch.from_numpy(np_points), dimension={"L": 1}
-    ).to(torch.device(device))
+    points = pt.phlower_tensor(np_points, dimension={"L": 1}).to(
+        device=torch.device(device)
+    )
     isoAM_processor = IsoAMProcessor()
 
-    weights = pt.phlower_tensor(
-        torch.ones(
-            i_indices.shape[0], device=points.device, dtype=points.dtype
-        ),
+    weights = phlower_ones(
+        (i_indices.shape[0],),
         dimension={},
-    ).to(device=points.device)
-    M = isoAM_processor._compute_moment_matrix(
-        i_indices, j_indices, points, weights
+        dtype=points.dtype,
+        device=points.device,
     )
-    actual = M.to_tensor().to_dense().cpu().numpy()
+    M = isoAM_processor._compute_moment_matrix(adj, points, weights)
+    actual = M.to_tensor().cpu().to_dense().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -337,10 +258,9 @@ def test__compute_moment_matrix(
 def test__compute_isoAM_without_moment_matrix(
     file_name: pathlib.Path, desired: np.ndarray, device: str
 ):
-    mesh = graphlow.read(file_name)
-    mesh.send(device=torch.device(device))
+    mesh = graphlow.read(file_name, device=torch.device(device))
     grad_adjs, _ = mesh.compute_isoAM(with_moment_matrix=False)
-    actual = grad_adjs.to_tensor().to_dense().numpy()
+    actual = grad_adjs.to_tensor().cpu().to_dense().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -378,12 +298,11 @@ def test__compute_isoAM_without_moment_matrix(
 def test__compute_isoAM_consider_volume(
     file_name: pathlib.Path, desired: np.ndarray, device: str
 ):
-    mesh = graphlow.read(file_name)
-    mesh.send(device=torch.device(device))
+    mesh = graphlow.read(file_name, device=torch.device(device))
     grad_adjs, _ = mesh.compute_isoAM(
         with_moment_matrix=False, consider_volume=True
     )
-    actual = grad_adjs.to_tensor().to_dense().numpy()
+    actual = grad_adjs.to_tensor().cpu().to_dense().numpy()
     np.testing.assert_almost_equal(actual, desired)
 
 
@@ -448,14 +367,13 @@ def test__compute_isoAM_with_moment_matrix(
     desired_minv: np.ndarray,
     device: str,
 ):
-    mesh = graphlow.read(file_name)
-    mesh.send(device=torch.device(device))
+    mesh = graphlow.read(file_name, device=torch.device(device))
     grad_adjs, minv = mesh.compute_isoAM(with_moment_matrix=True)
-    actual_grad_adjs = grad_adjs.to_tensor().to_dense().numpy()
+    actual_grad_adjs = grad_adjs.to_tensor().cpu().to_dense().numpy()
     np.testing.assert_almost_equal(
         actual_grad_adjs, desired_grad_adjs, decimal=6
     )
-    actual_minv = minv.to_tensor().to_dense().numpy()
+    actual_minv = minv.to_tensor().cpu().to_dense().numpy()
     np.testing.assert_almost_equal(actual_minv, desired_minv, decimal=6)
 
 
@@ -469,8 +387,7 @@ def test__compute_isoAM_with_moment_matrix(
     ],
 )
 def test__compute_isoAM_shapes(file_name: pathlib.Path, device: str):
-    mesh = graphlow.read(file_name)
-    mesh.send(device=torch.device(device))
+    mesh = graphlow.read(file_name, device=torch.device(device))
     N, d = mesh.points.shape
     grad_adjs, minv = mesh.compute_isoAM(with_moment_matrix=True)
     np.testing.assert_array_equal(grad_adjs.shape, (d, N, N))
@@ -589,20 +506,19 @@ def test__compute_isoAM_with_neumann(
     desired_minv: np.ndarray,
     device: str,
 ):
-    mesh = graphlow.read(file_name)
-    mesh.send(device=torch.device(device))
+    mesh = graphlow.read(file_name, device=torch.device(device))
     desired_wnormals = normal_weight * desired_normals
 
     grad_adjs, wnormals, minv = mesh.compute_isoAM_with_neumann(
         normal_weight=normal_weight, with_moment_matrix=True
     )
-    actual_grad_adjs = grad_adjs.to_tensor().to_dense().numpy()
+    actual_grad_adjs = grad_adjs.to_tensor().cpu().to_dense().numpy()
     np.testing.assert_almost_equal(
         actual_grad_adjs, desired_grad_adjs, decimal=6
     )
-    actual_wnormals = wnormals.to_tensor().numpy()
+    actual_wnormals = wnormals.numpy()
     np.testing.assert_almost_equal(actual_wnormals, desired_wnormals, decimal=6)
-    actual_minv = minv.to_tensor().to_dense().numpy()
+    actual_minv = minv.to_tensor().cpu().to_dense().numpy()
     np.testing.assert_almost_equal(actual_minv, desired_minv, decimal=6)
 
 
@@ -618,8 +534,7 @@ def test__compute_isoAM_with_neumann(
 def test__compute_isoAM_with_neumann_shapes(
     file_name: pathlib.Path, device: str
 ):
-    mesh = graphlow.read(file_name)
-    mesh.send(device=torch.device(device))
+    mesh = graphlow.read(file_name, device=torch.device(device))
     N, d = mesh.points.shape
     grad_adjs, wnormals, minv = mesh.compute_isoAM_with_neumann(
         with_moment_matrix=True
@@ -682,13 +597,12 @@ def test__compute_isoAM_for_surface_mesh(
 def test___compute_normals_on_surface_points_not_nan():
     file_name = "tests/data/vtp/openedge_surface/openedge_surface.vtp"
     mesh = graphlow.read(file_name)
-    isoAM_processor = IsoAMProcessor()
 
     pv_mesh = pv.read(file_name).compute_normals()
     pv_normals = pv_mesh.point_data["Normals"]
     filter_small_pv_normals = np.linalg.norm(pv_normals, axis=1) < 1e-8
 
-    normals = isoAM_processor._compute_normals_on_surface_points(mesh)
+    normals = _compute_normals_on_surface_points(mesh)
     actual = normals.to_tensor().numpy()
 
     assert not np.any(np.isnan(actual))
@@ -711,3 +625,139 @@ def test__compute_isoAM_with_neumann_not_nan():
 
     assert not np.any(np.isnan(wnormals.numpy()))
     assert not np.any(np.isnan(minv.to_tensor().to_dense().numpy()))
+
+
+@pytest.mark.with_device
+@pytest.mark.parametrize(
+    "mesh_file_name, femio_moment_file_name, femio_rawAM_file_name, "
+    "femio_Minv_file_name",
+    [
+        (
+            pathlib.Path("tests/data/vtu/hexbeam/mesh.vtu"),
+            pathlib.Path("tests/data/femio/hexbeam/moment.npy"),
+            pathlib.Path("tests/data/femio/hexbeam/rawAM.npy"),
+            pathlib.Path("tests/data/femio/hexbeam/Minv.npy"),
+        )
+    ],
+)
+def test___compute_rawAM_and_moment_inv(
+    mesh_file_name: pathlib.Path,
+    femio_moment_file_name: pathlib.Path,
+    femio_rawAM_file_name: pathlib.Path,
+    femio_Minv_file_name: pathlib.Path,
+    device: str,
+):
+    femio_moment = np.load(femio_moment_file_name)
+    femio_rawAM = np.load(femio_rawAM_file_name)
+    femio_Minv = np.load(femio_Minv_file_name)
+    mesh = graphlow.read(
+        mesh_file_name, device=device, float_precision=FloatPrecision.FLOAT64
+    )
+    adj = mesh.compute_point_adjacency()
+    points = mesh.points
+    weights = phlower_ones(
+        (mesh.n_points,), dimension={}, dtype=points.dtype, device=points.device
+    )
+    moment = pt.phlower_tensor(torch.from_numpy(femio_moment), dimension={}).to(
+        device=device
+    )
+    rawAM, Minv = _compute_rawAM_and_moment_inv(adj, points, weights, moment)
+    graphlow_rawAM = rawAM.to_tensor().cpu().to_dense().numpy()
+    np.testing.assert_almost_equal(graphlow_rawAM, femio_rawAM, decimal=6)
+    graphlow_Minv = Minv.to_tensor().cpu().to_dense().numpy()
+    np.testing.assert_almost_equal(graphlow_Minv, femio_Minv, decimal=6)
+
+
+@pytest.mark.with_device
+@pytest.mark.parametrize(
+    "mesh_file_name, femio_moment_file_name, femio_rawAM_file_name, "
+    "femio_Minv_file_name",
+    [
+        (
+            pathlib.Path("tests/data/vtu/hexbeam/mesh.vtu"),
+            pathlib.Path("tests/data/femio/hexbeam/moment.npy"),
+            pathlib.Path("tests/data/femio/hexbeam/rawAM.npy"),
+            pathlib.Path("tests/data/femio/hexbeam/Minv.npy"),
+        )
+    ],
+)
+def test__compute_rawAM_and_moment_inv_fallback_when_cholesky_fails(
+    mesh_file_name: pathlib.Path,
+    femio_moment_file_name: pathlib.Path,
+    femio_rawAM_file_name: pathlib.Path,
+    femio_Minv_file_name: pathlib.Path,
+    device: str,
+):
+    """Exercise the except branch when Cholesky fails (e.g. non-SPD matrix).
+
+    When torch.linalg.cholesky raises torch.linalg.LinAlgError,
+    the code falls back to torch.linalg.inv.
+    This test mocks torch.linalg.cholesky to raise so that the
+    fallback path is executed and produces the same result as the reference.
+    """
+    femio_moment = np.load(femio_moment_file_name)
+    femio_rawAM = np.load(femio_rawAM_file_name)
+    femio_Minv = np.load(femio_Minv_file_name)
+    mesh = graphlow.read(
+        mesh_file_name, device=device, float_precision=FloatPrecision.FLOAT64
+    )
+    adj = mesh.compute_point_adjacency()
+    points = mesh.points
+    weights = phlower_ones(
+        (mesh.n_points,), dimension={}, dtype=points.dtype, device=points.device
+    )
+    moment = pt.phlower_tensor(torch.from_numpy(femio_moment), dimension={}).to(
+        device=device
+    )
+
+    with (
+        patch(
+            "torch.linalg.cholesky",
+            side_effect=torch.linalg.LinAlgError,
+        ),
+        patch(
+            "torch.linalg.inv",
+            side_effect=torch.linalg.inv,
+        ) as mock_torch_linalg_inv,
+    ):
+        rawAM, Minv = _compute_rawAM_and_moment_inv(
+            adj, points, weights, moment
+        )
+    # Guarantee the except branch ran:
+    # fallback uses torch.linalg.inv, not torch.linalg.cholesky.
+    mock_torch_linalg_inv.assert_called_once()
+
+    graphlow_rawAM = rawAM.to_tensor().cpu().to_dense().numpy()
+    np.testing.assert_almost_equal(graphlow_rawAM, femio_rawAM, decimal=6)
+    graphlow_Minv = Minv.to_tensor().cpu().to_dense().numpy()
+    np.testing.assert_almost_equal(graphlow_Minv, femio_Minv, decimal=6)
+
+
+@pytest.mark.with_device
+@pytest.mark.parametrize(
+    "mesh_file_name, femio_moment_file_name",
+    [
+        (
+            pathlib.Path("tests/data/vtu/hexbeam/mesh.vtu"),
+            pathlib.Path("tests/data/femio/hexbeam/moment.npy"),
+        )
+    ],
+)
+def test__compute_moment_matrix_cf_femio(
+    mesh_file_name: pathlib.Path,
+    femio_moment_file_name: pathlib.Path,
+    device: str,
+):
+    femio_moment = np.load(femio_moment_file_name)
+    mesh = graphlow.read(
+        mesh_file_name, device=device, float_precision=FloatPrecision.FLOAT64
+    )
+    adj = mesh.compute_point_adjacency()
+    points = mesh.points
+    weights = phlower_ones(
+        (mesh.n_points,), dimension={}, dtype=points.dtype, device=points.device
+    )
+    processor = IsoAMProcessor()
+    moment_matrix = processor._compute_moment_matrix(adj, points, weights)
+    graphlow_moment = moment_matrix.to_tensor().cpu().to_dense().numpy()
+    np.testing.assert_almost_equal(graphlow_moment, femio_moment, decimal=6)

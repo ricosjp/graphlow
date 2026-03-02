@@ -7,7 +7,6 @@ import torch
 
 from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
 from graphlow.util.logger import get_logger
-from graphlow.util.phlower_helper import phlower_repeat
 
 logger = get_logger(__name__)
 
@@ -495,8 +494,8 @@ class GeometryProcessor:
         # This is a better solution than 3 tets because
         # if the wedge is twisted then the 3 quads will be twisted.
         tops = torch.mean(cell_points, dim=1, keepdim=True)  # n_cell, 1, dim
-        quad_tops = phlower_repeat(tops, 1, 3, 1)
-        tet_tops = phlower_repeat(tops, 1, 2, 1)
+        quad_tops = tops.repeat((1, 3, 1))
+        tet_tops = tops.repeat((1, 2, 1))
 
         # pyramid
         quad_idx = torch.tensor(
@@ -543,7 +542,7 @@ class GeometryProcessor:
     def _voxel_volumes(self, cell_points: pt.PhlowerTensor) -> pt.PhlowerTensor:
         # divide the voxel into 6 pyramids
         tops = torch.mean(cell_points, dim=1, keepdim=True)  # n_cell, 1, dim
-        quad_tops = phlower_repeat(tops, 1, 6, 1)
+        quad_tops = tops.repeat((1, 6, 1))
 
         quad_idx = torch.tensor(
             [
@@ -576,7 +575,7 @@ class GeometryProcessor:
     def _hex_volumes(self, cell_points: pt.PhlowerTensor) -> pt.PhlowerTensor:
         # divide the hex into 6 pyramids
         tops = torch.mean(cell_points, dim=1, keepdim=True)  # n_cell, 1, dim
-        quad_tops = phlower_repeat(tops, 1, 6, 1)
+        quad_tops = tops.repeat((1, 6, 1))
 
         quad_idx = torch.tensor(
             [

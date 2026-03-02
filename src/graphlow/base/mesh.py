@@ -616,9 +616,10 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
         normal_interp_mode: Literal["mean", "conservative"] = "conservative",
+        eps: float | None = None,
     ) -> tuple[pt.PhlowerTensor, pt.PhlowerTensor | None]:
         return self._isoAM_processor.compute_isoAM(
-            self, with_moment_matrix, consider_volume, normal_interp_mode
+            self, with_moment_matrix, consider_volume, normal_interp_mode, eps
         )
 
     def compute_isoAM_with_neumann(
@@ -627,6 +628,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
         normal_interp_mode: Literal["mean", "conservative"] = "conservative",
+        eps: float | None = None,
     ) -> tuple[pt.PhlowerTensor, pt.PhlowerTensor, pt.PhlowerTensor | None]:
         return self._isoAM_processor.compute_isoAM_with_neumann(
             self,
@@ -634,6 +636,7 @@ class GraphlowMesh(IReadOnlyGraphlowMesh):
             with_moment_matrix,
             consider_volume,
             normal_interp_mode,
+            eps,
         )
 
     def compute_cell_point_incidence(

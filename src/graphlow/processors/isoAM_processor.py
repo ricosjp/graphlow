@@ -7,6 +7,10 @@ import torch
 
 from graphlow.base.mesh_interface import IReadOnlyGraphlowMesh
 from graphlow.util.logger import get_logger
+from graphlow.util.phlower_helper import (
+    phlower_ones,
+    phlower_zeros,
+)
 
 logger = get_logger(__name__)
 
@@ -23,6 +27,7 @@ class IsoAMProcessor:
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
         normal_interp_mode: Literal["mean", "conservative"] = "conservative",
+        eps: float | None = None,
     ) -> tuple[pt.PhlowerTensor, pt.PhlowerTensor | None]:
         """Compute (dims, n_points, n_points)-shaped isoAM.
 
@@ -48,6 +53,9 @@ class IsoAMProcessor:
                 The values are then summed at each node. \
                 This approach ensures that the total quantity \
                 (such as mass or volume) is conserved.
+        eps: float | None, optional [None]
+            The epsilon value to avoid zero division.
+            If None, use the default epsilon value for the dtype.
 
         Returns
         -------
@@ -62,83 +70,44 @@ class IsoAMProcessor:
         points = mesh.points
         n_points, dim = points.shape
         adj = mesh.compute_point_adjacency()
-        i_indices, j_indices = adj.indices()  # (2, nnz)
-        diag_mask = i_indices == j_indices
 
-        # Compute differences: x_j - x_i
-        diff = points[j_indices] - points[i_indices]  # (nnz, dim)
-
-        # Compute squared norms: ||x_j - x_i||^2
-        squared_norm = torch.linalg.vector_norm(diff, dim=1) ** 2  # (nnz,)
-
-        # Compute weights: w_ij
-        weights = pt.phlower_tensor(
-            torch.ones(
-                i_indices.shape[0], device=points.device, dtype=points.dtype
-            ),
-            dimension={},
-        ).to(device=points.device)  # (nnz,)
+        # Compute weights
+        weights = phlower_ones(
+            (n_points,), dimension={}, dtype=points.dtype, device=points.device
+        )  # (n_points,)
 
         if consider_volume:
-            weights = self._compute_weights_nnz_from_volume(mesh)
-
-        # Compute weighted inverse of squared norms w_ij / ||x_j - x_i||^2
-        weighted_inv_squarenorm = weights / squared_norm  # (nnz,)
-        weighted_inv_squarenorm[diag_mask] = 0.0
-        if torch.isinf(weighted_inv_squarenorm.to_tensor()).any():
-            raise ZeroDivisionError("Input mesh contains duplicate points")
-
-        # Compute element tensor: w_ij (x_j - x_i) / ||x_j - x_i||^2
-        element = diff * weighted_inv_squarenorm[:, None]  # (nnz, dim)
-
-        if not with_moment_matrix:
-            isoAM = self._create_grad_operator_from(
-                i_indices, j_indices, n_points, element
-            )
-            return isoAM, None
-
-        moment_matrix = self._compute_moment_matrix(
-            i_indices, j_indices, points, weights
-        )
+            volumes = torch.abs(mesh.compute_volumes())
+            weights = mesh.convert_elemental2nodal(volumes, mode="conservative")
 
         # Precompute normals to avoid singular matrices
-        normals = self._compute_normals_on_surface_points(
-            mesh, normal_interp_mode
+        normals = _compute_normals_on_surface_points(
+            mesh, normal_interp_mode, eps
         )
         n_otimes_n = (
-            normals[:, None, :] * normals[:, :, None]
+            normals[:, :, None] * normals[:, None, :]
         )  # (n_points, dim, dim)
 
-        moment_rank = torch.linalg.matrix_rank(
-            moment_matrix.to_tensor(), hermitian=True
-        )
-        batch_mask = moment_rank < dim
-        moment_matrix[batch_mask] += n_otimes_n[batch_mask]
-
-        # Compute the inverse of M_i
-        moment_inv_dim = moment_matrix.dimension * -1
-        moment_inv = pt.phlower_tensor(
-            torch.linalg.inv(moment_matrix.to_tensor()),
-            dimension=moment_inv_dim,
-        ).to(device=points.device)  # (n_points, dim, dim)
-
-        # Get M_i^{-1} for each edge (i,j)
-        moment_inv_i = moment_inv[i_indices]  # (nnz, dim, dim)
-
-        # Compute element tensor:  M_i^{-1} w_ij (x_j - x_i) / ||x_j - x_i||^2
-        elem_col = element[:, :, None]
-        element_with_moment = pt.phlower_tensor(
-            torch.bmm(moment_inv_i.to_tensor(), elem_col.to_tensor()).squeeze(
-                2
-            ),
-            dimension=element.dimension,
-        ).to(device=points.device)  # (nnz, dim)
+        # Compute moment matrix
+        if with_moment_matrix:
+            moment_matrix = self._compute_moment_matrix(
+                adj, points, weights, eps
+            )
+            moment_rank = torch.linalg.matrix_rank(
+                moment_matrix.to_tensor(), hermitian=True
+            )
+            batch_mask = moment_rank < dim
+            moment_matrix[batch_mask] += n_otimes_n[batch_mask]
+        else:
+            moment_matrix = None
 
         # Compute D_{k,ij}
-        isoAM = self._create_grad_operator_from(
-            i_indices, j_indices, n_points, element_with_moment
+        rawAM, moment_inv = _compute_rawAM_and_moment_inv(
+            adj, points, weights, moment_matrix, eps
         )
 
+        # Compute \tilde{D}_{k,ij}
+        isoAM = _create_grad_operator_from(rawAM)
         return isoAM, moment_inv
 
     def compute_isoAM_with_neumann(
@@ -148,6 +117,7 @@ class IsoAMProcessor:
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
         normal_interp_mode: Literal["mean", "conservative"] = "conservative",
+        eps: float | None = None,
     ) -> tuple[pt.PhlowerTensor, pt.PhlowerTensor, pt.PhlowerTensor | None]:
         """Compute (dims, n_points, n_points)-shaped
         Neumann boundary model IsoAM.
@@ -175,6 +145,9 @@ class IsoAMProcessor:
                 The values are then summed at each node. \
                 This approach ensures that the total quantity \
                 (such as mass or volume) is conserved.
+        eps: float | None, optional [None]
+            The epsilon value to avoid zero division.
+            If None, use the default epsilon value for the dtype.
 
         Returns
         -------
@@ -189,267 +162,297 @@ class IsoAMProcessor:
                 return None
         """
         points = mesh.points
-        n_points = points.shape[0]
+        n_points, _ = points.shape
         adj = mesh.compute_point_adjacency()
-        i_indices, j_indices = adj.indices()  # (2, nnz)
-        diag_mask = i_indices == j_indices
+
+        # Compute weights
+        weights = phlower_ones(
+            (n_points,), dimension={}, dtype=points.dtype, device=points.device
+        )  # (n_points,)
+
+        if consider_volume:
+            volumes = torch.abs(mesh.compute_volumes())
+            weights = mesh.convert_elemental2nodal(volumes, mode="conservative")
 
         # Compute normals
-        normals = self._compute_normals_on_surface_points(
-            mesh, normal_interp_mode
+        normals = _compute_normals_on_surface_points(
+            mesh, normal_interp_mode, eps
         )
         weighted_normals = normal_weight * normals  # (n_points, dim)
         n_otimes_n = (
-            weighted_normals[:, None, :] * normals[:, :, None]
+            weighted_normals[:, :, None] * normals[:, None, :]
         )  # (n_points, dim, dim)
 
-        # Compute differences: x_j - x_i
-        diff = points[j_indices] - points[i_indices]  # (nnz, dim)
-
-        # Compute squared norms: ||x_j - x_i||^2
-        squared_norm = torch.linalg.vector_norm(diff, dim=1) ** 2  # (nnz,)
-
-        # Compute weights: w_ij
-        weights = pt.phlower_tensor(
-            torch.ones(
-                i_indices.shape[0], device=points.device, dtype=points.dtype
-            ),
-            dimension={},
-        ).to(device=points.device)  # (nnz,)
-
-        if consider_volume:
-            weights = self._compute_weights_nnz_from_volume(mesh)
-
-        # Compute weighted inverse of squared norms: w_ij / ||x_j - x_i||^2
-        weighted_inv_squarenorm = weights / squared_norm  # (nnz,)
-        weighted_inv_squarenorm[diag_mask] = 0.0
-        if torch.isinf(weighted_inv_squarenorm.to_tensor()).any():
-            raise ZeroDivisionError("Input mesh contains duplicate points")
-
-        # Compute element tensor: w_ij (x_j - x_i) / ||x_j - x_i||^2
-        element = diff * weighted_inv_squarenorm[:, None]  # (nnz, dim)
-
-        if not with_moment_matrix:
-            isoAM = self._create_grad_operator_from(
-                i_indices, j_indices, n_points, element
+        # Compute moment matrix
+        if with_moment_matrix:
+            moment_matrix = (
+                self._compute_moment_matrix(adj, points, weights, eps)
+                + n_otimes_n
             )
-            return isoAM, weighted_normals, None
-
-        moment_matrix = (
-            self._compute_moment_matrix(i_indices, j_indices, points, weights)
-            + n_otimes_n
-        )  # (n_points, dim, dim)
-
-        # Compute the inverse of M_i
-        moment_inv_dim = moment_matrix.dimension * -1
-        moment_inv = pt.phlower_tensor(
-            torch.linalg.inv(moment_matrix.to_tensor()),
-            dimension=moment_inv_dim,
-        ).to(device=points.device)  # (n_points, dim, dim)
-
-        # Get M_i^{-1} for each edge (i,j)
-        moment_inv_i = moment_inv[i_indices]  # (nnz, dim, dim)
-
-        # Compute element tensor
-        elem_col = element[:, :, None]
-        element_with_moment = pt.phlower_tensor(
-            torch.bmm(moment_inv_i.to_tensor(), elem_col.to_tensor()).squeeze(
-                2
-            ),
-            dimension=element.dimension,
-        ).to(device=points.device)  # (nnz, dim)
+        else:
+            moment_matrix = None
 
         # Compute D_{k,ij}
-        isoAM = self._create_grad_operator_from(
-            i_indices, j_indices, n_points, element_with_moment
+        rawAM, moment_inv = _compute_rawAM_and_moment_inv(
+            adj, points, weights, moment_matrix, eps
         )
-        return isoAM, weighted_normals, moment_inv
+
+        # Compute \tilde{D}_{k,ij}
+        NisoAM = _create_grad_operator_from(rawAM)
+        return NisoAM, weighted_normals, moment_inv
 
     def _compute_moment_matrix(
         self,
-        i_indices: torch.Tensor,
-        j_indices: torch.Tensor,
+        adj: pt.PhlowerTensor,
         points: pt.PhlowerTensor,
         weights: pt.PhlowerTensor,
+        eps: float | None = None,
     ) -> pt.PhlowerTensor:
-        """
-        Compute the moment matrix M_i for each point.
+        r"""Compute the moment matrix M_i at each node i.
+
+        M_i is the sum of (V_j/V_i) * u_ij \otimes u_ij over neighbors j,
+        where u_ij is the unit vector from point i to j.
 
         Parameters
         ----------
-        i_indices: torch.Tensor
-            The row indices of adjacency coo matrix. (nnz,)
-        j_indices: torch.Tensor
-            The column indices of adjacency coo matrix. (nnz,)
+        adj: pt.PhlowerTensor
+            Point adjacency matrix. (N, N)
         points: pt.PhlowerTensor
-            The points to compute the moment matrix for. (n_points, dim)
+            Node coordinates. (n_points, dim)
         weights: pt.PhlowerTensor
-            The weights of the points. (nnz,)
+            The weights of the points. (n_points,)
+        eps: float | None, optional [None]
+            The epsilon value to avoid zero division.
+            If None, use the default epsilon value for the dtype.
 
         Returns
         -------
         pt.PhlowerTensor
-            (n_points, dim, dim)-shaped tensor sparse coo tensor
+            Dense (n_points, dim, dim)-shaped moment matrix.
         """
         n_points, dim = points.shape
-        diag_mask = i_indices == j_indices
+        i_indices, j_indices = adj.indices()  # (2, nnz)
+        eps = eps or torch.finfo(points.dtype).eps
 
         # Compute differences: x_j - x_i
         diff = points[j_indices] - points[i_indices]  # (nnz, dim)
 
-        # Compute squared norms: ||x_j - x_i||^2
-        squared_norm = torch.linalg.vector_norm(diff, dim=1) ** 2  # (nnz,)
+        # Compute distance (clamped to avoid zero division): ||x_j - x_i||
+        distance = torch.clamp(
+            torch.linalg.vector_norm(diff, dim=1), min=eps
+        )  # (nnz,)
 
-        # Compute weighted inverse of squared norms: w_ij / ||x_j - x_i||^2
-        weighted_inv_squarenorm = weights / squared_norm  # (nnz,)
-        weighted_inv_squarenorm[diag_mask] = 0.0
-        if torch.isinf(weighted_inv_squarenorm.to_tensor()).any():
-            raise ZeroDivisionError("Input mesh contains duplicate points")
+        # Compute unit vectors: (x_j - x_i) / ||x_j - x_i||
+        u = diff / distance[:, None]  # (nnz, dim)
 
-        # Compute tensor products: (x_j - x_i) \otimes (x_j - x_i)
-        d_otimes_d = diff[:, None, :] * diff[:, :, None]  # (nnz, dim, dim)
+        # Compute weights: w_ij = V_j / V_i
+        w = weights[j_indices] / torch.clamp(
+            weights[i_indices], min=eps
+        )  # (nnz,)
 
-        # Compute weighted tensor products:
-        # w_ij * (x_j - x_i) \otimes (x_j - x_i) / ||x_j - x_i||^2
-        element = (
-            d_otimes_d * weighted_inv_squarenorm[:, None, None]
-        )  # (nnz, dim, dim)
+        # Compute tensor products
+        outer = u[:, :, None] * u[:, None, :]  # (nnz, dim, dim)
+        contrib = w[:, None, None] * outer  # (nnz, dim, dim)
 
-        # Initialize moment matrix as (n_points, dim, dim)
-        moment_matrix = torch.zeros(
-            n_points, dim, dim, dtype=diff.dtype, device=diff.device
+        # Initialize moment matrix as (n_points, dim, dim) and sum by row
+        moment_matrix = phlower_zeros(
+            (n_points, dim, dim),
+            dimension=contrib.dimension,
+            dtype=contrib.dtype,
+            device=contrib.device,
         )
+        moment_matrix = moment_matrix.index_add(0, i_indices, contrib)
+        return moment_matrix
 
-        # Sum each row
-        moment_matrix.index_add_(0, i_indices, element.to_tensor())
-        return pt.phlower_tensor(moment_matrix, dimension=element.dimension)
 
-    def _compute_weights_nnz_from_volume(
-        self, mesh: IReadOnlyGraphlowMesh
-    ) -> pt.PhlowerTensor:
-        """Compute: V_j / V_i
+def _compute_normals_on_surface_points(
+    mesh: IReadOnlyGraphlowMesh,
+    mode: Literal["mean", "conservative"] = "conservative",
+    eps: float | None = None,
+) -> pt.PhlowerTensor:
+    """Compute normals tensor with values only on the surface points.
 
-        Parameters
-        ----------
-        mesh: GraphlowMesh
+    Parameters
+    ----------
+    mesh: GraphlowMesh
+        The mesh to compute the normals for.
+    mode: Literal["mean", "conservative"], \
+        default: "conservative" \
+        The way to interpolate normals. cf. convert_elemental2nodal.
+        - "mean": For each node, \
+            we consider all the elements that share this node \
+            and compute the average of their values.
+            This approach provides \
+            a smoothed representation at each node.
+        - "conservative": For each element,
+            we consider all the nodes that share this element \
+            and distribute the element value to them equally.
+            The values are then summed at each node. \
+            This approach ensures that the total quantity \
+            (such as mass or volume) is conserved.
+    eps: float | None, optional [None]
+        The epsilon value to avoid zero division.
+        If None, use the default epsilon value for the dtype.
 
-        Returns
-        -------
-        (nnz,)-shaped tensor
-        """
-        adj = mesh.compute_point_adjacency()
-        i_indices, j_indices = adj.indices()
-        cell_volumes = torch.abs(mesh.compute_volumes())
-        effective_volumes = mesh.convert_elemental2nodal(
-            cell_volumes, mode="conservative"
+    Returns
+    -------
+    pt.PhlowerTensor
+        (n_points, dim)-shaped nodal normals.
+    """
+    eps = eps or torch.finfo(mesh.dtype).eps
+    surf = mesh.extract_surface(pass_point_data=True)
+    surf_vol_rel_inc = mesh.compute_point_relative_incidence(surf).transpose(
+        0, 1
+    )
+    normals_on_faces = surf.compute_normals()
+    normals_on_points = surf.convert_elemental2nodal(normals_on_faces, mode)
+    norm: pt.PhlowerTensor = torch.linalg.vector_norm(
+        normals_on_points, dim=1
+    )  # (n_points,)
+
+    filter_non_zero = norm.to_tensor() > eps
+    filtered_normal = normals_on_points[filter_non_zero]  # (n_non_zero, dim)
+    normals_on_points[filter_non_zero] = (
+        filtered_normal / norm[filter_non_zero, None]
+    )
+    normals_on_points[~filter_non_zero] = 0.0
+    return surf_vol_rel_inc @ normals_on_points
+
+
+def _create_grad_operator_from(
+    D: pt.PhlowerTensor,
+) -> pt.PhlowerTensor:
+    """Build the row-sum-zero gradient operator from the raw AM.
+
+    Parameters
+    ----------
+    D: pt.PhlowerTensor
+        The raw AM. (K, N, N)
+
+    Returns
+    -------
+    pt.PhlowerTensor
+        The grad operator. (K, N, N)
+    """
+    k_idx, i_idx, _ = D.indices()
+    values = D.values()
+    K, N, _ = D.shape
+
+    # sum over l: sumD[k, i] = Σ_j D[k,i,j]
+    sumD = torch.zeros((K, N), dtype=D.dtype, device=D.device)
+    for kk in range(K):
+        mask = k_idx == kk
+        sumD[kk] = sumD[kk].index_add(0, i_idx[mask], values[mask])
+
+    # add diagonal entries: D_tilde = D - diag(sumD)
+    diag_k = torch.arange(K, device=D.device).repeat_interleave(N)
+    diag_i = torch.arange(N, device=D.device).repeat(K)
+    diag_j = diag_i
+    diag_indices = torch.stack([diag_k, diag_i, diag_j], dim=0)
+    diag_vals = -sumD.reshape(-1)
+    new_idx = torch.cat([D.indices(), diag_indices], dim=1)
+    new_vals = torch.cat([values, diag_vals], dim=0)
+    return pt.phlower_tensor(
+        torch.sparse_coo_tensor(
+            new_idx, new_vals, size=(K, N, N), device=D.device, dtype=D.dtype
+        ).coalesce(),
+        dimension=D.dimension,
+    ).to(device=D.device)
+
+
+def _compute_rawAM_and_moment_inv(
+    adj: pt.PhlowerTensor,
+    x: pt.PhlowerTensor,
+    V: pt.PhlowerTensor,
+    moment_matrix: pt.PhlowerTensor | None = None,
+    eps: float | None = None,
+) -> tuple[pt.PhlowerTensor, pt.PhlowerTensor | None]:
+    """Compute raw AM D_{k,ij} and optionally M_i^{-1}.
+
+    Formula:
+        D_{k,ij} = M_i^{-1} (x_jk-x_ik)
+                    * (V_j/(||x_j-x_i||^2 V_i)) * A_ij
+    If moment_matrix is None, M_i^{-1} is treated as identity.
+
+    Parameters
+    ----------
+    adj: pt.PhlowerTensor
+        Point adjacency matrix. (N, N)
+    x: pt.PhlowerTensor
+        Node coordinates. (N, K)
+    V: pt.PhlowerTensor
+        Nodal weights (e.g. ones or volumes when
+        consider_volume=True). (N,)
+    moment_matrix: pt.PhlowerTensor | None, optional [None]
+        Per-node moment matrix (N, K, K).
+        If None, raw AM is computed without it.
+    eps: float | None, optional [None]
+        The epsilon value to avoid zero division.
+        If None, use the default epsilon value for the dtype.
+
+    Returns
+    -------
+    raw_AM: pt.PhlowerTensor
+        The raw AM. (K, N, N)
+    moment_inv: pt.PhlowerTensor | None
+        Inverse moment matrix (N, K, K) if moment_matrix was given, else None.
+    """
+    N, K = x.shape
+    row, col = adj.indices()
+    nnz = row.shape[0]
+    eps = eps or torch.finfo(x.dtype).eps
+
+    # Compute differences: x_jk - x_ik
+    diff = x[col] - x[row]  # (nnz,k)
+
+    # Compute squared norms: ||x_j - x_i||^2
+    dist2 = torch.clamp(torch.sum(diff * diff, dim=1), min=eps)
+
+    # Compute scalar: V_j / (V_i * ||x_j - x_i||^2)
+    scalar = V[col] / (torch.clamp(V[row], min=eps) * dist2)  # (nnz,)
+
+    rhs = diff[:, :, None]
+
+    if moment_matrix is None:
+        sol = rhs
+        Minv = None
+    else:
+        M = moment_matrix[row]
+        Minv = phlower_zeros(
+            (N, K, K),
+            dimension=moment_matrix.dimension * -1,
+            dtype=moment_matrix.dtype,
+            device=moment_matrix.device,
         )
-        weights = effective_volumes[j_indices] / effective_volumes[i_indices]
-        return weights
+        # solve M_i^{-1} @ (x_jk - x_ik)
+        try:
+            # Cholesky works only for SPD
+            L = torch.linalg.cholesky(M)  # (nnz,k,k)
+            sol = torch.cholesky_solve(rhs, L)  # (nnz,k,1)
+            moment_inv = torch.cholesky_inverse(L)  # (nnz,k,k)
+        except torch.linalg.LinAlgError:
+            moment_inv = torch.linalg.inv(M)  # (nnz,k,k)
+            sol = moment_inv @ rhs  # (nnz,k,1)
 
-    def _create_grad_operator_from(
-        self,
-        i_indices: torch.Tensor,
-        j_indices: torch.Tensor,
-        n_points: int,
-        element: pt.PhlowerTensor,
-    ) -> pt.PhlowerTensor:
-        """Create a grad operator from a given tensor
+        # ---- pack (nnz,k,k) -> 3D sparse COO (n,k,k) ----
+        Minv[row, :, :] = moment_inv
 
-        Parameters
-        ----------
-        i_indices: torch.Tensor
-            The row indices of adjacency coo matrix. (nnz,)
-        j_indices: torch.Tensor
-            The column indices of adjacency coo matrix. (nnz,)
-        n_points: int
-            The number of points.
-        element: pt.PhlowerTensor
-            The non-zero elements to create the grad operator from. (nnz, dim)
+    D_vals = sol[:, :, 0] * scalar[:, None]  # (nnz,k)
 
-        Returns
-        -------
-        (dim, n_points, n_points)-shaped phlower sparse coo tensor
-        """
-        dim = element.shape[1]
+    # ---- pack (nnz,k) -> 3D sparse COO (k,n,n) ----
+    k_idx = torch.arange(K, device=x.device).repeat(nnz)  # (nnz*k,)
+    i_idx = row.repeat_interleave(K)  # (nnz*k,)
+    j_idx = col.repeat_interleave(K)  # (nnz*k,)
+    values = D_vals.reshape((-1,))  # row-major: (nnz*k,)
 
-        # Compute \sum_l D_{k,il}: (n_points, dim)
-        sum_by_row = torch.zeros(
-            n_points, dim, dtype=element.dtype, device=element.device
-        )
-        sum_by_row.index_add_(0, i_indices, element.to_tensor())
-        sum_by_row = pt.phlower_tensor(sum_by_row, dimension=element.dimension)
+    D = pt.phlower_tensor(
+        torch.sparse_coo_tensor(
+            torch.stack([k_idx, i_idx, j_idx], dim=0),
+            values.to_tensor(),
+            size=(K, N, N),
+            dtype=D_vals.dtype,
+        ).coalesce(),
+        dimension=D_vals.dimension,
+    ).to(device=D_vals.device)
 
-        # Identify self-loop edges (i == j)
-        diag_mask = i_indices == j_indices  # (nnz,)
-
-        # substract diagonal elements: D_{k,ij} - \delta_{ij} \sum_l D_{k,il}
-        grad_adj = (
-            element
-            - diag_mask.to(element.dtype)[:, None] * sum_by_row[i_indices]
-        )
-
-        # nnz, dim -> dim, n_points, n_points
-        indices = torch.stack([i_indices, j_indices], dim=0)
-        stacked = torch.stack(
-            [
-                torch.sparse_coo_tensor(
-                    indices, grad_adj[:, k].to_tensor(), (n_points, n_points)
-                )
-                for k in range(dim)
-            ]
-        )
-        return pt.phlower_tensor(stacked.coalesce(), dimension={}).to(
-            device=element.device
-        )
-
-    def _compute_normals_on_surface_points(
-        self,
-        mesh: IReadOnlyGraphlowMesh,
-        mode: Literal["mean", "conservative"] = "conservative",
-        epsilon: float = 1.0e-3,
-    ) -> pt.PhlowerTensor:
-        """Compute normals tensor with values only on the surface points.
-
-        Parameters
-        ----------
-        mesh: GraphlowMesh
-            The mesh to compute the normals for.
-        mode: Literal["mean", "conservative"], \
-            default: "conservative" \
-            The way to interpolate normals. cf. convert_elemental2nodal.
-            - "mean": For each node, \
-                we consider all the elements that share this node \
-                and compute the average of their values.
-                This approach provides \
-                a smoothed representation at each node.
-            - "conservative": For each element,
-                we consider all the nodes that share this element \
-                and distribute the element value to them equally.
-                The values are then summed at each node. \
-                This approach ensures that the total quantity \
-                (such as mass or volume) is conserved.
-        epsilon: float
-            default: 1.0e-3
-            Threshold to detect zero-normed normal vectors.
-
-        Returns
-        -------
-        normals: (n_points, dim)-shaped tensor
-        """
-        surf = mesh.extract_surface(pass_point_data=True)
-        surf_vol_rel_inc = mesh.compute_point_relative_incidence(
-            surf
-        ).transpose(0, 1)
-        normals_on_faces = surf.compute_normals()
-        normals_on_points = surf.convert_elemental2nodal(normals_on_faces, mode)
-        norm = torch.linalg.vector_norm(normals_on_points, dim=1)  # (n_points,)
-
-        filter_non_zero = norm.to_tensor() > epsilon
-        filtered_normal = normals_on_points[
-            filter_non_zero
-        ]  # (n_non_zero, dim)
-        normals_on_points[filter_non_zero] = (
-            filtered_normal / norm[filter_non_zero, None]
-        )
-        normals_on_points[~filter_non_zero] = 0.0
-        return surf_vol_rel_inc @ normals_on_points
+    return D, Minv
