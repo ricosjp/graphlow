@@ -261,6 +261,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
         normal_interp_mode: Literal["mean", "conservative"] = "conservative",
+        eps: float | None = None,
     ) -> tuple[pt.PhlowerTensor, pt.PhlowerTensor | None]:
         """Compute (dims, n_points, n_points)-shaped isoAM.
 
@@ -272,12 +273,22 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
         normal_interp_mode: Literal["mean", "conservative"], \
-            default: "conservative"
+            default: "conservative" \
             The way to interpolate normals. cf. convert_elemental2nodal.
-            - "mean": averages the values of \
-                nodes connected to each element.
-            - "conservative": distributes node information \
-                to the connected elements, ensuring consistent volume.
+            - "mean": For each node, \
+                we consider all the elements that share this node \
+                and compute the average of their values. \
+                This approach provides \
+                a smoothed representation at each node.
+            - "conservative": For each element, \
+                we consider all the nodes that share this element \
+                and distribute the element value to them equally. \
+                The values are then summed at each node. \
+                This approach ensures that the total quantity \
+                (such as mass or volume) is conserved.
+        eps: float | None, optional [None]
+            The epsilon value to avoid zero division.
+            If None, use the default epsilon for the mesh dtype.
 
         Returns
         -------
@@ -298,6 +309,7 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         with_moment_matrix: bool = True,
         consider_volume: bool = False,
         normal_interp_mode: Literal["mean", "conservative"] = "conservative",
+        eps: float | None = None,
     ) -> tuple[pt.PhlowerTensor, pt.PhlowerTensor, pt.PhlowerTensor | None]:
         """Compute (dims, n_points, n_points)-shaped
         Neumann boundary model IsoAM.
@@ -312,12 +324,22 @@ class IReadOnlyGraphlowMesh(metaclass=abc.ABCMeta):
         consider_volume: bool, optional [False]
             If True, consider effective volume of each vertex.
         normal_interp_mode: Literal["mean", "conservative"], \
-            default: "conservative"
+            default: "conservative" \
             The way to interpolate normals. cf. convert_elemental2nodal.
-            - "mean": averages the values of \
-                nodes connected to each element.
-            - "conservative": distributes node information \
-                to the connected elements, ensuring consistent volume.
+            - "mean": For each node, \
+                we consider all the elements that share this node \
+                and compute the average of their values. \
+                This approach provides \
+                a smoothed representation at each node.
+            - "conservative": For each element, \
+                we consider all the nodes that share this element \
+                and distribute the element value to them equally. \
+                The values are then summed at each node. \
+                This approach ensures that the total quantity \
+                (such as mass or volume) is conserved.
+        eps: float | None, optional [None]
+            The epsilon value to avoid zero division.
+            If None, use the default epsilon for the mesh dtype.
 
         Returns
         -------
