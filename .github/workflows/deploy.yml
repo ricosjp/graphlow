@@ -13,17 +13,17 @@ jobs:
       - name: Install dependencies for building docs
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libgl1 libglx-mesa0
+          sudo apt-get install -y xvfb
       - name: Set up Python
         uses: actions/setup-python@main
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - name: Install uv
         uses: astral-sh/setup-uv@v7
       - name: Sync project dependencies for docs
-        run: uv sync --group docs
+        run: uv sync --group docs --extra cpu
       - name: Build documentation
-        run: make document
+        run: xvfb-run make document
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/upload-pages-artifact@v3

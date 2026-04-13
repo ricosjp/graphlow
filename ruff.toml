@@ -35,8 +35,8 @@ exclude = [
 line-length = 80
 indent-width = 4
 
-# Assume Python 3.11
-target-version = "py311"
+# Assume Python 3.12
+target-version = "py312"
 
 [lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
@@ -53,7 +53,6 @@ select = [
     "ANN", # flake8-annotations
 ]
 ignore = [
-    "ANN003", # Missing type annotation for kwargs
     "ANN204", # Missing return type annotation for special method
 ]
 
@@ -69,8 +68,7 @@ suppress-none-returning = true
 
 [lint.per-file-ignores]
 "__init__.py" = ["F401"] # Unused import
-"src/graphlow/base/**/*.py" = ["ANN401"] # Any type annotation is allowed
-"tests/conftest.py" = ["ANN001"] # Missing type annotation for function
+"docs/source/conf.py" = ["E402"] # Module level import not at top of file
 
 [format]
 # Like Black, use double quotes for strings.

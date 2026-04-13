@@ -169,8 +169,17 @@ cython_debug/
 .vscode
 
 # data
-/data
+data
 tests/outputs
+
+# docs
+docs/source/example_gallery/
+docs/source/api_reference/generated/
+sg_execution_times.rst
+
+# example
+examples/**/*.gif
+examples/**/*.png
 
 # Misc
 *~
@@ -180,6 +189,3 @@ spike
 
 outputs
 note/
-docs/source/tutorials/
-docs/source/api/generated/
-sg_execution_times.rst
