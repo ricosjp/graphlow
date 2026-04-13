@@ -1,5 +1,5 @@
 variables:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.12"
   BASE_LAYER: bookworm-slim
   # GitLab CI creates a separate mountpoint for the build directory,
   # so we need to copy instead of using hard links.
@@ -10,31 +10,31 @@ stages:
   - deploy
 
 default:
-  image: astral/uv:python$PYTHON_VERSION-$BASE_LAYER
+  image: astral/uv:python${PYTHON_VERSION}-${BASE_LAYER}
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq make git
+
+# -----------------------------------------------------------------------------
+# test stage
+# -----------------------------------------------------------------------------
 
 lint:
   stage: test
-  before_script:
-    - apt update
-    - apt install -y make git
-    - make install
   script:
+    - uv sync --group lint
     - make lint
   tags:
     - no-gpu
 
-cpu-pytest:
+cpu-test:
   stage: test
-  before_script:
-    - apt update
-    - apt install -y make libx11-6 libgl1-mesa-glx libxrender1 git
-    - make install
   script:
+    - uv sync --group test --extra cpu
     - make cpu-test
-    - mv .coverage .coverage.cpu
+    - mkdir -p coverage-cpu && mv .coverage coverage-cpu/
   artifacts:
     paths:
-      - .coverage.cpu
+      - coverage-cpu/
   tags:
     - no-gpu
     - GenuineIntel
@@ -42,78 +42,65 @@ cpu-pytest:
     - cpu-ge-8
     - mem-ge-32gb
 
-gpu_pytest:
+gpu-test:
   stage: test
-  image: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
+  image: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
   before_script:
-    - apt update
-    - apt install -y make git
+    - apt-get update -qq && apt-get install -y -qq make git
     - pip install uv
-    - make install
   script:
+    - uv sync --group test --extra cu124
     - make gpu-test
-    - mv .coverage .coverage.gpu
+    - mkdir -p coverage-gpu && mv .coverage coverage-gpu/
   artifacts:
     paths:
-      - .coverage.gpu
+      - coverage-gpu/
   tags:
     - gpu
 
-slow-pytest:
+slow-test:
   stage: test
-  before_script:
-    - apt update
-    - apt install -y make git
-    - make install
+  needs:
+    - job: lint
+    - job: cpu-test
+    - job: gpu-test
   script:
+    - uv sync --group test --extra cpu
     - make slow-test
-  tags:
-    - no-gpu
-    - GenuineIntel
-    - avx2
-    - cpu-ge-8
-    - mem-ge-32gb
 
 coverage:
   stage: test
-  needs:
-    - job: cpu-pytest
-      artifacts: true
-    - job: gpu_pytest
-      artifacts: true
-  before_script:
-    - apt update
-    - apt install -y make git
-    - make install
   script:
-    - uv run coverage combine .coverage.cpu .coverage.gpu
-    - uv run coverage report
-    - uv run coverage html -d coverage
-    - uv run coverage xml -o coverage/coverage.xml
-  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+    - uv run coverage combine coverage-cpu/.coverage coverage-gpu/.coverage
+    - uv run coverage report -m
+    - uv run coverage xml -o coverage.xml
+  coverage: '/TOTAL.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
-    expose_as: coverage
-    paths:
-      - coverage/
     reports:
       coverage_report:
         coverage_format: cobertura
-        path: coverage/coverage.xml
+        path: coverage.xml
+    paths:
+      - coverage.xml
+  needs:
+    - job: cpu-test
+      artifacts: true
+    - job: gpu-test
+      artifacts: true
   tags:
     - no-gpu
-    - GenuineIntel
-    - avx2
-    - cpu-ge-8
-    - mem-ge-32gb
+
+# -----------------------------------------------------------------------------
+# deploy stage
+# -----------------------------------------------------------------------------
 
 pages:
   stage: deploy
   before_script:
-    - apt update
-    - apt install -y make xvfb libgl1-mesa-glx git
-    - make install
+    - apt-get update -qq && apt-get install -y -qq make git xvfb
+    - uv sync --group docs --extra cpu
   script:
-    - make document
+    - xvfb-run make document
     - mkdir public
     - mv docs/build/* public/
   artifacts:
@@ -123,6 +110,7 @@ pages:
     - main
     - develop
     - docs/sphinx-update
+    - update/v0.1
 
 .deploy:wheel:
   stage: deploy

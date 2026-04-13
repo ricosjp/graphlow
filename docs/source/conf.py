@@ -1,132 +1,145 @@
-# Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
+"""
+Sphinx configuration for graphlow.
+
+Docstrings/comments in this file are intentionally kept minimal and organized
+in sections for readability.
+"""
+
+from __future__ import annotations
 
 import pathlib
 import sys
+from sphinx_gallery.sorting import ExplicitOrder
 
-sys.path.insert(0, str(pathlib.Path().resolve()))
+# -- Paths -------------------------------------------------------------------
+# Repository root (conf.py lives in docs/source/).
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+DOCS_SOURCE_DIR = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(DOCS_SOURCE_DIR))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
-# -- pyvista configuration ---------------------------------------------------
+# -- Project information -----------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+from importlib.metadata import version as _version
+
+project = "graphlow"
+author = "RICOS"
+copyright = "2024, RICOS"
+version = release = _version("graphlow")
+
+# -- General configuration ---------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
+extensions = [
+    # Core
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.mathjax",
+    # Docstring style
+    "numpydoc",
+    # Gallery
+    "sphinx_gallery.gen_gallery",
+    # UX
+    "sphinx_copybutton",
+    "sphinx_codeautolink",
+    # Diagrams
+    "sphinxcontrib.mermaid",
+]
+
+templates_path = ["_templates"]
+exclude_patterns: list[str] = []
+
+source_suffix = {
+    ".rst": "restructuredtext",
+}
+
+# Autosummary / Numpydoc -----------------------------------------------------
+autosummary_generate = True
+autosummary_imported_members = False
+numpydoc_show_class_members = False
+autodoc_default_options = {
+    "members": False,
+    "inherited-members": False,
+}
+
+# -- Sphinx-Gallery ----------------------------------------------------------
+# https://sphinx-gallery.github.io/
+sphinx_gallery_conf = {
+    # Input examples directory (outside docs/source).
+    "examples_dirs": str(REPO_ROOT / "examples"),
+    # Output gallery directory (inside docs/source).
+    "gallery_dirs": "example_gallery/auto_examples",
+    # Render basic examples before advanced ones.
+    "subsection_order": ExplicitOrder(
+        [
+            "../../examples/basic",
+            "../../examples/advanced",
+        ]
+    ),
+    # Keep a deliberate teaching order within each section.
+    "within_subsection_order": ExplicitOrder(
+        [
+            "create_tensor_mesh.py",
+            "cell_volumes.py",
+            "extract_surface.py",
+            "surface_enclosed_volume.py",
+            "point_cell_mapping.py",
+            "face_area_vectors.py",
+            "gradient.py",
+            "target_fitting.py",
+            "shape_optimization.py",
+            "sphere_eversion_continuous_metrics.py",
+        ]
+    ),
+    # Execute all .py examples.
+    "filename_pattern": r".*\.py",
+    # Route graphlow examples through a wrapper scraper.
+    "image_scrapers": ("pyvista",),
+    # Avoid cluttering pages with timing.
+    "show_memory": False,
+}
+
+# -- pyvista (for gallery rendering) -----------------------------------------
+# In headless CI (GitHub Actions, GitLab CI, etc.), run the doc build inside a
+# virtual display, e.g. ``xvfb-run make document`` (install xvfb in the runner),
+# or use VTK built with OSMesa so no display is needed.
 import pyvista
 
-pyvista.start_xvfb()
 pyvista.BUILDING_GALLERY = True
 pyvista.OFF_SCREEN = True
-# Preferred plotting style for documentation
 pyvista.set_plot_theme("document")
 pyvista.global_theme.window_size = [1024, 768]
 pyvista.global_theme.font.size = 22
 pyvista.global_theme.font.label_size = 22
 pyvista.global_theme.font.title_size = 22
 pyvista.global_theme.return_cpos = False
-pyvista.set_jupyter_backend(None)
-
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-import graphlow
-
-project = "graphlow"
-copyright = "2024, RICOS"
-author = "RICOS"
-version = graphlow.__version__
-release = graphlow.__version__
-
-# -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
-
-extensions = [
-    "sphinx.ext.autodoc",
-    "sphinx.ext.doctest",
-    "sphinx.ext.coverage",
-    "sphinx.ext.intersphinx",
-    "sphinx.ext.mathjax",
-    "sphinx.ext.autosummary",
-    "sphinx.ext.viewcode",
-    "numpydoc",
-    "sphinx.ext.githubpages",
-    "sphinxcontrib.mermaid",
-    "sphinx_copybutton",
-    "sphinx_gallery.gen_gallery",
-    "pyvista.ext.plot_directive",
-    "pyvista.ext.viewer_directive",
-    "sphinx_design",
-]
-
-sphinx_gallery_conf = {
-    "examples_dirs": "../../tutorials",
-    "gallery_dirs": "tutorials",
-    "within_subsection_order": "FileNameSortKey",
-    "filename_pattern": r"/*\.py",
-    "image_scrapers": (
-        "matplotlib",
-        "pyvista",
-    ),
-}
-
+try:
+    # Optional; avoid hard dependency on IPython for docs builds.
+    pyvista.set_jupyter_backend(None)
+except ImportError:
+    pass
 
 # -- Options for HTML output -------------------------------------------------
 # https://pydata-sphinx-theme.readthedocs.io/en/stable/user_guide/index.html
-
 html_theme = "pydata_sphinx_theme"
-html_theme_options = {
-    # Logo configuration
-    "logo": {
-        "image_light": "_static/logo.webp",
-        "image_dark": "_static/logo.webp",
-    },
-    # Navbar configuration
-    "navbar_start": ["navbar-logo", "navbar-version"],
-    "navbar_align": "content",
-    "header_links_before_dropdown": 5,
-    # Right-hand sidebar contents
-    "secondary_sidebar_items": ["page-toc"],
-    # Footer configuration (hide theme/version credits)
-    "footer_start": ["copyright"],
-    "footer_end": [],
-    "footer_center": [],
-}
-html_context = {
-    "github_version": "main",
-    "doc_path": "docs/source/",
-    "default_mode": "light",
-}
-html_sidebars: dict[str, list] = {"index": []}
-html_static_path = ["_static"]
 html_title = "graphlow"
-html_show_search_summary = True
-html_favicon = "_static/logo.webp"
+
 html_logo = "_static/logo.webp"
-html_show_sphinx = False
+html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
-
-# -- Extension configuration -------------------------------------------------
-autosummary_generate = True
-autodoc_typehints = "description"
-autodoc_default_options = {
-    "members": True,
-    "inherited-members": False,
-    "exclude-members": "with_traceback",
-    "show-inheritance": False,
+# PyData theme options (minimal defaults; expand as needed).
+html_theme_options = {
+    "navbar_align": "content",
+    "logo": {
+        "text": "graphlow",
+        "image_light": "_static/logo.webp",
+    },
 }
 
-# numpydoc configuration
-numpydoc_show_class_members = True
-numpydoc_show_inherited_class_members = False
-numpydoc_class_members_toctree = False
-numpydoc_attributes_as_param_list = True
-numpydoc_use_blockquotes = True
-# Validation checks: empty set to disable, or list of check codes to enable
-# Common checks: GL01 (line too long), EX01 (examples not found), etc.
-numpydoc_validation_checks = set()  # Disable validation for now
-numpydoc_validation_exclude = set()  # Exclude specific checks if needed
+# -- Copybutton --------------------------------------------------------------
+copybutton_prompt_text = r">>> |\.\.\. "
+copybutton_prompt_is_regexp = True
 
-# Add any paths that contain templates here, relative to this directory.
-templates_path = ["../_templates"]
-
-# codeautolink
-codeautolink_autodoc_inject = False
-codeautolink_search_css_classes = ["highlight-default"]
-codeautolink_concat_default = True
+# -- Mermaid -----------------------------------------------------------------
+# Render Mermaid in HTML (JS). For non-HTML builders, use mermaid-cli.
+mermaid_output_format = "raw"

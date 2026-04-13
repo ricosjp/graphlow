@@ -1,3 +1,7 @@
 .sphx-glr-signature {
-  display: none !important;
+    display: none !important;
+  }
+
+div.math mjx-container {
+  overflow: initial !important;
 }

@@ -3,86 +3,122 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.sdist]
-include = [
-  "src/graphlow",
-  "pyproject.toml",
-  "README.md",
-  "LICENSE",
-]
+include = ["src/graphlow", "pyproject.toml", "README.md", "LICENSE"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [project]
 name = "graphlow"
-version = "0.0.2"
-description = "graphlow provides graph processing features for physical simulation data (e.g., mesh)."
+version = "0.1.0"
+description = "graphlow provides graph processing features for physical simulation data."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 authors = [{ name = "RICOS Co. Ltd." }]
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.12,<3.13"
 classifiers = ["Programming Language :: Python"]
 dependencies = [
-    # "phlower-tensor>=0.1.1",
-    "phlower-tensor @ git+https://github.com/ricosjp/phlower-tensor.git@main",
-    "pyvista>=0.43",
+    "pydantic>=2.12.5",
+    "pyvista>=0.47",
     "scipy>=1.14.0",
-    "torch>=2.6.0",
+]
+
+# graphlow[cpu|cu118|cu124, phlower]
+[project.optional-dependencies]
+cpu = [
+    "torch>=2.5.1",
+    "torchvision>=0.20.1",
+]
+cu118 = [
+    "torch>=2.5.1",
+    "torchvision>=0.20.1",
+]
+cu124 = [
+    "torch>=2.5.1",
+    "torchvision>=0.20.1",
+]
+phlower = [
+    "phlower-tensor @ git+https://github.com/ricosjp/phlower-tensor.git@main",
 ]
 
 [dependency-groups]
-dev = [
-    { include-group = "test" },
-    { include-group = "visualize" },
-    { include-group = "lint" },
-    { include-group = "docs" },
-]
-ci = [
-    { include-group = "test" },
-    { include-group = "lint" },
-    { include-group = "docs" },
-]
-benchmark = [{ include-group = "test" }, { include-group = "visualize" }]
-test = [
-    "pytest>=8.0.2",
-    "pytest-cov>=4.1.0",
-    "pytest-benchmark>=5.1.0",
-    "pytest-memray>=1.7.0",
-    "pyinstrument",
-]
-lint = ["ruff>=0.9.6", "mypy>=1.8.0"]
-visualize = ["polars", "plotly", "kaleido", "pydantic"]
-docs = [
-    "sphinx",
-    "numpydoc",
-    "pydata-sphinx-theme",
-    "sphinxcontrib-mermaid",
-    "sphinx-fontawesome",
-    "sphinx-gallery",
-    "sphinx-design",
-    "sphinx-copybutton",
-    "trame>=3.8.0",
-    "trame-vtk>=2.8.15",
-    "trame-vuetify>=2.8.1",
-    "ipykernel>=6.29.5",
-    "imageio"
+phlower-tensor = [
+    "phlower-tensor @ git+https://github.com/ricosjp/phlower-tensor.git@main",
 ]
 
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "docs" },
+    { include-group = "visualize" },
+    { include-group = "notebook" },
+]
+
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-benchmark",
+    "pytest-memray",
+    "pyinstrument",
+    { include-group = "phlower-tensor" },
+]
+lint = ["ruff"]
+docs = [
+    "sphinx",
+    "pydata-sphinx-theme",
+    "sphinx-gallery",
+    "sphinx-copybutton",
+    "numpydoc",
+    "sphinxcontrib-mermaid",
+    "sphinx-codeautolink",
+    "imageio",                            # gif animation
+    { include-group = "phlower-tensor" },
+]
+visualize = ["polars", "plotly", "kaleido", "pydantic", "matplotlib", "pillow"]
+notebook = ["jupyterlab>=3", "pyvista[all]"]
+
 [tool.uv]
-default-groups = ["ci"]
+conflicts = [
+    [
+        { extra = "cpu" },
+        { extra = "cu118" },
+        { extra = "cu124" },
+    ],
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu118", extra = "cu118" },
+    { index = "pytorch-cu124", extra = "cu124" },
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "with_benchmark: Run test with the --benchmark-autosave option",
-    "with_profile: Run test with memray / pyinstrument",
-    "with_device: Run test with the --gpu option to use GPU",
-    "slow: Run test with the --slow option to use slow tests",
+    "benchmark: Run test with the --benchmark-autosave option",
+    "profile: Run test with memray / pyinstrument",
+    "slow: Run slow test (10s+)",
 ]
 addopts = [
     "--import-mode=importlib",
     "-m",
-    "not with_benchmark and not with_profile and not slow",
+    "not benchmark and not profile and not slow",
 ]
 
 [tool.coverage.report]
@@ -93,7 +129,3 @@ exclude_also = [
     # Don't complain about abstract methods, they aren't run:
     "@(abc\\.)?abstractmethod",
 ]
-
-[tool.mypy]
-python_version = "3.11"
-ignore_missing_imports = true

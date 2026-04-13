@@ -1,20 +1,19 @@
 ![](docs/source/_static/logo.webp)
 
 # graphlow: Graph for Physics
-graphlow provides graph processing features for physical simulation data (e.g., mesh).
-graphlow can:
-- read vtk data that are widely used in physical simulation
-- compute mesh features in a differentiable manner
-- compute spatial differential operators required for physics simulations involving meshes
+graphlow is a differentiable mesh-graph library.
+
+It bridges geometry, mesh topology, and sparse graph operators,
+allowing geometric metrics and connectivity-based operators
+to be used seamlessly with automatic differentiation.
+
 
 # Documentation
 https://ricosjp.github.io/graphlow/
 
+**Migrating from 0.0.x:** breaking changes for 0.1.0 are summarized in
+[docs/source/release_notes.rst](docs/source/release_notes.rst) (section **0.1.0**).
+
 # License
 
 [Apache License 2.0](./LICENSE).
-
-
-
-
-
