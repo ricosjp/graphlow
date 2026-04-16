@@ -177,7 +177,7 @@ def build_reference_surface_mesh(
     )
     pv_mesh.rotate_z(90.0, inplace=True)
     pv_mesh = reverse_triangle_winding(pv_mesh)
-    mesh = graphlow.from_pyvista(pv_mesh, "torch", 64)
+    mesh = graphlow.from_pyvista(pv_mesh, "torch", torch.float64)
     mesh.requires_grad(True)
 
     reference_points = mesh.points.clone()
