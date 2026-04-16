@@ -13,7 +13,6 @@ from scipy.special import logsumexp
 
 from graphlow.core.mesh import TensorMesh
 from graphlow.io.pyvista import from_pyvista
-from graphlow.utils.enums import FloatPrecision
 
 
 def _make_line_segment_mesh_from_points(
@@ -22,7 +21,7 @@ def _make_line_segment_mesh_from_points(
     """Build a TensorMesh with two points and one line cell."""
     lines = np.array([2, 0, 1], dtype=np.int32)
     poly = pv.PolyData(pts.astype(np.float64), lines=lines)
-    return from_pyvista(poly, "torch", FloatPrecision.FLOAT64)
+    return from_pyvista(poly, "torch", torch.float64)
 
 
 def _make_triangle_mesh_from_points(
@@ -32,7 +31,7 @@ def _make_triangle_mesh_from_points(
     cells = np.array([3, 0, 1, 2])
     ctypes = np.array([5])
     grid = pv.UnstructuredGrid(cells, ctypes, pts.astype(np.float64))
-    return from_pyvista(grid, "torch", FloatPrecision.FLOAT64)
+    return from_pyvista(grid, "torch", torch.float64)
 
 
 # =============================================================================
@@ -43,7 +42,7 @@ def _make_triangle_mesh_from_points(
 def test_hausdorff_same_points():
     """Hausdorff distance between identical point sets is 0."""
     icosphere = from_pyvista(
-        pv.Icosphere(radius=1.0, nsub=3), "torch", FloatPrecision.FLOAT64
+        pv.Icosphere(radius=1.0, nsub=3), "torch", torch.float64
     )
     target = icosphere.points
     hd = icosphere.geometry.hausdorff_distance(target)
@@ -111,7 +110,7 @@ def test_hausdorff_softmin(tau: float):
 def test_chamfer_same_points():
     """Chamfer distance between identical point sets is 0."""
     icosphere = from_pyvista(
-        pv.Icosphere(radius=1.0, nsub=3), "torch", FloatPrecision.FLOAT64
+        pv.Icosphere(radius=1.0, nsub=3), "torch", torch.float64
     )
     target = icosphere.points
     cd = icosphere.geometry.chamfer_distance(target)

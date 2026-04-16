@@ -7,8 +7,6 @@ import numpy as np
 import scipy.sparse as sps
 import torch
 
-from graphlow.utils.enums import FloatPrecision
-
 if TYPE_CHECKING:
     from phlower_tensor import PhlowerDimensionTensor
 
@@ -28,6 +26,9 @@ class TensorLike(Protocol):
 
     @property
     def ndim(self) -> int: ...
+
+    @property
+    def dtype(self) -> torch.dtype: ...
 
     def clone(self) -> Self:
         """Create a copy of the tensor."""
@@ -53,6 +54,15 @@ class TensorLike(Protocol):
         """Reshape the tensor."""
         ...
 
+    def to(
+        self,
+        device: torch.device | str | None = None,
+        non_blocking: bool = False,
+        dtype: torch.dtype | None = None,
+    ) -> Self:
+        """Move the tensor to a different device and/or dtype."""
+        ...
+
 
 class Backend[T: TensorLike](ABC):
     """
@@ -70,20 +80,23 @@ class Backend[T: TensorLike](ABC):
 
     @property
     @abstractmethod
-    def device(self) -> torch.device | str | None:
+    def device(self) -> torch.device | None:
         """Device for tensor creation. None means default."""
-        ...
-
-    @property
-    @abstractmethod
-    def float_precision(self) -> FloatPrecision:
-        """Float precision to use."""
         ...
 
     @property
     @abstractmethod
     def dtype(self) -> torch.dtype:
         """Float dtype for tensor."""
+        ...
+
+    @abstractmethod
+    def to(
+        self,
+        device: torch.device | str | None = None,
+        dtype: torch.dtype | None = None,
+    ) -> Self:
+        """Move the backend to a different device and/or dtype."""
         ...
 
     @abstractmethod

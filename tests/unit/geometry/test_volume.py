@@ -7,6 +7,7 @@ import pathlib
 import numpy as np
 import pytest
 import pyvista as pv
+import torch
 from phlower_tensor import phlower_dimension_tensor
 from pyvista.examples.cells import (
     Hexahedron,
@@ -18,7 +19,6 @@ from pyvista.examples.cells import (
 
 import graphlow
 from graphlow.io.pyvista import from_pyvista
-from graphlow.utils.enums import FloatPrecision
 
 
 # =============================================================================
@@ -41,7 +41,7 @@ def test_surface_volume(filename: pathlib.Path):
     """Surface volume matches PyVista for watertight extracted surfaces."""
     grid: pv.DataSet = pv.read(filename)
     grid: pv.PolyData = grid.extract_surface(algorithm=None)
-    surface_mesh = from_pyvista(grid, "phlower", FloatPrecision.FLOAT64)
+    surface_mesh = from_pyvista(grid, "phlower", dtype=torch.float64)
     surface_volume = surface_mesh.geometry.surface_volume()
     assert surface_volume.dimension == phlower_dimension_tensor({"L": 3})
 
@@ -55,7 +55,7 @@ def test_surface_volume_for_non_watertight_raises(
 ) -> None:
     """Non-watertight surface mesh: surface_volume raises ValueError."""
     grid = grid.cast_to_unstructured_grid()
-    mesh = from_pyvista(grid, "phlower", FloatPrecision.FLOAT64)
+    mesh = from_pyvista(grid, "phlower", dtype=torch.float64)
     with pytest.raises(
         ValueError, match="only supported for watertight surface meshes."
     ):
@@ -81,7 +81,7 @@ def test_surface_volume_for_non_watertight_raises(
 )
 def test_cell_volumes(filename: pathlib.Path):
     """Cell volumes match PyVista's cell-size computation."""
-    volmesh = graphlow.read(filename, "phlower", FloatPrecision.FLOAT64)
+    volmesh = graphlow.read(filename, "phlower", dtype=torch.float64)
     cell_volumes = volmesh.geometry.cell_volumes()
     assert cell_volumes.dimension == phlower_dimension_tensor({"L": 3})
 
@@ -95,7 +95,7 @@ def test_cell_volumes(filename: pathlib.Path):
 def test_cell_volumes_for_non_volume_raises() -> None:
     """Non-volume mesh: cell_volumes raises ValueError."""
     grid = pv.Sphere().cast_to_unstructured_grid()
-    mesh = from_pyvista(grid, "phlower", FloatPrecision.FLOAT64)
+    mesh = from_pyvista(grid, "phlower", dtype=torch.float64)
     with pytest.raises(ValueError, match="only supported for volume meshes."):
         mesh.geometry.cell_volumes()
 
@@ -117,7 +117,7 @@ def test_cell_volumes_for_non_volume_raises() -> None:
 )
 def test_cell_centroids(grid: pv.UnstructuredGrid, expected: np.ndarray):
     """Cell centroids match analytic references for primitive cells."""
-    volmesh = from_pyvista(grid, "phlower", FloatPrecision.FLOAT64)
+    volmesh = from_pyvista(grid, "phlower", dtype=torch.float64)
     cell_centroids = volmesh.geometry.cell_centroids()
     assert cell_centroids.dimension == phlower_dimension_tensor({"L": 1})
     np.testing.assert_almost_equal(cell_centroids.numpy(), expected)

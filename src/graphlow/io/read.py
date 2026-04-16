@@ -11,7 +11,6 @@ import torch
 
 from graphlow.core.mesh import TensorMesh
 from graphlow.io.pyvista import from_pyvista
-from graphlow.utils.enums import FloatPrecision
 
 if TYPE_CHECKING:
     import phlower_tensor as pt
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
 def read(
     file: str | pathlib.Path,
     backend: Literal["torch"],
-    float_precision: FloatPrecision | int = FloatPrecision.FLOAT32,
+    dtype: torch.dtype = torch.float32,
     *,
     dimension_collection: dict[str, dict[str, float]] | None = None,
     device: torch.device | str | None = None,
@@ -35,7 +34,7 @@ def read(
 def read(
     file: str | pathlib.Path,
     backend: Literal["phlower"],
-    float_precision: FloatPrecision | int = FloatPrecision.FLOAT32,
+    dtype: torch.dtype = torch.float32,
     *,
     dimension_collection: dict[str, dict[str, float]] | None = None,
     device: torch.device | str | None = None,
@@ -46,7 +45,7 @@ def read(
 def read(
     file: str | pathlib.Path,
     backend: Literal["torch", "phlower"] = "torch",
-    float_precision: FloatPrecision | int = FloatPrecision.FLOAT32,
+    dtype: torch.dtype = torch.float32,
     *,
     dimension_collection: dict[str, dict[str, float]] | None = None,
     device: torch.device | str | None = None,
@@ -64,8 +63,8 @@ def read(
         (e.g. ``.vtu``, ``.vtp``, ``.vtk``).
     backend : {"torch", "phlower"}, default="torch"
         Backend used for tensors in the returned mesh.
-    float_precision : FloatPrecision or int, default=FloatPrecision.FLOAT32
-        Floating point precision used by the backend.
+    dtype : torch.dtype, default=torch.float32
+        Floating-point dtype used by the backend tensors.
     dimension_collection : dict[str, dict[str, float]] or None, optional
         Optional per-array dimension metadata (for phlower_tensor).
         Keys correspond to ``grid.point_data`` / ``grid.cell_data`` names.
@@ -87,7 +86,7 @@ def read(
     mesh = from_pyvista(
         grid,
         backend,
-        float_precision=float_precision,
+        dtype=dtype,
         dimension_collection=dimension_collection,
         device=device,
         validate_mesh=validate_mesh,

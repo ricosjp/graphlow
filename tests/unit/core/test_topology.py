@@ -29,9 +29,7 @@ def triangle_mesh(bparam: BackendParams) -> TensorMesh[EitherTensor]:
     cells = np.array([3, 0, 1, 2])
     ctypes = np.array([5])
     grid = pv.UnstructuredGrid(cells, ctypes, pts)
-    return from_pyvista(
-        grid, bparam.name, bparam.precision, device=bparam.device
-    )
+    return from_pyvista(grid, bparam.name, bparam.dtype, device=bparam.device)
 
 
 @pytest.fixture
@@ -42,7 +40,7 @@ def complex_mesh(
     pytest.importorskip("phlower_tensor")
     path = data_dir / "vtu" / "complex" / "mesh.vtu"
     mesh = graphlow.read(
-        path, bparam.name, bparam.precision, device=bparam.device
+        path, bparam.name, dtype=bparam.dtype, device=bparam.device
     )
     return mesh
 

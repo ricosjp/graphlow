@@ -17,7 +17,6 @@ from graphlow.geometry.operator import (
     _compute_rawAM_and_moment_inv,
     _create_grad_operator_from,
 )
-from graphlow.utils.enums import FloatPrecision
 
 
 # =============================================================================
@@ -61,7 +60,7 @@ class TestComputeIsoAM:
         test_device: torch.device,
     ):
         mesh = graphlow.read(
-            filename, "phlower", FloatPrecision.FLOAT64, device=test_device
+            filename, "phlower", dtype=torch.float64, device=test_device
         )
         grad_adjs, _ = mesh.geometry.isoAM(with_moment_matrix=False)
         actual = grad_adjs.to_tensor().cpu().to_dense().numpy()
@@ -104,7 +103,7 @@ class TestComputeIsoAM:
         test_device: torch.device,
     ):
         mesh = graphlow.read(
-            filename, "phlower", FloatPrecision.FLOAT64, device=test_device
+            filename, "phlower", dtype=torch.float64, device=test_device
         )
         grad_adjs, _ = mesh.geometry.isoAM(
             with_moment_matrix=False, consider_volume=True
@@ -174,7 +173,7 @@ class TestComputeIsoAM:
         test_device: torch.device,
     ):
         mesh = graphlow.read(
-            filename, "phlower", FloatPrecision.FLOAT64, device=test_device
+            filename, "phlower", dtype=torch.float64, device=test_device
         )
         grad_adjs, minv = mesh.geometry.isoAM(with_moment_matrix=True)
         actual_grad_adjs = grad_adjs.to_tensor().cpu().to_dense().numpy()
@@ -193,7 +192,7 @@ class TestComputeIsoAM:
         ],
     )
     def test_compute_isoAM_shapes(self, filename: pathlib.Path):
-        mesh = graphlow.read(filename, "phlower", FloatPrecision.FLOAT64)
+        mesh = graphlow.read(filename, "phlower", dtype=torch.float64)
         N, d = mesh.points.shape
         grad_adjs, minv = mesh.geometry.isoAM(with_moment_matrix=True)
         np.testing.assert_array_equal(grad_adjs.shape, (d, N, N))
@@ -235,7 +234,7 @@ class TestComputeIsoAM:
         Z = np.zeros([ni, nj], dtype=np.float32)
         grid = pv.StructuredGrid(X, Y, Z)
         mesh = graphlow.from_pyvista(
-            grid, "phlower", FloatPrecision.FLOAT64, device=test_device
+            grid, "phlower", dtype=torch.float64, device=test_device
         )
         grad_adjs, _ = mesh.geometry.isoAM(with_moment_matrix=True)
 
@@ -372,7 +371,7 @@ class TestComputeIsoAMWithNeumann:
         test_device: torch.device,
     ):
         mesh = graphlow.read(
-            filename, "phlower", FloatPrecision.FLOAT64, device=test_device
+            filename, "phlower", dtype=torch.float64, device=test_device
         )
         expected_wnormals = normal_weight * expected_normals
 
@@ -399,7 +398,7 @@ class TestComputeIsoAMWithNeumann:
         ],
     )
     def test_compute_isoAM_with_neumann_shapes(self, filename: pathlib.Path):
-        mesh = graphlow.read(filename, "phlower", FloatPrecision.FLOAT64)
+        mesh = graphlow.read(filename, "phlower", dtype=torch.float64)
         N, d = mesh.points.shape
         grad_adjs, wnormals, minv = mesh.geometry.isoAM_with_neumann(
             with_moment_matrix=True
@@ -410,7 +409,7 @@ class TestComputeIsoAMWithNeumann:
 
     def test_compute_isoAM_with_neumann_not_nan(self):
         filename = "tests/data/vtu/openedge/openedge.vtu"
-        mesh = graphlow.read(filename, "phlower", FloatPrecision.FLOAT64)
+        mesh = graphlow.read(filename, "phlower", dtype=torch.float64)
 
         grad_adjs, wnormals, minv = mesh.geometry.isoAM_with_neumann(
             normal_weight=10.0,
@@ -523,7 +522,7 @@ class TestComputeIsoAMWithNeumann:
 def test_compute_moment_matrix(
     np_adj: np.ndarray, np_points: np.ndarray, expected: np.ndarray
 ):
-    backend = PhlowerBackend(FloatPrecision.FLOAT64)
+    backend = PhlowerBackend(dtype=torch.float64)
     adj = backend.as_tensor(
         torch.from_numpy(np_adj).to_sparse_coo(), dimension={}
     )
@@ -567,7 +566,7 @@ class TestComputeNormalsOnSurfacePoints:
     def test_compute_normals_on_surface_points(
         self, filename: pathlib.Path, desired: np.ndarray
     ):
-        mesh = graphlow.read(filename, "phlower", FloatPrecision.FLOAT64)
+        mesh = graphlow.read(filename, "phlower", dtype=torch.float64)
         normals = _compute_normals_on_surface_points(
             mesh, "conservative", 1e-12
         )
@@ -576,7 +575,7 @@ class TestComputeNormalsOnSurfacePoints:
 
     def test_compute_normals_on_surface_points_not_nan(self):
         filename = "tests/data/vtp/openedge_surface/openedge_surface.vtp"
-        mesh = graphlow.read(filename, "phlower", FloatPrecision.FLOAT64)
+        mesh = graphlow.read(filename, "phlower", dtype=torch.float64)
 
         pv_mesh = pv.read(filename).compute_normals()
         pv_normals = pv_mesh.point_data["Normals"]
@@ -613,7 +612,7 @@ class TestComputeNormalsOnSurfacePoints:
                         [0, 0, 0, 0, 0, 1, 0, 1, 1],
                     ]
                 ]
-            ),
+            ).astype(np.float64),
             np.array(
                 [
                     [
@@ -629,12 +628,12 @@ class TestComputeNormalsOnSurfacePoints:
                         [0, 0, 0, 0, 0, 1, 0, 1, -2],
                     ],
                 ]
-            ),
+            ).astype(np.float64),
         )
     ],
 )
 def test_create_grad_operator_from(rawAM: np.ndarray, expected: np.ndarray):
-    backend = PhlowerBackend(FloatPrecision.FLOAT64)
+    backend = PhlowerBackend(dtype=torch.float64)
     rawAM = backend.as_tensor(
         torch.from_numpy(rawAM).to_sparse_coo(), dimension={}
     )
@@ -669,7 +668,7 @@ class TestComputeRawAMAndMomentInv:
         femio_moment = np.load(femio_moment_filename)
         femio_rawAM = np.load(femio_rawAM_filename)
         femio_Minv = np.load(femio_Minv_filename)
-        mesh = graphlow.read(mesh_filename, "phlower", FloatPrecision.FLOAT64)
+        mesh = graphlow.read(mesh_filename, "phlower", dtype=torch.float64)
         adj = mesh.topology.point_adjacency(layout="coo")
         points = mesh.points
         weights = mesh.backend.ones((mesh.n_points,), dimension={})
@@ -713,7 +712,7 @@ class TestComputeRawAMAndMomentInv:
         femio_moment = np.load(femio_moment_filename)
         femio_rawAM = np.load(femio_rawAM_filename)
         femio_Minv = np.load(femio_Minv_filename)
-        mesh = graphlow.read(mesh_filename, "phlower", FloatPrecision.FLOAT64)
+        mesh = graphlow.read(mesh_filename, "phlower", dtype=torch.float64)
         adj = mesh.topology.point_adjacency(layout="coo")
         points = mesh.points
         weights = mesh.backend.ones((mesh.n_points,), dimension={})
@@ -758,7 +757,7 @@ class TestComputeRawAMAndMomentInv:
         femio_moment_filename: pathlib.Path,
     ):
         femio_moment = np.load(femio_moment_filename)
-        mesh = graphlow.read(mesh_filename, "phlower", FloatPrecision.FLOAT64)
+        mesh = graphlow.read(mesh_filename, "phlower", dtype=torch.float64)
         adj = mesh.topology.point_adjacency(layout="coo")
         points = mesh.points
         weights = mesh.backend.ones((mesh.n_points,), dimension={})

@@ -11,7 +11,7 @@ from pyvista import DataSet, UnstructuredGrid
 from graphlow.core.backend.factory import get_backend
 from graphlow.core.cache import BackendCache
 from graphlow.core.mesh import TensorMesh
-from graphlow.utils.enums import DEFAULT_DIMENSIONS, FeatureName, FloatPrecision
+from graphlow.utils.enums import DEFAULT_DIMENSIONS, FeatureName
 
 if TYPE_CHECKING:
     import phlower_tensor as pt
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 def from_pyvista(
     grid: DataSet,
     backend: Literal["torch"],
-    float_precision: FloatPrecision | int = FloatPrecision.FLOAT32,
+    dtype: torch.dtype = torch.float32,
     *,
     dimension_collection: dict[str, dict[str, float]] | None = None,
     device: torch.device | str | None = None,
@@ -38,7 +38,7 @@ def from_pyvista(
 def from_pyvista(
     grid: DataSet,
     backend: Literal["phlower"],
-    float_precision: FloatPrecision | int = FloatPrecision.FLOAT32,
+    dtype: torch.dtype = torch.float32,
     *,
     dimension_collection: dict[str, dict[str, float]] | None = None,
     device: torch.device | str | None = None,
@@ -49,7 +49,7 @@ def from_pyvista(
 def from_pyvista(
     grid: DataSet,
     backend: Literal["torch", "phlower"] = "torch",
-    float_precision: FloatPrecision | int = FloatPrecision.FLOAT32,
+    dtype: torch.dtype = torch.float32,
     *,
     dimension_collection: dict[str, dict[str, float]] | None = None,
     device: torch.device | str | None = None,
@@ -64,8 +64,8 @@ def from_pyvista(
         Input mesh. Will be converted to an ``UnstructuredGrid``.
     backend : {"torch", "phlower"}, default="torch"
         Backend used for tensors in the returned mesh.
-    float_precision : FloatPrecision or int, default=FloatPrecision.FLOAT32
-        Floating point precision used by the backend.
+    dtype : torch.dtype, default=torch.float32
+        Floating-point dtype used by the backend tensors.
     dimension_collection : dict[str, dict[str, float]] or None, optional
         Optional per-array dimension metadata (for phlower_tensor).
         Keys correspond to ``grid.point_data`` / ``grid.cell_data`` names.
@@ -111,9 +111,7 @@ def from_pyvista(
                 report.message or report.invalid_fields,
             )
 
-    backend_instance = get_backend(
-        backend, float_precision=float_precision, device=device
-    )
+    backend_instance = get_backend(backend, dtype=dtype, device=device)
     return _from_pyvista_impl(
         grid, backend_instance, dimension_collection=dimension_collection
     )

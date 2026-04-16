@@ -5,15 +5,14 @@ This reference is generated from the documented Python objects listed below.
 For ``mesh.geometry`` and ``mesh.topology``, see ``MeshGeometry`` and
 ``MeshTopology`` respectively.
 
-Root package functions and enums
---------------------------------
+Root package functions
+----------------------
 
 .. autosummary::
    :toctree: generated
 
    graphlow.read
    graphlow.from_pyvista
-   graphlow.FloatPrecision
    graphlow.configure_logging
 
 :func:`graphlow.configure_logging` is an optional helper for quick, interactive

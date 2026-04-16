@@ -33,6 +33,23 @@ def test_n_cells(tet_mesh: TensorMesh):
 EitherTensor = torch.Tensor | pt.PhlowerTensor
 
 
+@pytest.fixture
+def tet_mesh_with_data(
+    tet_mesh: TensorMesh[EitherTensor],
+) -> TensorMesh[EitherTensor]:
+    tet_mesh.point_data["scalar"] = tet_mesh.backend.ones(
+        (tet_mesh.n_points, 1)
+    )
+    tet_mesh.point_data["point_ids"] = tet_mesh.backend.as_tensor(
+        np.arange(tet_mesh.n_points, dtype=np.int32)
+    )
+    tet_mesh.cell_data["value"] = tet_mesh.backend.ones((tet_mesh.n_cells, 1))
+    tet_mesh.cell_data["cell_ids"] = tet_mesh.backend.as_tensor(
+        np.arange(tet_mesh.n_cells, dtype=np.int32)
+    )
+    return tet_mesh
+
+
 def test_requires_grad_points_only(tet_mesh: TensorMesh[EitherTensor]):
     """requires_grad(True/False) sets points.requires_grad."""
     backend = tet_mesh.backend
@@ -50,23 +67,107 @@ def test_requires_grad_points_only(tet_mesh: TensorMesh[EitherTensor]):
     assert not backend.to_torch(tet_mesh.cell_data["value"]).requires_grad
 
 
-def test_requires_grad_all(tet_mesh: TensorMesh[EitherTensor]):
+def test_requires_grad_all(tet_mesh_with_data: TensorMesh[EitherTensor]):
     """
     requires_grad(True, point_data=True, cell_data=True) sets all tensors.
     """
+    tet_mesh = tet_mesh_with_data
     backend = tet_mesh.backend
-    tet_mesh.point_data["scalar"] = tet_mesh.backend.ones(
-        (tet_mesh.n_points, 1)
-    )
-    tet_mesh.cell_data["value"] = tet_mesh.backend.ones((tet_mesh.n_cells, 1))
     assert not backend.to_torch(tet_mesh.points).requires_grad
     assert not backend.to_torch(tet_mesh.point_data["scalar"]).requires_grad
+    assert not backend.to_torch(tet_mesh.point_data["point_ids"]).requires_grad
     assert not backend.to_torch(tet_mesh.cell_data["value"]).requires_grad
+    assert not backend.to_torch(tet_mesh.cell_data["cell_ids"]).requires_grad
 
     tet_mesh.requires_grad(True, point_data=True, cell_data=True)
     assert backend.to_torch(tet_mesh.points).requires_grad
     assert backend.to_torch(tet_mesh.point_data["scalar"]).requires_grad
+    assert not backend.to_torch(tet_mesh.point_data["point_ids"]).requires_grad
     assert backend.to_torch(tet_mesh.cell_data["value"]).requires_grad
+    assert not backend.to_torch(tet_mesh.cell_data["cell_ids"]).requires_grad
+
+
+def test_to_updates_dtype(
+    tet_mesh_with_data: TensorMesh[EitherTensor],
+) -> None:
+    """to updates dtype in-place."""
+    tet_mesh = tet_mesh_with_data
+    backend = tet_mesh.backend
+    # check that the cell adjacency's dtype is the same as the backend
+    assert tet_mesh_with_data.topology.cell_adjacency().dtype == backend.dtype
+
+    # switch the dtype
+    target_dtype = (
+        torch.float64 if backend.dtype == torch.float32 else torch.float32
+    )
+    returned = tet_mesh.to(
+        device=backend.device,
+        non_blocking=True,
+        dtype=target_dtype,
+    )
+
+    assert returned is tet_mesh
+    assert tet_mesh.backend.dtype == target_dtype
+    assert tet_mesh.points.dtype == target_dtype
+    assert tet_mesh.point_data["scalar"].dtype == target_dtype
+    assert tet_mesh.cell_data["value"].dtype == target_dtype
+    # check that integer tensors are not cast to float
+    assert tet_mesh.point_data["point_ids"].dtype == torch.int32
+    assert tet_mesh.cell_data["cell_ids"].dtype == torch.int32
+    # check that backend cache is also updated
+    assert tet_mesh.topology.cell_adjacency().dtype == target_dtype
+
+
+def test_to_updates_device_cycle(
+    tet_mesh_with_data: TensorMesh[EitherTensor],
+) -> None:
+    """to updates device in-place, cpu -> cuda -> cpu."""
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA is not available")
+
+    tet_mesh = tet_mesh_with_data
+    backend = tet_mesh_with_data.backend
+    # check that the cell adjacency's device is the same as the backend
+    assert tet_mesh.topology.cell_adjacency().device.type == backend.device.type
+
+    # switch the device
+    target_device = (
+        torch.device("cuda")
+        if backend.device.type == "cpu"
+        else torch.device("cpu")
+    )
+    returned = tet_mesh.to(device=target_device, non_blocking=True)
+    assert returned is tet_mesh_with_data
+    assert tet_mesh.backend.device == target_device
+    assert tet_mesh.points.device.type == target_device.type
+    assert tet_mesh.point_data["scalar"].device.type == target_device.type
+    assert tet_mesh.cell_data["value"].device.type == target_device.type
+    assert tet_mesh.point_data["point_ids"].device.type == target_device.type
+    assert tet_mesh.cell_data["cell_ids"].device.type == target_device.type
+    # check that backend cache is also updated
+    assert tet_mesh.topology.cell_adjacency().device.type == target_device.type
+
+    # switch the device back
+    returned = tet_mesh.to(device=backend.device, non_blocking=True)
+    assert returned is tet_mesh
+    assert tet_mesh.backend.device == backend.device
+    assert tet_mesh.points.device.type == backend.device.type
+    assert tet_mesh.point_data["scalar"].device.type == backend.device.type
+    assert tet_mesh.cell_data["value"].device.type == backend.device.type
+    assert tet_mesh.point_data["point_ids"].device.type == backend.device.type
+    assert tet_mesh.cell_data["cell_ids"].device.type == backend.device.type
+    # check that backend cache is also updated
+    assert tet_mesh.topology.cell_adjacency().device.type == backend.device.type
+
+
+@pytest.mark.parametrize("dtype", [torch.int32, torch.int64, torch.bool])
+def test_to_invalid_dtype(
+    tet_mesh_with_data: TensorMesh[EitherTensor],
+    dtype: torch.dtype,
+) -> None:
+    """to raises ValueError for invalid dtype."""
+    with pytest.raises(ValueError):
+        tet_mesh_with_data.to(dtype=dtype)
 
 
 # =============================================================================
@@ -81,7 +182,7 @@ def volume_mesh(
     mesh = graphlow.read(
         path,
         bparam.name,
-        float_precision=bparam.precision,
+        dtype=bparam.dtype,
         device=bparam.device,
     )
     mesh.point_data.update(

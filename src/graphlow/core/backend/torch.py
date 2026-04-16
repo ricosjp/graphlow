@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Self
 
 import numpy as np
 import scipy.sparse as sps
 import torch
 
 from graphlow.core.backend.base import Backend
-from graphlow.utils.enums import PRECISION_TO_DTYPE, FloatPrecision
+from graphlow.utils.validate_dtype import validate_floating_point_dtype
 
 if TYPE_CHECKING:
     from phlower_tensor import PhlowerDimensionTensor
@@ -24,13 +24,12 @@ class TorchBackend(Backend[torch.Tensor]):
 
     def __init__(
         self,
-        float_precision: FloatPrecision | int = FloatPrecision.FLOAT32,
+        dtype: torch.dtype = torch.float32,
         *,
         device: torch.device | str | None = None,
     ):
-        self._float_precision = FloatPrecision(float_precision)
-        self._dtype = PRECISION_TO_DTYPE[self._float_precision]
-        self._device = device
+        self._dtype = validate_floating_point_dtype(dtype)
+        self._device = torch.device(device) if device is not None else None
 
     @property
     def name(self) -> Literal["torch"]:
@@ -38,19 +37,26 @@ class TorchBackend(Backend[torch.Tensor]):
         return "torch"
 
     @property
-    def device(self) -> torch.device | str | None:
+    def device(self) -> torch.device | None:
         """Device for tensor creation. None means default."""
         return self._device
-
-    @property
-    def float_precision(self) -> FloatPrecision:
-        """Float precision to use."""
-        return self._float_precision
 
     @property
     def dtype(self) -> torch.dtype:
         """Float dtype for tensor."""
         return self._dtype
+
+    def to(
+        self,
+        device: torch.device | str | None = None,
+        dtype: torch.dtype | None = None,
+    ) -> Self:
+        """Move the backend to a different device and/or float precision."""
+        if dtype is not None:
+            self._dtype = validate_floating_point_dtype(dtype)
+        if device is not None:
+            self._device = torch.device(device)
+        return self
 
     def zeros(
         self,
@@ -86,14 +92,17 @@ class TorchBackend(Backend[torch.Tensor]):
     ) -> torch.Tensor:
         """Convert numpy/list/torch.Tensor to backend tensor."""
         if isinstance(arr, torch.Tensor):
-            return arr.to(dtype=self.dtype, device=self.device)
+            if arr.dtype.is_floating_point:
+                return arr.to(dtype=self.dtype, device=self.device)
+            return arr.to(device=self.device)
 
         if isinstance(arr, np.ndarray | list | tuple):
             arr = np.array(arr)
             arr = np.ascontiguousarray(arr)
-            return torch.from_numpy(arr).to(
-                dtype=self.dtype, device=self.device
+            dtype = (
+                self.dtype if np.issubdtype(arr.dtype, np.floating) else None
             )
+            return torch.from_numpy(arr).to(dtype=dtype, device=self.device)
         raise NotImplementedError(
             f"{type(arr)} cannot be converted to backend tensor"
         )

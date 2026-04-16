@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import pathlib
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Self
 
 import numpy as np
 import pyvista as pv
@@ -155,20 +155,24 @@ class TensorMesh[T: TensorLike]:
         requires_grad : bool
             If True, gradients are tracked. If False, gradients are not tracked.
         point_data : bool, default=False
-            If True, also applies to all arrays in ``point_data``.
+            If True, also applies to floating-point arrays in ``point_data``.
             (in addition to ``points``).
         cell_data : bool, default=False
-            If True, also applies to all arrays in ``cell_data``.
+            If True, also applies to floating-point arrays in ``cell_data``.
             (in addition to ``points``).
         """
         self.backend.to_torch(self.points).requires_grad_(requires_grad)
 
         if point_data:
             for data in self.point_data.values():
-                self.backend.to_torch(data).requires_grad_(requires_grad)
+                torch_data = self.backend.to_torch(data)
+                if torch_data.dtype.is_floating_point:
+                    torch_data.requires_grad_(requires_grad)
         if cell_data:
             for data in self.cell_data.values():
-                self.backend.to_torch(data).requires_grad_(requires_grad)
+                torch_data = self.backend.to_torch(data)
+                if torch_data.dtype.is_floating_point:
+                    torch_data.requires_grad_(requires_grad)
 
     def extract_surface(self, *, keep_graph: bool = True) -> TensorMesh[T]:
         """
@@ -475,3 +479,56 @@ class TensorMesh[T: TensorLike]:
             )
 
         return dst_point_data.index_add_(0, point_ids, src_point_data)
+
+    def to(
+        self,
+        device: torch.device | str | None = None,
+        non_blocking: bool = False,
+        dtype: torch.dtype | None = None,
+    ) -> Self:
+        """
+        Move the mesh data to a different device and/or dtype.
+
+        Parameters
+        ----------
+        device: torch.device | str | None
+            The device to move the mesh to. The default is None.
+        non_blocking: bool
+            If True, the transfer happens asynchronously. The default is False.
+        dtype: torch.dtype | None
+            The floating-point dtype to move the mesh to. The default is None.
+
+        Returns
+        -------
+        Self
+            The moved mesh.
+        """
+        self.backend = self.backend.to(
+            device=device,
+            dtype=dtype,
+        )
+        self.bcache = self.bcache.to(
+            device=device,
+            non_blocking=non_blocking,
+            dtype=self.backend.dtype,
+        )
+        self.points = self.points.to(
+            device=self.backend.device,
+            non_blocking=non_blocking,
+            dtype=self.backend.dtype,
+        )
+        for k, data in self.point_data.items():
+            dtype = self.backend.dtype if data.dtype.is_floating_point else None
+            self.point_data[k] = data.to(
+                device=self.backend.device,
+                non_blocking=non_blocking,
+                dtype=dtype,
+            )
+        for k, data in self.cell_data.items():
+            dtype = self.backend.dtype if data.dtype.is_floating_point else None
+            self.cell_data[k] = data.to(
+                device=self.backend.device,
+                non_blocking=non_blocking,
+                dtype=dtype,
+            )
+        return self
