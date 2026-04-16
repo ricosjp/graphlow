@@ -67,6 +67,26 @@ slow-test:
   script:
     - uv sync --group test --extra cpu
     - make slow-test
+  tags:
+    - no-gpu
+    - GenuineIntel
+    - avx2
+    - cpu-ge-8
+    - mem-ge-32gb
+
+document-test:
+  stage: test
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq make git xvfb
+    - uv sync --group docs --extra cpu
+  script:
+    - xvfb-run make document
+  tags:
+    - no-gpu
+    - GenuineIntel
+    - avx2
+    - cpu-ge-8
+    - mem-ge-32gb
 
 coverage:
   stage: test
