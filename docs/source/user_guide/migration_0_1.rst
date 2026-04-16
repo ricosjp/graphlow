@@ -60,7 +60,8 @@ Backend (device and dtypes)
    * - Legacy
      - New
    * - ``mesh.float_precision``
-     - ``mesh.backend.float_precision``
+     - **Removed.** Use ``mesh.backend.dtype`` to control floating-point
+       precision.
    * - ``mesh.device``
      - ``mesh.backend.device``
    * - ``mesh.dtype``
@@ -78,8 +79,7 @@ I/O and PyVista
    * - ``mesh.save``
      - ``mesh.save``
    * - ``mesh.send``
-     - **Removed.** Choose the execution device via ``mesh.backend`` / backend
-       construction instead of a dedicated ``send`` helper.
+     - **Removed.** Choose the execution device via ``mesh.backend`` or ``mesh.to``.
    * - ``mesh.copy_features_from_pyvista``
      - ``mesh.copy_features_from_pyvista``
    * - ``mesh.copy_features_to_pyvista``

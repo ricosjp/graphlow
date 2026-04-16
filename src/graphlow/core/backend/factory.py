@@ -8,13 +8,11 @@ if TYPE_CHECKING:
     from graphlow.core.backend.phlower import PhlowerBackend
     from graphlow.core.backend.torch import TorchBackend
 
-from graphlow.utils.enums import FloatPrecision
-
 
 @overload
 def get_backend(
     name: Literal["torch"],
-    float_precision: FloatPrecision | int = FloatPrecision.FLOAT32,
+    dtype: torch.dtype = torch.float32,
     *,
     device: torch.device | str | None = None,
 ) -> TorchBackend: ...
@@ -23,7 +21,7 @@ def get_backend(
 @overload
 def get_backend(
     name: Literal["phlower"],
-    float_precision: FloatPrecision | int = FloatPrecision.FLOAT32,
+    dtype: torch.dtype = torch.float32,
     *,
     device: torch.device | str | None = None,
 ) -> PhlowerBackend: ...
@@ -31,7 +29,7 @@ def get_backend(
 
 def get_backend(
     name: Literal["phlower", "torch"],
-    float_precision: FloatPrecision | int = FloatPrecision.FLOAT32,
+    dtype: torch.dtype = torch.float32,
     *,
     device: torch.device | str | None = None,
 ) -> TorchBackend | PhlowerBackend:
@@ -42,8 +40,8 @@ def get_backend(
     ----------
     name : {"phlower", "torch"}
         Backend to use.
-    float_precision : FloatPrecision or int, default=FloatPrecision.FLOAT32
-        Float precision to use.
+    dtype : torch.dtype, default=torch.float32
+        Floating-point dtype to use.
     device : torch.device | str | None
         Device (e.g. "cuda", "cpu"). Backend-specific.
 
@@ -55,9 +53,9 @@ def get_backend(
     if name == "phlower":
         from graphlow.core.backend.phlower import PhlowerBackend
 
-        return PhlowerBackend(float_precision=float_precision, device=device)
+        return PhlowerBackend(dtype=dtype, device=device)
     if name == "torch":
         from graphlow.core.backend.torch import TorchBackend
 
-        return TorchBackend(float_precision=float_precision, device=device)
+        return TorchBackend(dtype=dtype, device=device)
     raise ValueError(f"Unknown backend: {name!r}")

@@ -17,7 +17,7 @@ from pyvista.examples.cells import (
     Wedge,
 )
 
-from graphlow import FloatPrecision, from_pyvista
+from graphlow import from_pyvista
 from graphlow.geometry import surface
 
 
@@ -47,7 +47,7 @@ class TestFaceAreas:
         pv_volume_mesh: pv.UnstructuredGrid = pv.read(filename)
         pv_surface_mesh = pv_volume_mesh.extract_surface(algorithm=None)
         surface_mesh = from_pyvista(
-            pv_surface_mesh, "phlower", FloatPrecision.FLOAT64
+            pv_surface_mesh, "phlower", dtype=torch.float64
         )
 
         with patch.object(
@@ -72,7 +72,7 @@ class TestFaceAreas:
         """Volume mesh: ``face_areas`` matches all extracted face areas."""
         pv_volume_mesh: pv.UnstructuredGrid = pv.read(filename)
         volume_mesh = from_pyvista(
-            pv_volume_mesh, "phlower", FloatPrecision.FLOAT64
+            pv_volume_mesh, "phlower", dtype=torch.float64
         )
 
         with patch.object(
@@ -121,7 +121,7 @@ class TestFaceNormals:
         surface_mesh = from_pyvista(
             pv_surface_mesh,
             "phlower",
-            FloatPrecision.FLOAT64,
+            dtype=torch.float64,
             device=test_device,
         )
 
@@ -149,7 +149,7 @@ class TestFaceNormals:
         """Volume mesh: ``face_normals`` matches all extracted face normals."""
         pv_volume_mesh: pv.UnstructuredGrid = pv.read(filename)
         volume_mesh = from_pyvista(
-            pv_volume_mesh, "phlower", FloatPrecision.FLOAT64
+            pv_volume_mesh, "phlower", dtype=torch.float64
         )
 
         with patch.object(
@@ -256,7 +256,7 @@ class TestFaceCentroids:
         """Surface mesh: ``face_centroids`` matches the analytic reference."""
         pv_surface_mesh = grid.extract_surface(algorithm=None)
         surface_mesh = from_pyvista(
-            pv_surface_mesh, "phlower", FloatPrecision.FLOAT64
+            pv_surface_mesh, "phlower", dtype=torch.float64
         )
 
         with patch.object(
@@ -347,7 +347,7 @@ class TestFaceCentroids:
     def test_3d_all_faces(
         self, grid: pv.UnstructuredGrid, expected: np.ndarray
     ):
-        volume_mesh = from_pyvista(grid, "phlower", FloatPrecision.FLOAT64)
+        volume_mesh = from_pyvista(grid, "phlower", dtype=torch.float64)
 
         with patch.object(
             surface,

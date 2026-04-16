@@ -4,9 +4,9 @@ import logging
 import pathlib
 
 import pytest
+import torch
 
 import graphlow
-from graphlow.utils.enums import FloatPrecision
 
 logger = logging.getLogger(__name__)
 
@@ -18,5 +18,5 @@ def test_centroids_profile():
     logger.info(
         "Running profile: cell_centroids on %s (phlower, float64)", filename
     )
-    mesh = graphlow.read(filename, "phlower", FloatPrecision.FLOAT64)
+    mesh = graphlow.read(filename, "phlower", dtype=torch.float64)
     mesh.geometry.cell_centroids()

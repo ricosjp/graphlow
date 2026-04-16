@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Self
 
 import scipy.sparse as sps
+import torch
 
 if TYPE_CHECKING:
     from graphlow.core.backend.base import Backend, TensorLike
@@ -105,3 +106,32 @@ class BackendCache[T: TensorLike]:
         None
         """
         del self._sparse[key]
+
+    def to(
+        self,
+        device: torch.device | str | None = None,
+        non_blocking: bool = False,
+        dtype: torch.dtype | None = None,
+    ) -> Self:
+        """
+        Move the cache to a different device and/or dtype.
+
+        Parameters
+        ----------
+        device: torch.device | str | None
+            The device to move the cache to. The default is None.
+        non_blocking: bool
+            If True, the transfer happens asynchronously. The default is False.
+        dtype: torch.dtype | None
+            The dtype to move the cache to. The default is None.
+
+        Returns
+        -------
+        Self
+            The moved cache.
+        """
+        for key, value in self._sparse.items():
+            self._sparse[key] = value.to(
+                device=device, non_blocking=non_blocking, dtype=dtype
+            )
+        return self

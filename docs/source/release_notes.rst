@@ -41,7 +41,7 @@ Prefer the package root:
 
 .. code-block:: python
 
-   from graphlow import read, from_pyvista, TensorMesh, FloatPrecision, configure_logging
+   from graphlow import read, from_pyvista, TensorMesh, configure_logging
 
 :func:`~graphlow.read` now builds a :class:`~graphlow.core.mesh.TensorMesh` and
 requires an explicit or default ``backend`` (``"torch"`` or ``"phlower"``); see

@@ -16,7 +16,6 @@ from graphlow.core.backend.base import Backend
 from graphlow.core.backend.phlower import PhlowerBackend
 from graphlow.core.backend.torch import TorchBackend
 from graphlow.core.mesh import TensorMesh
-from graphlow.utils.enums import FloatPrecision
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BackendParams:
     name: Literal["torch", "phlower"]
-    precision: FloatPrecision
+    dtype: torch.dtype
     device: torch.device
 
 
@@ -46,50 +45,42 @@ def test_device(request: pytest.FixtureRequest) -> torch.device:
 
 @pytest.fixture(
     params=[
-        ("torch", FloatPrecision.FLOAT32),
-        ("phlower", FloatPrecision.FLOAT64),
+        ("torch", torch.float32),
+        ("phlower", torch.float64),
     ]
 )
 def bparam(
     request: pytest.FixtureRequest, test_device: torch.device
 ) -> BackendParams:
-    """BackendParams for (name, precision) on device."""
-    name, precision = request.param
+    """BackendParams for (name, dtype) on device."""
+    name, dtype = request.param
     if name == "phlower":
         pytest.importorskip("phlower_tensor")
     logger.debug(
-        "Using backend %s on %s (%s) for test", name, test_device, precision
+        "Using backend %s on %s (%s) for test", name, test_device, dtype
     )
-    return BackendParams(name=name, precision=precision, device=test_device)
+    return BackendParams(name=name, dtype=dtype, device=test_device)
 
 
 @pytest.fixture
 def backend(bparam: BackendParams) -> Backend:
-    """Backend instance for (name, precision) on device."""
+    """Backend instance for (name, dtype) on device."""
     if bparam.name == "torch":
-        return TorchBackend(
-            float_precision=bparam.precision, device=bparam.device
-        )
+        return TorchBackend(dtype=bparam.dtype, device=bparam.device)
     if bparam.name == "phlower":
-        return PhlowerBackend(
-            float_precision=bparam.precision, device=bparam.device
-        )
+        return PhlowerBackend(dtype=bparam.dtype, device=bparam.device)
     raise NotImplementedError(f"Unknown backend: {bparam.name}")
 
 
 @pytest.fixture
 def backend_phlower(test_device: torch.device) -> PhlowerBackend:
     pytest.importorskip("phlower_tensor")
-    return PhlowerBackend(
-        float_precision=FloatPrecision.FLOAT64, device=test_device
-    )
+    return PhlowerBackend(dtype=torch.float64, device=test_device)
 
 
 @pytest.fixture
 def backend_torch(test_device: torch.device) -> TorchBackend:
-    return TorchBackend(
-        float_precision=FloatPrecision.FLOAT32, device=test_device
-    )
+    return TorchBackend(dtype=torch.float32, device=test_device)
 
 
 # =============================================================================
@@ -111,7 +102,7 @@ def tet_mesh(bparam: BackendParams) -> TensorMesh[pt.PhlowerTensor]:
     return graphlow.from_pyvista(
         grid,
         bparam.name,
-        float_precision=bparam.precision,
+        dtype=bparam.dtype,
         device=bparam.device,
     )
 
@@ -136,6 +127,6 @@ def mix_poly_mesh(
     return graphlow.from_pyvista(
         mix_poly_grid,
         backend.name,
-        backend.float_precision,
+        backend.dtype,
         device=backend.device,
     )

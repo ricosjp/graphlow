@@ -1,21 +1,4 @@
-from enum import IntEnum, StrEnum, auto
-
-import torch
-
-
-class FloatPrecision(IntEnum):
-    """Floating-point precision options for IO/conversion."""
-
-    #: 32-bit floating-point precision.
-    FLOAT32 = 32
-    #: 64-bit floating-point precision.
-    FLOAT64 = 64
-
-
-PRECISION_TO_DTYPE = {
-    FloatPrecision.FLOAT32: torch.float32,
-    FloatPrecision.FLOAT64: torch.float64,
-}
+from enum import StrEnum, auto
 
 
 class FeatureName(StrEnum):

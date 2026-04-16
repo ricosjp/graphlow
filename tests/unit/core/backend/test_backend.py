@@ -13,6 +13,7 @@ import torch
 from tests.unit.conftest import BackendParams
 
 from graphlow.core.backend.base import Backend
+from graphlow.core.backend.factory import get_backend
 from graphlow.core.backend.phlower import PhlowerBackend
 from graphlow.core.backend.torch import TorchBackend
 
@@ -25,18 +26,57 @@ logger = logging.getLogger(__name__)
 class TestBackendProperties:
     def test_properties(self, bparam: BackendParams) -> None:
         """name returns the backend name."""
-        match bparam.name:
-            case "torch":
-                backend = TorchBackend(
-                    float_precision=bparam.precision, device=bparam.device
-                )
-            case "phlower":
-                backend = PhlowerBackend(
-                    float_precision=bparam.precision, device=bparam.device
-                )
+        backend = get_backend(bparam.name, bparam.dtype, device=bparam.device)
         assert backend.name == bparam.name
-        assert backend.float_precision == bparam.precision
+        assert backend.dtype == bparam.dtype
         assert backend.device == bparam.device
+
+    def test_to_updates_dtype(self, bparam: BackendParams) -> None:
+        """to updates float precision in-place."""
+        backend = get_backend(bparam.name, bparam.dtype, device=bparam.device)
+
+        # switch the dtype
+        target_dtype = (
+            torch.float64 if backend.dtype == torch.float32 else torch.float32
+        )
+        returned = backend.to(dtype=target_dtype)
+
+        assert returned is backend
+        assert backend.dtype == target_dtype
+        assert backend.device == bparam.device
+
+    def test_to_updates_device_cycle(self, bparam: BackendParams) -> None:
+        """to updates device in-place, cuda -> cpu -> cuda."""
+        if not torch.cuda.is_available():
+            pytest.skip("CUDA is not available")
+
+        backend = get_backend(bparam.name, bparam.dtype, device=bparam.device)
+
+        # switch the device
+        target_device = (
+            torch.device("cuda")
+            if bparam.device.type == "cpu"
+            else torch.device("cpu")
+        )
+        returned = backend.to(device=target_device)
+        assert returned is backend
+        assert backend.dtype == bparam.dtype
+        assert backend.device == target_device
+
+        # switch the device back
+        returned = backend.to(device=bparam.device)
+        assert returned is backend
+        assert backend.dtype == bparam.dtype
+        assert backend.device == bparam.device
+
+    @pytest.mark.parametrize("dtype", [torch.int32, torch.int64, torch.bool])
+    def test_to_invalid_dtype(
+        self, bparam: BackendParams, dtype: torch.dtype
+    ) -> None:
+        """to raises ValueError for invalid dtype."""
+        backend = get_backend(bparam.name, bparam.dtype, device=bparam.device)
+        with pytest.raises(ValueError):
+            backend.to(dtype=dtype)
 
 
 # =============================================================================
@@ -54,13 +94,13 @@ class TestBackendAsTensor:
         )
         torch.testing.assert_close(backend.to_torch(t), expected)
 
-    def test_numpy_int_converted_to_float(self, backend: Backend) -> None:
-        """as_tensor(numpy int) converts to backend float dtype."""
+    def test_numpy_int_preserves_integer(self, backend: Backend) -> None:
+        """as_tensor(numpy int) keeps integer dtype without float cast."""
         arr = np.array([1, 2, 3], dtype=np.int32)
         t = backend.as_tensor(arr)
-        assert t.dtype == backend.dtype
+        assert t.dtype == torch.int32
         expected = torch.tensor(
-            [1.0, 2.0, 3.0], dtype=backend.dtype, device=backend.device
+            [1, 2, 3], dtype=torch.int32, device=backend.device
         )
         torch.testing.assert_close(backend.to_torch(t), expected)
 
@@ -90,6 +130,16 @@ class TestBackendAsTensor:
         t = backend.as_tensor(x)
         assert t.dtype == backend.dtype
         expected = x.to(dtype=backend.dtype, device=backend.device)
+        torch.testing.assert_close(backend.to_torch(t), expected)
+
+    def test_torch_integer_tensor_preserves_dtype(
+        self, backend: Backend
+    ) -> None:
+        """as_tensor(torch int tensor) keeps integer dtype without cast."""
+        x = torch.tensor([1, 2, 3], dtype=torch.int32)
+        t = backend.as_tensor(x)
+        assert t.dtype == torch.int32
+        expected = x.to(device=backend.device)
         torch.testing.assert_close(backend.to_torch(t), expected)
 
 

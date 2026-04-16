@@ -1122,7 +1122,9 @@ def _segment_conservative_map_face_to_point[T: TensorLike](
         )  # (nnz,)
         conn = backend.as_index_tensor(registry.poly_conn.reshape(-1))  # (nnz,)
         divisor = backend.as_tensor(
-            np.repeat(face_sizes, repeats=face_sizes, axis=0),
+            np.repeat(face_sizes, repeats=face_sizes, axis=0).astype(
+                np.float64
+            ),
             dimension={},
         ).reshape((-1, *([1] * (x_face.ndim - 1))))
 
