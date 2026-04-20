@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import pathlib
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, Self
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import pyvista as pv
@@ -32,6 +32,25 @@ class ParentPointMap:
     parent_kind: Literal["volume"]
     parent_n_points: int
     point_ids: torch.Tensor  # (n_points_of_child,)
+
+    def to(
+        self,
+        device: torch.device | str | None = None,
+        non_blocking: bool = False,
+    ) -> ParentPointMap:
+        """Move the mapping to a different device."""
+
+        # NOTE: So far, dtype is not allowed to change
+        # See `as_index_tensor` method in Backend class.
+        point_ids = self.point_ids.to(
+            device=device,
+            non_blocking=non_blocking,
+        )
+        return ParentPointMap(
+            parent_kind=self.parent_kind,
+            parent_n_points=self.parent_n_points,
+            point_ids=point_ids,
+        )
 
 
 @dataclass
@@ -485,7 +504,7 @@ class TensorMesh[T: TensorLike]:
         device: torch.device | str | None = None,
         non_blocking: bool = False,
         dtype: torch.dtype | None = None,
-    ) -> Self:
+    ) -> TensorMesh[T]:
         """
         Move the mesh data to a different device and/or dtype.
 
@@ -500,35 +519,52 @@ class TensorMesh[T: TensorLike]:
 
         Returns
         -------
-        Self
+        TensorMesh[T]
             The moved mesh.
         """
-        self.backend = self.backend.to(
+        backend = self.backend.to(
             device=device,
             dtype=dtype,
         )
-        self.bcache = self.bcache.to(
+        bcache = self.bcache.to(
             device=device,
             non_blocking=non_blocking,
-            dtype=self.backend.dtype,
+            dtype=dtype,
         )
-        self.points = self.points.to(
-            device=self.backend.device,
+        points = self.points.to(
+            device=device,
             non_blocking=non_blocking,
-            dtype=self.backend.dtype,
+            dtype=dtype,
         )
+        point_data = {}
         for k, data in self.point_data.items():
-            dtype = self.backend.dtype if data.dtype.is_floating_point else None
-            self.point_data[k] = data.to(
-                device=self.backend.device,
+            point_data[k] = data.to(
+                device=device,
                 non_blocking=non_blocking,
-                dtype=dtype,
+                dtype=(dtype if data.dtype.is_floating_point else None),
             )
+        cell_data = {}
         for k, data in self.cell_data.items():
-            dtype = self.backend.dtype if data.dtype.is_floating_point else None
-            self.cell_data[k] = data.to(
-                device=self.backend.device,
+            cell_data[k] = data.to(
+                device=device,
                 non_blocking=non_blocking,
-                dtype=dtype,
+                dtype=(dtype if data.dtype.is_floating_point else None),
             )
-        return self
+
+        parent_point_map = (
+            None
+            if self._parent_point_map is None
+            else self._parent_point_map.to(
+                device=device, non_blocking=non_blocking
+            )
+        )
+
+        return TensorMesh[T](
+            points=points,
+            pvmesh=self.pvmesh,
+            backend=backend,
+            bcache=bcache,
+            point_data=point_data,
+            cell_data=cell_data,
+            _parent_point_map=parent_point_map,
+        )

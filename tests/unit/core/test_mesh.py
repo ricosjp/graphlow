@@ -106,22 +106,75 @@ def test_to_updates_dtype(
         dtype=target_dtype,
     )
 
-    assert returned is tet_mesh
-    assert tet_mesh.backend.dtype == target_dtype
-    assert tet_mesh.points.dtype == target_dtype
-    assert tet_mesh.point_data["scalar"].dtype == target_dtype
-    assert tet_mesh.cell_data["value"].dtype == target_dtype
+    assert returned is not tet_mesh
+    assert returned.backend.dtype == target_dtype
+    assert returned.points.dtype == target_dtype
+    assert returned.point_data["scalar"].dtype == target_dtype
+    assert returned.cell_data["value"].dtype == target_dtype
     # check that integer tensors are not cast to float
+    assert returned.point_data["point_ids"].dtype == torch.int32
+    assert returned.cell_data["cell_ids"].dtype == torch.int32
+    # check that backend cache is also updated
+    assert returned.topology.cell_adjacency().dtype == target_dtype
+
+
+def test_to_updates_dtype_for_surface(
+    tet_mesh_with_data: TensorMesh[EitherTensor],
+) -> None:
+    tet_mesh = tet_mesh_with_data
+    surface = tet_mesh.extract_surface()
+    backend = surface.backend
+
+    # switch the dtype
+    target_dtype = (
+        torch.float64 if backend.dtype == torch.float32 else torch.float32
+    )
+    returned = surface.to(
+        device=surface.backend.device,
+        non_blocking=True,
+        dtype=target_dtype,
+    )
+
+    assert returned is not surface
+    assert returned.backend.dtype == target_dtype
+    assert returned.points.dtype == target_dtype
+    assert returned.point_data["scalar"].dtype == target_dtype
+
+    # parent_point_ids is always int64.
+    assert returned.parent_point_ids.dtype == torch.int64
+    assert returned.point_data["point_ids"].dtype == torch.int32
+
+
+def test_to_method_has_no_side_effect(
+    tet_mesh_with_data: TensorMesh[EitherTensor],
+) -> None:
+    tet_mesh = tet_mesh_with_data
+    backend = tet_mesh.backend
+    # check that the cell adjacency's dtype is the same as the backend
+    assert tet_mesh_with_data.topology.cell_adjacency().dtype == backend.dtype
+
+    target_dtype = (
+        torch.float64 if backend.dtype == torch.float32 else torch.float32
+    )
+    _ = tet_mesh.to(
+        device=backend.device,
+        non_blocking=True,
+        dtype=target_dtype,
+    )
+    assert tet_mesh.backend.dtype == backend.dtype
+    assert tet_mesh.points.dtype == backend.dtype
+    assert tet_mesh.point_data["scalar"].dtype == backend.dtype
+    assert tet_mesh.cell_data["value"].dtype == backend.dtype
+
     assert tet_mesh.point_data["point_ids"].dtype == torch.int32
     assert tet_mesh.cell_data["cell_ids"].dtype == torch.int32
-    # check that backend cache is also updated
-    assert tet_mesh.topology.cell_adjacency().dtype == target_dtype
+    assert tet_mesh.topology.cell_adjacency().dtype == backend.dtype
 
 
 def test_to_updates_device_cycle(
     tet_mesh_with_data: TensorMesh[EitherTensor],
 ) -> None:
-    """to updates device in-place, cpu -> cuda -> cpu."""
+    """to updates device, cpu -> cuda -> cpu."""
     if not torch.cuda.is_available():
         pytest.skip("CUDA is not available")
 
@@ -137,27 +190,56 @@ def test_to_updates_device_cycle(
         else torch.device("cpu")
     )
     returned = tet_mesh.to(device=target_device, non_blocking=True)
-    assert returned is tet_mesh_with_data
-    assert tet_mesh.backend.device == target_device
-    assert tet_mesh.points.device.type == target_device.type
-    assert tet_mesh.point_data["scalar"].device.type == target_device.type
-    assert tet_mesh.cell_data["value"].device.type == target_device.type
-    assert tet_mesh.point_data["point_ids"].device.type == target_device.type
-    assert tet_mesh.cell_data["cell_ids"].device.type == target_device.type
+    assert returned is not tet_mesh_with_data
+    assert returned.backend.device == target_device
+    assert returned.points.device.type == target_device.type
+    assert returned.point_data["scalar"].device.type == target_device.type
+    assert returned.cell_data["value"].device.type == target_device.type
+    assert returned.point_data["point_ids"].device.type == target_device.type
+    assert returned.cell_data["cell_ids"].device.type == target_device.type
     # check that backend cache is also updated
-    assert tet_mesh.topology.cell_adjacency().device.type == target_device.type
+    assert returned.topology.cell_adjacency().device.type == target_device.type
 
     # switch the device back
-    returned = tet_mesh.to(device=backend.device, non_blocking=True)
-    assert returned is tet_mesh
-    assert tet_mesh.backend.device == backend.device
-    assert tet_mesh.points.device.type == backend.device.type
-    assert tet_mesh.point_data["scalar"].device.type == backend.device.type
-    assert tet_mesh.cell_data["value"].device.type == backend.device.type
-    assert tet_mesh.point_data["point_ids"].device.type == backend.device.type
-    assert tet_mesh.cell_data["cell_ids"].device.type == backend.device.type
+    returned = returned.to(device=backend.device, non_blocking=True)
+    assert returned is not tet_mesh
+    assert returned.backend.device == backend.device
+    assert returned.points.device.type == backend.device.type
+    assert returned.point_data["scalar"].device.type == backend.device.type
+    assert returned.cell_data["value"].device.type == backend.device.type
+    assert returned.point_data["point_ids"].device.type == backend.device.type
+    assert returned.cell_data["cell_ids"].device.type == backend.device.type
     # check that backend cache is also updated
+    assert returned.topology.cell_adjacency().device.type == backend.device.type
+
+
+@pytest.mark.parametrize("to_surface", [False, True])
+def test_to_updates_device(
+    tet_mesh_with_data: TensorMesh[EitherTensor],
+    to_surface: bool,
+) -> None:
+    """to updates device, cpu -> meta."""
+    tet_mesh = tet_mesh_with_data
+    if to_surface:
+        tet_mesh = tet_mesh.extract_surface()
+    backend = tet_mesh.backend
+    # check that the cell adjacency's device is the same as the backend
     assert tet_mesh.topology.cell_adjacency().device.type == backend.device.type
+
+    # switch the device
+    target_device = torch.device("meta")
+    returned = tet_mesh.to(device=target_device, non_blocking=True)
+    assert returned is not tet_mesh
+    assert returned.backend.device == target_device
+    assert returned.points.device.type == target_device.type
+    assert returned.point_data["scalar"].device.type == target_device.type
+    assert returned.point_data["point_ids"].device.type == target_device.type
+    # check that backend cache is also updated
+    assert returned.topology.cell_adjacency().device.type == target_device.type
+
+    if to_surface:
+        # parent_point_ids is always on the same device as points
+        assert returned.parent_point_ids.device.type == target_device.type
 
 
 @pytest.mark.parametrize("dtype", [torch.int32, torch.int64, torch.bool])

@@ -41,9 +41,9 @@ class TestBackendProperties:
         )
         returned = backend.to(dtype=target_dtype)
 
-        assert returned is backend
-        assert backend.dtype == target_dtype
-        assert backend.device == bparam.device
+        assert returned is not backend
+        assert returned.dtype == target_dtype
+        assert returned.device == bparam.device
 
     def test_to_updates_device_cycle(self, bparam: BackendParams) -> None:
         """to updates device in-place, cuda -> cpu -> cuda."""
@@ -59,15 +59,15 @@ class TestBackendProperties:
             else torch.device("cpu")
         )
         returned = backend.to(device=target_device)
-        assert returned is backend
-        assert backend.dtype == bparam.dtype
-        assert backend.device == target_device
+        assert returned is not backend
+        assert returned.dtype == bparam.dtype
+        assert returned.device == target_device
 
         # switch the device back
-        returned = backend.to(device=bparam.device)
-        assert returned is backend
-        assert backend.dtype == bparam.dtype
-        assert backend.device == bparam.device
+        returned = returned.to(device=bparam.device)
+        assert returned is not backend
+        assert returned.dtype == bparam.dtype
+        assert returned.device == bparam.device
 
     @pytest.mark.parametrize("dtype", [torch.int32, torch.int64, torch.bool])
     def test_to_invalid_dtype(
