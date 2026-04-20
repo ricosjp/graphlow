@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Literal, Self
+from typing import TYPE_CHECKING, Literal
 
 import scipy.sparse as sps
 import torch
@@ -112,7 +112,7 @@ class BackendCache[T: TensorLike]:
         device: torch.device | str | None = None,
         non_blocking: bool = False,
         dtype: torch.dtype | None = None,
-    ) -> Self:
+    ) -> BackendCache:
         """
         Move the cache to a different device and/or dtype.
 
@@ -127,11 +127,14 @@ class BackendCache[T: TensorLike]:
 
         Returns
         -------
-        Self
+        BackendCache[T]
             The moved cache.
         """
+
+        backend = BackendCache(backend=self._backend)
+
         for key, value in self._sparse.items():
-            self._sparse[key] = value.to(
+            backend._sparse[key] = value.to(
                 device=device, non_blocking=non_blocking, dtype=dtype
             )
-        return self
+        return backend

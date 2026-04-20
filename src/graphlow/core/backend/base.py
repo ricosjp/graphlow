@@ -59,7 +59,7 @@ class TensorLike(Protocol):
         device: torch.device | str | None = None,
         non_blocking: bool = False,
         dtype: torch.dtype | None = None,
-    ) -> Self:
+    ) -> TensorLike:
         """Move the tensor to a different device and/or dtype."""
         ...
 
@@ -95,7 +95,7 @@ class Backend[T: TensorLike](ABC):
         self,
         device: torch.device | str | None = None,
         dtype: torch.dtype | None = None,
-    ) -> Self:
+    ) -> Backend[T]:
         """Move the backend to a different device and/or dtype."""
         ...
 

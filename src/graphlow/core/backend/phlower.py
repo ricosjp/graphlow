@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Self
+from typing import Literal
 
 import numpy as np
 import scipy.sparse as sps
@@ -56,13 +56,17 @@ class PhlowerBackend(Backend[pt.PhlowerTensor]):
         self,
         device: torch.device | str | None = None,
         dtype: torch.dtype | None = None,
-    ) -> Self:
+    ) -> PhlowerBackend:
         """Move the backend to a different device and/or float precision."""
         if dtype is not None:
-            self._dtype = validate_floating_point_dtype(dtype)
+            dtype = validate_floating_point_dtype(dtype)
+        dtype = dtype or self.dtype
+
         if device is not None:
-            self._device = torch.device(device)
-        return self
+            device = torch.device(device)
+        device = device or self.device
+
+        return PhlowerBackend(dtype=dtype, device=device)
 
     def zeros(
         self,
