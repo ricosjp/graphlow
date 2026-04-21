@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from functools import partial
 from typing import TYPE_CHECKING, Literal, overload
 
 import torch
@@ -43,6 +44,7 @@ def from_pyvista(
     dimension_collection: dict[str, dict[str, float]] | None = None,
     device: torch.device | str | None = None,
     validate_mesh: bool = False,
+    disable_dimensions: bool = False,
 ) -> TensorMesh[pt.PhlowerTensor]: ...
 
 
@@ -54,6 +56,7 @@ def from_pyvista(
     dimension_collection: dict[str, dict[str, float]] | None = None,
     device: torch.device | str | None = None,
     validate_mesh: bool = False,
+    disable_dimensions: bool = False,
 ) -> TensorMesh[torch.Tensor] | TensorMesh[pt.PhlowerTensor]:
     """
     Build a :class:`~graphlow.core.mesh.TensorMesh` from a PyVista mesh.
@@ -73,6 +76,8 @@ def from_pyvista(
         Target device. Interpretation depends on the backend.
     validate_mesh: bool, default=False
         If True, validate the mesh using PyVista's ``validate_mesh`` method.
+    disable_dimensions: bool, default=False
+        If True, ignore all dimensions and treat all data as dimensionless.
 
     Returns
     -------
@@ -113,7 +118,10 @@ def from_pyvista(
 
     backend_instance = get_backend(backend, dtype=dtype, device=device)
     return _from_pyvista_impl(
-        grid, backend_instance, dimension_collection=dimension_collection
+        grid,
+        backend_instance,
+        dimension_collection=dimension_collection,
+        disable_dimensions=disable_dimensions,
     )
 
 
@@ -122,18 +130,24 @@ def _from_pyvista_impl[T: TensorLike](
     backend_instance: Backend[T],
     *,
     dimension_collection: dict[str, dict[str, float]] | None = None,
+    disable_dimensions: bool = False,
 ) -> TensorMesh[T]:
+
+    _resolver = partial(
+        _dimensions_resolver,
+        dimension_collection=dimension_collection or {},
+        disable_dimensions=disable_dimensions,
+    )
     # Convert to TensorMesh
     points = backend_instance.as_tensor(
-        grid.points, dimension=DEFAULT_DIMENSIONS[FeatureName.POINTS]
+        grid.points, dimension=_resolver(FeatureName.POINTS)
     )
-    dims = dimension_collection or {}
     point_data = {
-        name: backend_instance.as_tensor(data, dimension=dims.get(name, {}))
+        name: backend_instance.as_tensor(data, dimension=_resolver(name))
         for name, data in grid.point_data.items()
     }
     cell_data = {
-        name: backend_instance.as_tensor(data, dimension=dims.get(name, {}))
+        name: backend_instance.as_tensor(data, dimension=_resolver(name))
         for name, data in grid.cell_data.items()
     }
 
@@ -146,3 +160,17 @@ def _from_pyvista_impl[T: TensorLike](
         point_data=point_data,
         cell_data=cell_data,
     )
+
+
+def _dimensions_resolver(
+    name: str,
+    dimension_collection: dict[str, dict[str, float]],
+    disable_dimensions: bool,
+) -> dict[str, float] | None:
+    if disable_dimensions:
+        return None
+
+    if name in dimension_collection:
+        return dimension_collection[name]
+
+    return DEFAULT_DIMENSIONS.get(name, {})
