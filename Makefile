@@ -46,8 +46,8 @@ benchmark:
 		--benchmark-min-rounds=3 \
 		--benchmark-save-data \
 		--benchmark-time-unit=ms \
-		--benchmark-json=./tests/outputs/benchmark/latest.json
-		--benchmark-storage=./tests/outputs/benchmark
+		--benchmark-json=./tests/outputs/benchmark/latest.json \
+		--benchmark-storage=./tests/outputs/benchmark \
 		--benchmark-autosave
 	uv run --group visualize python tests/visualize/plot_face_registry_benchmark.py
 	uv run --group visualize python tests/visualize/plot_compute_areas_benchmark.py

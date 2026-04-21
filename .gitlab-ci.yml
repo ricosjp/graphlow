@@ -130,7 +130,6 @@ pages:
     - main
     - develop
     - docs/sphinx-update
-    - update/v0.1
 
 .deploy:wheel:
   stage: deploy
