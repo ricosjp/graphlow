@@ -80,9 +80,17 @@ class PhlowerBackend(Backend[pt.PhlowerTensor]):
             arr, dimension=dimension, dtype=self.dtype, device=self.device
         )
 
-    def zeros_like(self, x: pt.PhlowerTensor) -> pt.PhlowerTensor:
+    def zeros_like(
+        self,
+        x: pt.PhlowerTensor,
+        *,
+        dimension: dict[str, float] | PhlowerDimensionTensor | None = None,
+    ) -> pt.PhlowerTensor:
         """Create a tensor of zeros with the same shape as x."""
-        return torch.zeros_like(x)
+        arr = np.zeros(x.shape)
+        return pt.phlower_tensor(
+            arr, dimension=dimension, dtype=self.dtype, device=self.device
+        )
 
     def ones(
         self,

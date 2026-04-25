@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from graphlow.core.backend.base import TensorLike
+from graphlow.geometry import fem
 from graphlow.geometry.distance import (
     chamfer_distance as _chamfer_distance,
 )
@@ -282,3 +283,21 @@ class MeshGeometry[T: TensorLike]:
             normal_interp_mode=normal_interp_mode,
             eps=eps,
         )
+
+    def apply_cell_local_matrix_tet(self, cell_local_matrix_tet: T, u: T) -> T:
+        return fem.apply_cell_local_matrix_tet(
+            self._mesh, cell_local_matrix_tet=cell_local_matrix_tet, u=u
+        )
+
+    def global_matrix_tet(self, cell_local_matrix_tet: T) -> T:
+        return fem.global_matrix_tet(self._mesh, cell_local_matrix_tet)
+
+    def cell_local_rigidity_tet(
+        self, cell_material_coeff: T | None = None, rank: int = 0
+    ) -> T:
+        return fem.cell_local_rigidity_tet(
+            self._mesh, cell_material_coeff=cell_material_coeff, rank=rank
+        )
+
+    def cell_local_mass_tet(self, cell_density: T | None = None) -> T:
+        return fem.cell_local_mass_tet(self._mesh, cell_density=cell_density)

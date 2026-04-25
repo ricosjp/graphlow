@@ -75,6 +75,7 @@ class MeshTopology[T: TensorLike]:
         self._face_registry: FaceRegistry | None = None
         self._face_blocks: dict[pv.CellType, FaceBlock] = {}
         self._built_face_blocks: bool = False
+        self._cell_tet_conn: np.ndarray | None = None
 
     # =========================================================================
     # Basic info
@@ -92,6 +93,18 @@ class MeshTopology[T: TensorLike]:
     def cell_conn(self) -> np.ndarray:
         """Cell connectivity array (VTK-style flattened connectivity)."""
         return self._mesh.pvmesh.cell_connectivity
+
+    def cell_tet_conn(self) -> np.ndarray:
+        """(n_cell, 4)-shaped cell connectivity array for tet cells."""
+        if self._cell_tet_conn is not None:
+            return self._cell_tet_conn
+        if np.all(self._mesh.topology.unique_cell_types() != pv.CellType.TETRA):
+            raise ValueError(
+                "fem_tet not supported for cell types: "
+                f"{self._mesh.topology.unique_cell_types()}"
+            )
+        self._cell_tet_conn = self._mesh.topology.cell_conn().reshape(-1, 4)
+        return self._cell_tet_conn
 
     def cell_offsets(self) -> np.ndarray:
         """Cell offsets array (VTK-style)."""
@@ -154,6 +167,7 @@ class MeshTopology[T: TensorLike]:
         invalidates the backend cache via ``mesh.bcache.invalidate()``.
         """
         self._unique_cell_types = None
+        self._cell_tet_conn = None
         self._mesh_dim = None
         self._skeletons.clear()
         self._cell_blocks.clear()

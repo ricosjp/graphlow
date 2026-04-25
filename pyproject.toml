@@ -18,6 +18,7 @@ authors = [{ name = "RICOS Co. Ltd." }]
 requires-python = ">=3.12,<3.13"
 classifiers = ["Programming Language :: Python"]
 dependencies = [
+    "einops>=0.8.0",
     "pydantic>=2.12.5",
     "pyvista>=0.47",
     "scipy>=1.14.0",
