@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import torch
-from phlower_tensor._tensor import PhlowerDimensionTensor
+from phlower_tensor._tensor import PhlowerDimensionTensor, PhlowerTensor
 
 from graphlow.core.backend.base import Backend, TensorLike
 from graphlow.utils import functionals
@@ -17,12 +17,37 @@ logger = logging.getLogger(__name__)
 
 
 def apply_cell_local_matrix_tet[T: TensorLike](
-    mesh: TensorMesh[T], cell_local_matrix_tet: T, u: T
+    mesh: TensorMesh[T],
+    cell_local_matrix_tet: T,
+    u: T,
+    vector_rank: int | None = None,
+    matrix_rank: int | None = None,
 ) -> T:
-    c_u = u[mesh.topology.cell_tet_conn()]
-    c_f = functionals.einsum("cabf,eb...->ea...", cell_local_matrix_tet, c_u)
+    vector_rank = _get_rank(u, rank=vector_rank)
+    matrix_rank = _get_rank(cell_local_matrix_tet, rank=matrix_rank, offset=2)
 
-    p_res = mesh.backend.zeros_like(u)
+    c_u = u[mesh.topology.cell_tet_conn()]
+    if matrix_rank == 0:
+        if vector_rank == 0:
+            additional_string = ""
+        else:
+            additional_string = "..."
+        c_f = functionals.einsum(
+            f"cabf,cb{additional_string}f->ca{additional_string}f",
+            cell_local_matrix_tet,
+            c_u,
+            dimension="auto",
+        )
+    elif matrix_rank == 2 and vector_rank == 1:
+        c_f = functionals.einsum(
+            "cabijf,cbjf->caif", cell_local_matrix_tet, c_u, dimension="auto"
+        )
+    else:
+        raise NotImplementedError(
+            f"Unexpected combination of {vector_rank = } and {matrix_rank = }"
+        )
+
+    p_res = mesh.backend.zeros(u.shape, dimension=c_f.dimension)
     p_res.index_put_(
         (torch.from_numpy(mesh.topology.cell_tet_conn()).to(torch.int64),),
         c_f,
@@ -62,15 +87,6 @@ def cell_local_rigidity_tet[T: TensorLike](
     else:
         str_n_mat = "e"
 
-    if get_dimension(c_volume) is None:
-        rigidity_dimension = None
-    else:
-        rigidity_dimension = (
-            get_dimension(c_grad_shape)
-            * get_dimension(cell_material_coeff)
-            * get_dimension(c_grad_shape)
-            * get_dimension(c_volume)
-        )
     if rank == 0:
         # Element rigidity matrix: [c, a, a, f]
         c_rigidity = functionals.einsum(
@@ -79,7 +95,7 @@ def cell_local_rigidity_tet[T: TensorLike](
             cell_material_coeff,
             c_grad_shape,
             c_volume,
-            dimension=rigidity_dimension,
+            dimension="auto",
         )
     elif rank == 1:
         # Element rigidity matrix: [c, a, a, d, d, f]
@@ -89,7 +105,7 @@ def cell_local_rigidity_tet[T: TensorLike](
             cell_material_coeff,
             c_grad_shape,
             c_volume,
-            dimension=rigidity_dimension,
+            dimension="auto",
         )
     else:
         raise NotImplementedError(f"Unsupported rank: {rank}")
@@ -105,6 +121,8 @@ def cell_local_mass_tet[T: TensorLike](
     backend = mesh.backend
 
     if cell_density is None:
+        if density_demension is None and mesh.has_dimension:
+            density_demension = {}
         cell_density = backend.ones((1, 1), dimension=density_demension)
     if cell_density.shape[0] == 1:
         str_n_density = "g"
@@ -113,32 +131,28 @@ def cell_local_mass_tet[T: TensorLike](
     c_volume = torch.abs(mesh.geometry.cell_volumes())
 
     # Rank 0 version of eq 9.23 of Liu and Quek 2013
-    mass_coeff = backend.as_tensor(torch.ones((4, 4)) + torch.eye(4)) / 20
+    mass_coeff = (
+        backend.as_tensor(
+            torch.ones((4, 4)) + torch.eye(4),
+            dimension={} if mesh.has_dimension else None,
+        )
+        / 20
+    )
 
-    if get_dimension(c_volume) is None:
-        mass_dimension = None
-    else:
-        if density_demension is None:
-            mass_dimension = get_dimension(c_volume)
-        else:
-            mass_dimension = get_dimension(c_volume) * get_dimension(
-                cell_density
-            )
     c_mass = functionals.einsum(
         f"{str_n_density}f,cf,ab->cabf",
         cell_density,
         c_volume,
         mass_coeff,
-        dimension=mass_dimension,
+        dimension="auto",
     )
     return c_mass
 
 
 def global_matrix_tet[T: TensorLike](
-    mesh: TensorMesh[T], cell_local_matrix_tet: T | None = None, rank: int = 0
+    mesh: TensorMesh[T], cell_local_matrix_tet: T, rank: int = 0
 ) -> T:
     backend = mesh.backend
-
     connectivity = mesh.topology.cell_tet_conn()
     list_n_c = [
         torch.sparse_coo_tensor(
@@ -155,7 +169,16 @@ def global_matrix_tet[T: TensorLike](
         for a in range(connectivity.shape[-1])
     ]
     list_k_c_a = [
-        sum_mul(cell_local_matrix_tet[:, a, :, 0], list_n_c).transpose(0, 1)
+        torch.sum(
+            torch.stack(
+                [
+                    cell_local_matrix_tet[:, a, b, 0] * list_n_c[b]
+                    for b in range(4)
+                ],
+                dim=0,
+            ),
+            dim=0,
+        ).transpose(0, 1)
         for a in range(4)
     ]
     lap = (
@@ -165,18 +188,6 @@ def global_matrix_tet[T: TensorLike](
         + list_n_c[3] @ list_k_c_a[3]
     ).coalesce()
 
-    # Check symmetry
-    diff = (lap - lap.transpose(0, 1)).coalesce().values()
-    torch.testing.assert_close(
-        diff, torch.zeros_like(diff), atol=1e-3, rtol=1e-3
-    )
-    sum_ = lap.sum(dim=0).values()
-    torch.testing.assert_close(
-        sum_, torch.zeros_like(sum_), atol=1e-2, rtol=1e-2
-    )
-
-    # Scale Laplacian to be non-dimensional
-    lap: torch.Tensor = -lap
     return lap
 
 
@@ -195,13 +206,14 @@ def _generate_global_identity_tensor[T: TensorLike](
     return cell_material_coeff
 
 
-def sum_mul(
-    dense: torch.Tensor, list_sparse: list[torch.Tensor]
-) -> torch.Tensor:
-    assert dense.shape[1] == len(list_sparse)
-    return (
-        dense[:, 0] * list_sparse[0]
-        + dense[:, 1] * list_sparse[1]
-        + dense[:, 2] * list_sparse[2]
-        + dense[:, 3] * list_sparse[3]
-    )
+def _get_rank[T: TensorLike](
+    t: T, rank: int | None = None, offset: int = 0
+) -> int:
+    if rank is not None:
+        return rank
+    if isinstance(t, PhlowerTensor):
+        rank = t.rank() - offset
+        if rank < 0:
+            raise ValueError(f"Rank is negative for {t} with offset {offset}")
+        return rank
+    raise ValueError(f"Feed rank when using {u.__class__}")

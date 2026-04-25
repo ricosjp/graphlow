@@ -1,4 +1,4 @@
-"""Tests for geometry operators such as isoAM and its helper routines."""
+"""Tests for FEM operators."""
 
 import pathlib
 
@@ -148,25 +148,6 @@ def test_cell_local_mass_tet_component(
         pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
     ],
 )
-def test_apply_cell_local_rigidity_tet(
-    file_path: pathlib.Path, test_device: torch.device
-):
-    mesh = graphlow.read(
-        file_path, "phlower", dtype=torch.float64, device=test_device
-    )
-    x = mesh.points[:, [0]]
-    u = x / torch.max(x)
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=0)
-    lap_u = mesh.geometry.apply_cell_local_matrix_tet(c_rigidity, u)
-    assert torch.sum(lap_u).numpy() < 1e-8
-
-
-@pytest.mark.parametrize(
-    "file_path",
-    [
-        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
-    ],
-)
 def test_apply_cell_local_mass_tet(
     file_path: pathlib.Path, test_device: torch.device
 ):
@@ -176,7 +157,69 @@ def test_apply_cell_local_mass_tet(
     u = mesh.backend.ones((mesh.n_points, 1), dimension={})
     c_mass = mesh.geometry.cell_local_mass_tet()
     mass_u = mesh.geometry.apply_cell_local_matrix_tet(c_mass, u)
-    raise ValueError(torch.sum(mass_u).numpy())
+
+    total_volume = torch.sum(torch.abs(mesh.geometry.cell_volumes())).numpy()
+    np.testing.assert_almost_equal(torch.sum(mass_u).numpy(), total_volume)
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
+    ],
+)
+@pytest.mark.parametrize("direction", [0, 1, 2])
+@pytest.mark.parametrize(
+    "function",
+    ["linear", "square", "cos"],
+)
+def test_apply_cell_local_rigidity_tet(
+    file_path: pathlib.Path,
+    direction: int,
+    function: str,
+    test_device: torch.device,
+):
+    mesh = graphlow.read(
+        file_path, "phlower", dtype=torch.float64, device=test_device
+    )
+    surface = mesh.extract_surface()
+    mask_internal = torch.ones(mesh.n_points, dtype=bool)
+    mask_internal[surface.parent_point_ids] = False
+    x = mesh.points[:, [direction]]
+    l_max = phlower_tensor.phlower_tensor(
+        [1.0], dtype=mesh.backend.dtype, dimension={"L": 1}
+    )
+
+    if function == "linear":
+        u = x / torch.max(mesh.points)
+        v = u * 0
+    elif function == "square":
+        u = 0.1 * (x / l_max) ** 2
+        v = (
+            0.1
+            * 2
+            * phlower_tensor.phlower_tensor(
+                torch.ones_like(u.to_tensor(), dtype=mesh.backend.dtype),
+                dimension={},
+            )
+        )
+    elif function == "cos":
+        u = torch.cos(x / l_max * 2 * torch.pi)
+        v = -((2 * torch.pi) ** 2) * u
+    else:
+        raise ValueError(f"Unexpected function: {function}")
+    c_mass = mesh.geometry.cell_local_mass_tet()
+    desired = mesh.geometry.apply_cell_local_matrix_tet(c_mass, v)[
+        mask_internal
+    ].numpy()
+
+    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=0)
+    lap_u = -mesh.geometry.apply_cell_local_matrix_tet(c_rigidity, u)
+    scale = np.sqrt(np.mean(desired**2))
+    assert (
+        np.sqrt(np.mean((lap_u[mask_internal].numpy() - desired) ** 2))
+        < scale * 0.3 + 1e-8
+    )
 
 
 @pytest.mark.parametrize(
@@ -186,7 +229,7 @@ def test_apply_cell_local_mass_tet(
     ],
 )
 def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
-    delta_t = phlower_tensor.phlower_tensor([[0.1]], dimension={"T": 1})
+    delta_t = phlower_tensor.phlower_tensor([[0.04]], dimension={"T": 1})
     diffusion = phlower_tensor.phlower_tensor(
         [[0.1]], dimension={"L": 2, "T": -1}
     )
@@ -203,13 +246,18 @@ def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
         delta_t,
         diffusion,
         phlower_tensor.phlower_tensor(torch.eye(3), dimension={}),
-        dimension=delta_t.dimension * diffusion.dimension,
+        dimension="auto",
     ).to(dtype=mesh.backend.dtype)
     c_rigidity = mesh.geometry.cell_local_rigidity_tet(
         rank=0, cell_material_coeff=global_mat
     )
 
     f = mesh.geometry.apply_cell_local_matrix_tet(c_mass, u)
+    # Check dimension is compatible
+    assert (
+        mesh.geometry.apply_cell_local_matrix_tet(c_rigidity, u).dimension
+        == f.dimension
+    )
 
     coeff = torch.squeeze((delta_t * diffusion).to_tensor()).numpy()
 
@@ -218,11 +266,15 @@ def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
         return (
             mesh.geometry.apply_cell_local_matrix_tet(
                 c_mass,
-                mesh.backend.as_tensor(v[:, None]).to(dtype=mesh.backend.dtype),
+                mesh.backend.as_tensor(v[:, None], dimension=u.dimension).to(
+                    dtype=mesh.backend.dtype
+                ),
             ).numpy()[..., 0]
             + mesh.geometry.apply_cell_local_matrix_tet(
                 c_rigidity,
-                mesh.backend.as_tensor(v[:, None]).to(dtype=mesh.backend.dtype),
+                mesh.backend.as_tensor(v[:, None], dimension=u.dimension).to(
+                    dtype=mesh.backend.dtype
+                ),
             ).numpy()[..., 0]
         )
 
@@ -233,4 +285,63 @@ def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
     res, _ = linalg.cg(op, f, rtol=1e-8)
 
     desired = u.numpy()[:, 0] * np.exp(-coeff * (2 * np.pi) ** 2)
-    assert np.sqrt(np.mean((res - desired) ** 2)) < 0.02
+    # import matplotlib.pyplot as plt
+    #
+    # plt.plot(x.numpy(), u.numpy(), "x")
+    # plt.plot(x.numpy(), desired, "+")
+    # plt.plot(x.numpy(), res, ".")
+    # plt.show()
+
+    assert np.sqrt(np.mean((res - desired) ** 2)) < 0.01
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
+        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
+    ],
+)
+@pytest.mark.parametrize("rank", [0])
+def test_global_rigidity_tet_symmetry_conservation(
+    file_path: pathlib.Path,
+    rank: int,
+    test_device: torch.device,
+):
+    mesh = graphlow.read(
+        file_path, "phlower", dtype=torch.float64, device=test_device
+    )
+    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=rank)
+
+    lap = mesh.geometry.global_matrix_tet(c_rigidity)
+    diff = (lap - lap.transpose(0, 1)).coalesce().values().numpy()
+    np.testing.assert_almost_equal(diff, 0)
+
+    # Check conservation
+    sum_ = lap.to_tensor().sum(dim=0).values().numpy()
+    np.testing.assert_almost_equal(sum_, 0)
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
+    ],
+)
+def test_global_rigidity_tet_consistent(
+    file_path: pathlib.Path, test_device: torch.device
+):
+    mesh = graphlow.read(
+        file_path, "phlower", dtype=torch.float64, device=test_device
+    )
+    x = mesh.points[:, [0]]
+    u = phlower_tensor.phlower_tensor(
+        torch.randn(x.shape, dtype=mesh.backend.dtype) + torch.rand(1),
+        dimension={},
+    )
+    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=0)
+    desired_lap_u = mesh.geometry.apply_cell_local_matrix_tet(c_rigidity, u)
+
+    lap = mesh.geometry.global_matrix_tet(c_rigidity)
+    actual_lap_u = lap @ u
+    np.testing.assert_almost_equal(actual_lap_u.numpy(), desired_lap_u.numpy())

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import einops
 import torch
 from phlower_tensor import PhlowerDimensionTensor, PhlowerTensor, functionals
 
@@ -40,7 +41,7 @@ def rearrange[T: TensorLike](
         PhlowerTensor: Rearranged tensor.
     """
     if isinstance(tensor, torch.Tensor):
-        return torch.einsum(tensor, pattern, **axes_length)
+        return einops.rearrange(tensor, pattern, **axes_length)
     elif isinstance(tensor, PhlowerTensor):
         return tensor.rearrange(pattern, **axes_length)
     else:
