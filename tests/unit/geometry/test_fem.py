@@ -615,7 +615,4 @@ def test_structural_analysis_simple(
     res, _ = linalg.cg(sp_rigidity, f.to("cpu").numpy(), rtol=1e-8)
     u = res.reshape(-1, 3)
 
-    mesh.pvmesh.point_data.update({"u": u, "desired": desired})
-    mesh.pvmesh.save("tmp.vtu")
-
     assert np.sqrt(np.mean((u - desired) ** 2)) < threshold
