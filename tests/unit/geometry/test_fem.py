@@ -454,23 +454,24 @@ def test_poisson(file_path: pathlib.Path, test_device: torch.device):
 
 
 @pytest.mark.parametrize(
-    "file_path",
+    "problem_name, file_path",
     [
-        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
+        ("simple", pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu")),
+        ("torsion", pathlib.Path("tests/data/vtu/cylinder/tet.vtu")),
     ],
 )
-def test_structural_analysis(
-    file_path: pathlib.Path, test_device: torch.device
+def test_structural_analysis_simple(
+    problem_name: str, file_path: pathlib.Path, test_device: torch.device
 ):
     modulus = 1.0e6
     nu = 0.3
-    max_disp = 0.1
 
     mesh = graphlow.read(
         file_path, "phlower", dtype=torch.float64, device=test_device
     )
     backend = mesh.backend
 
+    # Define material
     lam = (modulus * nu) / ((1 + nu) * (1 - 2 * nu))
     mu = modulus / (2 * (1 + nu))
     stiffness_dimension = {"L": -1, "M": 1, "T": -2}
@@ -500,6 +501,7 @@ def test_structural_analysis(
         stiffness.rearrange("g i j k l f -> g i j l k f").numpy(),
     )
 
+    # Set boundary condition
     x = mesh.points[:, 0]
     y = mesh.points[:, 1]
     z = mesh.points[:, 2]
@@ -509,10 +511,43 @@ def test_structural_analysis(
     mask_xmax = torch.abs(x - torch.max(x)).to_tensor() < 1e-5
     mask_ymin = torch.abs(y - torch.min(y)).to_tensor() < 1e-5
     mask_zmin = torch.abs(z - torch.min(z)).to_tensor() < 1e-5
+    mask_zmax = torch.abs(z - torch.max(z)).to_tensor() < 1e-5
     dirichlet = torch.ones((mesh.n_points, 3, 1)) * torch.nan
-    dirichlet[mask_xmin, 0] = 0
-    dirichlet[mask_xmin & mask_ymin & mask_zmin, :] = 0
-    dirichlet[mask_xmax, 0] = max_disp
+
+    if problem_name == "simple":
+        max_disp = 0.1
+        dirichlet[mask_xmin, 0] = 0
+        dirichlet[mask_xmin & mask_ymin & mask_zmin, :] = 0
+        dirichlet[mask_xmax, 0] = max_disp
+
+        desired = np.stack(
+            [
+                x.numpy() * max_disp,
+                -y.numpy() * max_disp * nu,
+                -z.numpy() * max_disp * nu,
+            ],
+            axis=-1,
+        )
+
+    elif problem_name == "torsion":
+        max_angle = 0.1 * 2 * torch.pi
+        dirichlet[mask_zmin, :] = 0
+        dirichlet[mask_zmax, 0] = -max_angle * y
+        dirichlet[mask_zmax, 1] = -max_angle * x
+        dirichlet[mask_zmax, 2] = 0
+
+        desired = np.stack(
+            [
+                max_angle.numpy() * y.numpy() * z.numpy(),
+                -y.numpy() * max_disp * nu,
+                -z.numpy() * max_disp * nu,
+            ],
+            axis=-1,
+        )
+
+    else:
+        raise ValueError(f"Unexpected {problem_name = }")
+
     ax0, ax1, ax2 = torch.where(~torch.isnan(dirichlet))
     dirichlet_values = dirichlet[ax0, ax1, ax2]
     sparse_dirichlet = backend.as_tensor(
@@ -524,6 +559,7 @@ def test_structural_analysis(
         dimension=mesh.points.dimension,
     )
 
+    # Setup problem
     u = backend.zeros((mesh.n_points * 3, 1), dimension=u_dimension).to(
         dtype=backend.dtype
     )
@@ -553,12 +589,4 @@ def test_structural_analysis(
     res, _ = linalg.cg(sp_rigidity, f.numpy(), rtol=1e-8)
     u = res.reshape(-1, 3)
 
-    desired = np.stack(
-        [
-            x.numpy() * max_disp,
-            -y.numpy() * max_disp * nu,
-            -z.numpy() * max_disp * nu,
-        ],
-        axis=-1,
-    )
     assert np.sqrt(np.mean((u - desired) ** 2)) < 1e-8
