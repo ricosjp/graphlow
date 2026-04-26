@@ -68,6 +68,24 @@ def test_connectivity(tet_mesh: TensorMesh[EitherTensor]):
     assert np.all(topo.cell_types() == expected_types)
 
 
+def test_tet_connectivity(tet_mesh: TensorMesh[EitherTensor]):
+    """MeshTopology.cell_tet_conn() returns 2-dim connectivity."""
+    topo = tet_mesh.topology
+    actual_tet_conn = topo.cell_tet_conn()
+    desired_tet_conn = np.array([[0, 1, 2, 3]])
+    assert len(actual_tet_conn.shape) == 2
+    np.testing.assert_array_equal(actual_tet_conn, desired_tet_conn)
+
+
+def test_tet_conn_raises_when_not_tet(complex_mesh: TensorMesh[EitherTensor]):
+    """MeshTopology.cell_tet_conn() raises when the mesh is not pure tet."""
+    topo = complex_mesh.topology
+    with pytest.raises(
+        ValueError, match="cell_tet_conn not supported for cell types"
+    ):
+        topo.cell_tet_conn()
+
+
 def test_unique_cell_types(complex_mesh: TensorMesh[EitherTensor]):
     """MeshTopology.unique_cell_types() returns unique cell types."""
     topo = complex_mesh.topology

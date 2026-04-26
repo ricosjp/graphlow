@@ -100,7 +100,7 @@ class MeshTopology[T: TensorLike]:
             return self._cell_tet_conn
         if np.all(self._mesh.topology.unique_cell_types() != pv.CellType.TETRA):
             raise ValueError(
-                "fem_tet not supported for cell types: "
+                "cell_tet_conn not supported for cell types: "
                 f"{self._mesh.topology.unique_cell_types()}"
             )
         self._cell_tet_conn = self._mesh.topology.cell_conn().reshape(-1, 4)

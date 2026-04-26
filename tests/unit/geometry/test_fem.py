@@ -29,7 +29,7 @@ from graphlow.utils import functionals
         (4, ["c a b i j f -> c b a i j f", "c a b i j f -> c a b j i f"]),
     ],
 )
-def test_cell_local_rigidity_tet_symmetry(
+def test_cell_local_fem_rigidity_tet_symmetry(
     file_path: pathlib.Path,
     rank: int,
     has_material: bool,
@@ -58,7 +58,7 @@ def test_cell_local_rigidity_tet_symmetry(
     else:
         cell_material_coeff = None
 
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(
+    c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(
         cell_material_coeff=cell_material_coeff, rank=rank
     )
 
@@ -87,7 +87,7 @@ def test_cell_local_rigidity_tet_symmetry(
         ),
     ],
 )
-def test_cell_local_rigidity_tet_component(
+def test_cell_local_fem_rigidity_tet_component(
     file_path: pathlib.Path,
     rank: int,
     desired: np.ndarray,
@@ -96,7 +96,7 @@ def test_cell_local_rigidity_tet_component(
     mesh = graphlow.read(
         file_path, "phlower", dtype=torch.float64, device=test_device
     )
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=rank)
+    c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(rank=rank)
     np.testing.assert_almost_equal(c_rigidity.numpy(), desired)
 
 
@@ -107,14 +107,14 @@ def test_cell_local_rigidity_tet_component(
         pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test_cell_local_rigidity_tet_raises_when_cell_type_not_supported(
+def test_cell_local_fem_rigidity_tet_raises_when_cell_type_not_supported(
     file_path: pathlib.Path,
 ):
     mesh = graphlow.read(file_path, "phlower", dtype=torch.float64)
     with pytest.raises(
         ValueError, match="fem_tet not supported for cell types"
     ):
-        mesh.geometry.cell_local_rigidity_tet()
+        mesh.geometry.cell_local_fem_rigidity_tet()
 
 
 @pytest.mark.parametrize(
@@ -136,7 +136,7 @@ def test_cell_local_rigidity_tet_raises_when_cell_type_not_supported(
         ),
     ],
 )
-def test_cell_local_mass_tet_component(
+def test_cell_local_fem_mass_tet_component(
     file_path: pathlib.Path,
     desired: np.ndarray,
     test_device: torch.device,
@@ -144,7 +144,7 @@ def test_cell_local_mass_tet_component(
     mesh = graphlow.read(
         file_path, "phlower", dtype=torch.float64, device=test_device
     )
-    c_mass = mesh.geometry.cell_local_mass_tet()
+    c_mass = mesh.geometry.cell_local_fem_mass_tet()
     np.testing.assert_almost_equal(c_mass.numpy(), desired)
 
 
@@ -154,15 +154,15 @@ def test_cell_local_mass_tet_component(
         pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
     ],
 )
-def test_apply_cell_local_mass_tet(
+def test_apply_cell_local_fem_mass_tet(
     file_path: pathlib.Path, test_device: torch.device
 ):
     mesh = graphlow.read(
         file_path, "phlower", dtype=torch.float64, device=test_device
     )
     u = mesh.backend.ones((mesh.n_points, 1), dimension={})
-    c_mass = mesh.geometry.cell_local_mass_tet()
-    mass_u = mesh.geometry.apply_cell_local_matrix_tet(c_mass, u)
+    c_mass = mesh.geometry.cell_local_fem_mass_tet()
+    mass_u = mesh.geometry.apply_cell_local_fem_matrix_tet(c_mass, u)
 
     total_volume = torch.sum(torch.abs(mesh.geometry.cell_volumes())).numpy()
     np.testing.assert_almost_equal(torch.sum(mass_u).numpy(), total_volume)
@@ -179,7 +179,7 @@ def test_apply_cell_local_mass_tet(
     "function",
     ["linear", "square", "cos"],
 )
-def test_apply_cell_local_rigidity_tet(
+def test_apply_cell_local_fem_rigidity_tet(
     file_path: pathlib.Path,
     direction: int,
     function: str,
@@ -212,13 +212,13 @@ def test_apply_cell_local_rigidity_tet(
         v = -((2 * torch.pi) ** 2) * u
     else:
         raise ValueError(f"Unexpected function: {function}")
-    c_mass = mesh.geometry.cell_local_mass_tet()
-    desired = mesh.geometry.apply_cell_local_matrix_tet(c_mass, v)[
+    c_mass = mesh.geometry.cell_local_fem_mass_tet()
+    desired = mesh.geometry.apply_cell_local_fem_matrix_tet(c_mass, v)[
         mask_internal
     ].numpy()
 
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=0)
-    lap_u = -mesh.geometry.apply_cell_local_matrix_tet(c_rigidity, u)
+    c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(rank=0)
+    lap_u = -mesh.geometry.apply_cell_local_fem_matrix_tet(c_rigidity, u)
     scale = np.sqrt(np.mean(desired**2))
     assert (
         np.sqrt(np.mean((lap_u[mask_internal].numpy() - desired) ** 2))
@@ -234,7 +234,7 @@ def test_apply_cell_local_rigidity_tet(
     ],
 )
 @pytest.mark.parametrize("rank", [0])
-def test_global_rigidity_tet_symmetry_conservation(
+def test_global_fem_rigidity_tet_symmetry_conservation(
     file_path: pathlib.Path,
     rank: int,
     test_device: torch.device,
@@ -242,9 +242,9 @@ def test_global_rigidity_tet_symmetry_conservation(
     mesh = graphlow.read(
         file_path, "phlower", dtype=torch.float64, device=test_device
     )
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=rank)
+    c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(rank=rank)
 
-    lap = mesh.geometry.global_matrix_tet(c_rigidity)
+    lap = mesh.geometry.global_fem_matrix_tet(c_rigidity)
     diff = (lap - lap.transpose(0, 1)).coalesce().values().numpy()
     np.testing.assert_almost_equal(diff, 0)
 
@@ -262,7 +262,7 @@ def test_global_rigidity_tet_symmetry_conservation(
     ],
 )
 @pytest.mark.parametrize("rank", [0, 2, 4])
-def test_global_rigidity_tet_consistent(
+def test_global_fem_rigidity_tet_consistent(
     file_path: pathlib.Path, rank: int, test_device: torch.device
 ):
     mesh = graphlow.read(
@@ -277,10 +277,10 @@ def test_global_rigidity_tet_consistent(
         dimension={},
     )
     reshaped_u = u.reshape((-1, 1))
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=rank)
-    desired_lap_u = mesh.geometry.apply_cell_local_matrix_tet(c_rigidity, u)
+    c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(rank=rank)
+    desired_lap_u = mesh.geometry.apply_cell_local_fem_matrix_tet(c_rigidity, u)
 
-    rigidity = mesh.geometry.global_matrix_tet(c_rigidity)
+    rigidity = mesh.geometry.global_fem_matrix_tet(c_rigidity)
     actual_lap_u = (rigidity @ reshaped_u).reshape(u.shape)
     np.testing.assert_almost_equal(actual_lap_u.numpy(), desired_lap_u.numpy())
 
@@ -301,16 +301,16 @@ def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
     x = mesh.points[:, [0]]
     u = torch.cos(x / torch.max(x) * 2 * torch.pi)
 
-    c_mass = mesh.geometry.cell_local_mass_tet()
+    c_mass = mesh.geometry.cell_local_fem_mass_tet()
     global_mat = (delta_t * diffusion).to(dtype=mesh.backend.dtype)
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(
+    c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(
         rank=0, cell_material_coeff=global_mat
     )
 
-    f = mesh.geometry.apply_cell_local_matrix_tet(c_mass, u)
+    f = mesh.geometry.apply_cell_local_fem_matrix_tet(c_mass, u)
     # Check dimension is compatible
     assert (
-        mesh.geometry.apply_cell_local_matrix_tet(c_rigidity, u).dimension
+        mesh.geometry.apply_cell_local_fem_matrix_tet(c_rigidity, u).dimension
         == f.dimension
     )
 
@@ -319,13 +319,13 @@ def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
     # Solve (M + dt nu L) U^{n+1} = M U^n
     def matvec(v: np.ndarray) -> np.ndarray:
         return (
-            mesh.geometry.apply_cell_local_matrix_tet(
+            mesh.geometry.apply_cell_local_fem_matrix_tet(
                 c_mass,
                 mesh.backend.as_tensor(v[:, None], dimension=u.dimension).to(
                     dtype=mesh.backend.dtype
                 ),
             ).numpy()[..., 0]
-            + mesh.geometry.apply_cell_local_matrix_tet(
+            + mesh.geometry.apply_cell_local_fem_matrix_tet(
                 c_rigidity,
                 mesh.backend.as_tensor(v[:, None], dimension=u.dimension).to(
                     dtype=mesh.backend.dtype
@@ -375,9 +375,9 @@ def test_laplace(file_path: pathlib.Path, test_device: torch.device):
         dimension=mesh.points.dimension,
     )
 
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=0)
-    rigidity = mesh.geometry.global_matrix_tet(c_rigidity)
-    rigidity, b = mesh.geometry.apply_dirichlet_to_global_matrix(
+    c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(rank=0)
+    rigidity = mesh.geometry.global_fem_matrix_tet(c_rigidity)
+    rigidity, b = mesh.geometry.apply_dirichlet_to_global_fem_matrix(
         rigidity, b, sparse_dirichlet
     )
 
@@ -411,8 +411,8 @@ def test_poisson(file_path: pathlib.Path, test_device: torch.device):
 
     x = mesh.points[:, 0]
     f = backend.ones((mesh.n_points, 1), dimension={"L": -2})
-    c_mass = mesh.geometry.cell_local_mass_tet()
-    b = mesh.geometry.apply_cell_local_matrix_tet(c_mass, f)
+    c_mass = mesh.geometry.cell_local_fem_mass_tet()
+    b = mesh.geometry.apply_cell_local_fem_matrix_tet(c_mass, f)
 
     mask_xmin = torch.abs(x - torch.min(x)).to_tensor() < 1e-5
     mask_xmax = torch.abs(x - torch.max(x)).to_tensor() < 1e-5
@@ -430,9 +430,9 @@ def test_poisson(file_path: pathlib.Path, test_device: torch.device):
         dimension=mesh.points.dimension,
     )
 
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=0)
-    rigidity = mesh.geometry.global_matrix_tet(c_rigidity)
-    rigidity, b = mesh.geometry.apply_dirichlet_to_global_matrix(
+    c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(rank=0)
+    rigidity = mesh.geometry.global_fem_matrix_tet(c_rigidity)
+    rigidity, b = mesh.geometry.apply_dirichlet_to_global_fem_matrix(
         rigidity, b, sparse_dirichlet
     )
 
@@ -528,14 +528,14 @@ def test_structural_analysis(
         dtype=backend.dtype
     )
 
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(
+    c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(
         rank=4, cell_material_coeff=stiffness
     )
-    rigidity = mesh.geometry.global_matrix_tet(c_rigidity)
+    rigidity = mesh.geometry.global_fem_matrix_tet(c_rigidity)
     f = backend.zeros(
         (mesh.n_points * 3, 1), dimension={"L": 1, "M": 1, "T": -2}
     ).to(dtype=backend.dtype)  # [force/volume] * [volume]
-    rigidity, f = mesh.geometry.apply_dirichlet_to_global_matrix(
+    rigidity, f = mesh.geometry.apply_dirichlet_to_global_fem_matrix(
         rigidity, f, sparse_dirichlet=sparse_dirichlet
     )
 

@@ -160,17 +160,6 @@ class TensorMesh[T: TensorLike]:
         """
         return self.parent_point_map.point_ids
 
-    @property
-    def has_dimension(self) -> bool:
-        """
-        Return True if the mesh has physical dimension (e.g., length, time).
-
-        Returns
-        -------
-        bool
-        """
-        return get_dimension(self.points) is not None
-
     def requires_grad(
         self,
         requires_grad: bool = True,

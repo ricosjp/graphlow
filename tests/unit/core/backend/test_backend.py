@@ -327,3 +327,13 @@ class TestPhlowerBackendOnly:
         x = backend_phlower.as_tensor(expected)
         out = backend_phlower.to_numpy(x)
         np.testing.assert_array_equal(out, expected)
+
+    def test_zeros_like_same_dimension(
+        self, backend_phlower: PhlowerBackend
+    ) -> None:
+        """zeros_like(x) has same shape as x."""
+        arr = np.array([1.0, 2.0, 3.0])
+        dim = {"L": 1}
+        t = backend_phlower.as_tensor(arr, dimension=dim)
+        s = backend_phlower.zeros_like(t)
+        assert s.dimension == t.dimension

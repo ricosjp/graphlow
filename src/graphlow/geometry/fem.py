@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import torch
-from phlower_tensor._tensor import PhlowerDimensionTensor, PhlowerTensor
+from phlower_tensor._tensor import PhlowerTensor
 
 from graphlow.core.backend.base import Backend, TensorLike
 from graphlow.utils import functionals
@@ -16,13 +16,34 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def apply_cell_local_matrix_tet[T: TensorLike](
+def apply_cell_local_fem_matrix_tet[T: TensorLike](
     mesh: TensorMesh[T],
     cell_local_matrix_tet: T,
     u: T,
     vector_rank: int | None = None,
     matrix_rank: int | None = None,
 ) -> T:
+    """
+    Apply the given local FEM matrix on the tet mesh.
+
+    Parameters
+    ----------
+    mesh: TensorMesh[T]
+        Mesh with differentiable points.
+    cell_local_matrix_tet: T
+        Cell-wise local FEM matrix.
+    u: T
+        Point-wise physical variable to be multiplied by the matrix.
+    vector_rank: int | None
+        Rank of the vector. If not fed, the rank is inferred when possible.
+    matrix_rank: int | None
+        Rank of the matrix. If not fed, the rank is inferred when possible.
+
+    Returns
+    -------
+    matvec: T
+        matvec results.
+    """
     vector_rank = _get_rank(u, rank=vector_rank)
     matrix_rank = _get_rank(cell_local_matrix_tet, rank=matrix_rank, offset=2)
 
@@ -56,9 +77,27 @@ def apply_cell_local_matrix_tet[T: TensorLike](
     return p_res
 
 
-def cell_local_rigidity_tet[T: TensorLike](
+def cell_local_fem_rigidity_tet[T: TensorLike](
     mesh: TensorMesh[T], cell_material_coeff: T | None = None, rank: int = 0
 ) -> T:
+    """
+    Generate the cell-wise local FEM rigidity matrix on the tet mesh.
+
+    Parameters
+    ----------
+    mesh: TensorMesh[T]
+        Mesh with differentiable points.
+    cell_material_coeff: T
+        Cell-wise (or global) material coefficient.
+    rank: int
+        Rank of the material coefficient. Typically, 0 for isotropic heat,
+        2 for anisotropic heat, and 4 for structural analysis.
+
+    Returns
+    -------
+    cell_local_rigidity: T
+        Cell-wise local rigidity matrix.
+    """
     backend = mesh.backend
 
     if cell_material_coeff is None:
@@ -120,17 +159,29 @@ def cell_local_rigidity_tet[T: TensorLike](
     return c_rigidity
 
 
-def cell_local_mass_tet[T: TensorLike](
+def cell_local_fem_mass_tet[T: TensorLike](
     mesh: TensorMesh[T],
     cell_density: T | None = None,
-    density_demension: dict[str, float] | PhlowerDimensionTensor | None = None,
 ) -> T:
+    """
+    Generate the cell-wise local FEM mass matrix on the tet mesh.
+
+    Parameters
+    ----------
+    mesh: TensorMesh[T]
+        Mesh with differentiable points.
+    cell_density: T
+        Cell-wise (or global) density.
+
+    Returns
+    -------
+    cell_local_mass: T
+        Cell-wise local mass matrix.
+    """
     backend = mesh.backend
 
     if cell_density is None:
-        if density_demension is None and mesh.has_dimension:
-            density_demension = {}
-        cell_density = backend.ones((1, 1), dimension=density_demension)
+        cell_density = backend.ones((1, 1), dimension={})
     if cell_density.shape[0] == 1:
         str_n_density = "g"
     else:
@@ -141,7 +192,7 @@ def cell_local_mass_tet[T: TensorLike](
     mass_coeff = (
         backend.as_tensor(
             torch.ones((4, 4)) + torch.eye(4),
-            dimension={} if mesh.has_dimension else None,
+            dimension=None if get_dimension(mesh.points) is None else {},
         )
         / 20
     )
@@ -156,10 +207,26 @@ def cell_local_mass_tet[T: TensorLike](
     return c_mass
 
 
-def global_matrix_tet[T: TensorLike](
+def global_fem_matrix_tet[T: TensorLike](
     mesh: TensorMesh[T],
     cell_local_matrix_tet: T,
 ) -> T:
+    """
+    Compute the global FEM matrix on the tet mesh
+    from the given cell-wise local FEM matrix.
+
+    Parameters
+    ----------
+    mesh: TensorMesh[T]
+        Mesh with differentiable points.
+    cell_local_matrix_tet: T
+        Cell-wise local FEM matrix.
+
+    Returns
+    -------
+    global_matrix: T
+        Assembled global FEM matrix with COO layout.
+    """
     backend = mesh.backend
 
     rank = len(cell_local_matrix_tet.shape) - 4  # exclude (c, a, b, f)
@@ -180,13 +247,13 @@ def global_matrix_tet[T: TensorLike](
     ]
 
     if rank == 0:
-        global_rigidity = _generate_global_matrix_rank0(
+        global_rigidity = _generate_global_fem_matrix_rank0(
             backend, list_n_c, cell_local_matrix_tet
         )
     elif rank == 2:
         list_global_rigidities = [
             [
-                _generate_global_matrix_rank0(
+                _generate_global_fem_matrix_rank0(
                     backend,
                     list_n_c,
                     cell_local_matrix_tet[:, ..., i_row, i_col, :],
@@ -224,9 +291,30 @@ def global_matrix_tet[T: TensorLike](
     )
 
 
-def apply_dirichlet_to_global_matrix[T: TensorLike](
+def apply_dirichlet_to_global_fem_matrix[T: TensorLike](
     mesh: TensorMesh[T], global_matrix: T, global_b: T, sparse_dirichlet: T
 ) -> tuple[T, T]:
+    """
+    Apply the given Dirichlet boundary condition to the linear problem.
+
+    Parameters
+    ----------
+    mesh: TensorMesh[T]
+        Mesh with differentiable points.
+    global_matrix: T
+        Sparse global matrix.
+    global_b: T
+        Dense global tensor.
+    sparse_dirichlet: T
+        Sparse tensor describing the Dirichlet boundary condition.
+
+    Returns
+    -------
+    global_matrix_with_dirichlet: T
+        Sparse global matrix after taking into account the Dirichlet bc.
+    global_b_with_dirichlet: T
+        Global b after taking into account the Dirichlet bc.
+    """
     if sparse_dirichlet.shape[-1] != 1:
         raise NotImplementedError(
             f"The last dim should be 1 but given: {sparse_dirichlet.shape}"
@@ -276,7 +364,7 @@ def apply_dirichlet_to_global_matrix[T: TensorLike](
     ), new_global_b
 
 
-def _generate_global_matrix_rank0[T: TensorLike](
+def _generate_global_fem_matrix_rank0[T: TensorLike](
     backend: Backend, list_n_c: list[torch.Tensor], cell_local_matrix: T
 ) -> torch.Tensor:
     if cell_local_matrix.shape[-1] != 1:
