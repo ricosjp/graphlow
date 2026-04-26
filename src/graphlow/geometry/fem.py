@@ -338,4 +338,4 @@ def _get_rank[T: TensorLike](
         if rank < 0:
             raise ValueError(f"Rank is negative for {t} with offset {offset}")
         return rank
-    raise ValueError(f"Feed rank when using {u.__class__}")
+    raise ValueError(f"Feed rank when using {t.__class__}")
