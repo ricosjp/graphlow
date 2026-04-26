@@ -242,6 +242,7 @@ def global_fem_matrix_tet[T: TensorLike](
             ),
             values=torch.ones(mesh.n_cells, dtype=backend.dtype),
             size=(mesh.n_points, mesh.n_cells),
+            device=backend.device,
         )
         for a in range(connectivity.shape[-1])
     ]
@@ -264,7 +265,10 @@ def global_fem_matrix_tet[T: TensorLike](
         ]
         n_dof = mesh.n_points * 3
         global_rigidity = torch.empty(
-            (n_dof, n_dof), layout=torch.sparse_coo, dtype=backend.dtype
+            (n_dof, n_dof),
+            layout=torch.sparse_coo,
+            dtype=backend.dtype,
+            device=backend.device,
         )
         for i_row in range(3):
             for i_col in range(3):
@@ -409,7 +413,7 @@ def _generate_global_identity_tensor[T: TensorLike](
         cell_material_coeff = delta[None, ..., None]
     elif rank == 4:
         cell_material_coeff = functionals.einsum(
-            "ik,jl->ijkl", delta, delta, dimension={}
+            "ik,jl->ijkl", delta, delta, dimension="auto"
         )[None, ..., None]
     else:
         raise NotImplementedError(f"Unsupported rank: {rank}")

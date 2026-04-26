@@ -67,13 +67,14 @@ def test_einsum(
     ]
     actual = F.einsum(pattern, *tensors, dimension="auto")
     desired = np.einsum(pattern, *np_arrays)
-    np.testing.assert_almost_equal(actual.numpy(), desired, decimal=5)
 
+    np.testing.assert_almost_equal(actual.to("cpu").numpy(), desired, decimal=5)
+    assert actual.device.type == backend.device.type
     if isinstance(backend, PhlowerBackend):
         if desired_dimension is None:
             assert actual.dimension is None
         else:
-            assert actual.dimension == phlower_dimension_tensor(
+            assert actual.dimension.to("cpu") == phlower_dimension_tensor(
                 desired_dimension
             )
 
@@ -102,7 +103,8 @@ def test_rearrange(
     tensor = backend.as_tensor(np_array, dimension=dimension)
     actual = F.rearrange(tensor, pattern=pattern)
     desired = einops.rearrange(np_array, pattern)
-    np.testing.assert_almost_equal(actual.numpy(), desired, decimal=5)
 
+    np.testing.assert_almost_equal(actual.to("cpu").numpy(), desired, decimal=5)
+    assert actual.device.type == backend.device.type
     if isinstance(backend, PhlowerBackend):
         assert actual.dimension == tensor.dimension
