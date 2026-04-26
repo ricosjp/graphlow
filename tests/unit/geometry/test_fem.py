@@ -3,9 +3,10 @@
 import pathlib
 
 import numpy as np
-import phlower_tensor
 import pytest
+import scipy.sparse as sp
 import torch
+from phlower_tensor import phlower_tensor
 from scipy.sparse import linalg
 
 import graphlow
@@ -24,7 +25,8 @@ from graphlow.utils import functionals
     "rank, patterns",
     [
         (0, ["c a b f -> c b a f"]),
-        (1, ["c a b i j f -> c b a i j f", "c a b i j f -> c a b j i f"]),
+        (2, ["c a b f -> c b a f"]),
+        (4, ["c a b i j f -> c b a i j f", "c a b i j f -> c a b j i f"]),
     ],
 )
 def test_cell_local_rigidity_tet_symmetry(
@@ -42,13 +44,17 @@ def test_cell_local_rigidity_tet_symmetry(
         rand = mesh.backend.as_tensor(rand @ rand.transpose(0, 1))
         e = mesh.backend.ones((mesh.n_cells, 1)).to(dtype=mesh.backend.dtype)
         if rank == 0:
+            cell_material_coeff = phlower_tensor(e, dimension={})
+        elif rank == 2:
             cell_material_coeff = functionals.einsum(
                 "ef,ij->eijf", e, rand, dimension={}
             )
-        else:
+        elif rank == 4:
             cell_material_coeff = functionals.einsum(
                 "ef,ik,jl->eijklf", e, rand, rand, dimension={}
             )
+        else:
+            raise ValueError(f"Unexpected rank: {rank}")
     else:
         cell_material_coeff = None
 
@@ -186,9 +192,7 @@ def test_apply_cell_local_rigidity_tet(
     mask_internal = torch.ones(mesh.n_points, dtype=bool)
     mask_internal[surface.parent_point_ids] = False
     x = mesh.points[:, [direction]]
-    l_max = phlower_tensor.phlower_tensor(
-        [1.0], dtype=mesh.backend.dtype, dimension={"L": 1}
-    )
+    l_max = phlower_tensor([1.0], dtype=mesh.backend.dtype, dimension={"L": 1})
 
     if function == "linear":
         u = x / torch.max(mesh.points)
@@ -198,7 +202,7 @@ def test_apply_cell_local_rigidity_tet(
         v = (
             0.1
             * 2
-            * phlower_tensor.phlower_tensor(
+            * phlower_tensor(
                 torch.ones_like(u.to_tensor(), dtype=mesh.backend.dtype),
                 dimension={},
             )
@@ -225,14 +229,71 @@ def test_apply_cell_local_rigidity_tet(
 @pytest.mark.parametrize(
     "file_path",
     [
+        pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
+        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
+    ],
+)
+@pytest.mark.parametrize("rank", [0])
+def test_global_rigidity_tet_symmetry_conservation(
+    file_path: pathlib.Path,
+    rank: int,
+    test_device: torch.device,
+):
+    mesh = graphlow.read(
+        file_path, "phlower", dtype=torch.float64, device=test_device
+    )
+    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=rank)
+
+    lap = mesh.geometry.global_matrix_tet(c_rigidity)
+    diff = (lap - lap.transpose(0, 1)).coalesce().values().numpy()
+    np.testing.assert_almost_equal(diff, 0)
+
+    # Check conservation
+    sum_ = lap.to_tensor().sum(dim=0).values().numpy()
+    np.testing.assert_almost_equal(sum_, 0)
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
+        pathlib.Path("tests/data/vtu/cube/2x2_tet.vtu"),
+        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
+    ],
+)
+@pytest.mark.parametrize("rank", [0, 2, 4])
+def test_global_rigidity_tet_consistent(
+    file_path: pathlib.Path, rank: int, test_device: torch.device
+):
+    mesh = graphlow.read(
+        file_path, "phlower", dtype=torch.float64, device=test_device
+    )
+    if rank == 4:
+        randn = torch.randn((mesh.n_points, 3, 1), dtype=mesh.backend.dtype)
+    else:
+        randn = torch.randn((mesh.n_points, 1), dtype=mesh.backend.dtype)
+    u = phlower_tensor(
+        randn + torch.rand(1),
+        dimension={},
+    )
+    reshaped_u = u.reshape((-1, 1))
+    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=rank)
+    desired_lap_u = mesh.geometry.apply_cell_local_matrix_tet(c_rigidity, u)
+
+    rigidity = mesh.geometry.global_matrix_tet(c_rigidity)
+    actual_lap_u = (rigidity @ reshaped_u).reshape(u.shape)
+    np.testing.assert_almost_equal(actual_lap_u.numpy(), desired_lap_u.numpy())
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
         pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
     ],
 )
 def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
-    delta_t = phlower_tensor.phlower_tensor([[0.04]], dimension={"T": 1})
-    diffusion = phlower_tensor.phlower_tensor(
-        [[0.1]], dimension={"L": 2, "T": -1}
-    )
+    delta_t = phlower_tensor([[0.04]], dimension={"T": 1})
+    diffusion = phlower_tensor([[0.1]], dimension={"L": 2, "T": -1})
 
     mesh = graphlow.read(
         file_path, "phlower", dtype=torch.float64, device=test_device
@@ -241,13 +302,7 @@ def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
     u = torch.cos(x / torch.max(x) * 2 * torch.pi)
 
     c_mass = mesh.geometry.cell_local_mass_tet()
-    global_mat = functionals.einsum(
-        "gf,gf,ij->gijf",
-        delta_t,
-        diffusion,
-        phlower_tensor.phlower_tensor(torch.eye(3), dimension={}),
-        dimension="auto",
-    ).to(dtype=mesh.backend.dtype)
+    global_mat = (delta_t * diffusion).to(dtype=mesh.backend.dtype)
     c_rigidity = mesh.geometry.cell_local_rigidity_tet(
         rank=0, cell_material_coeff=global_mat
     )
@@ -285,41 +340,61 @@ def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
     res, _ = linalg.cg(op, f, rtol=1e-8)
 
     desired = u.numpy()[:, 0] * np.exp(-coeff * (2 * np.pi) ** 2)
-    # import matplotlib.pyplot as plt
-    #
-    # plt.plot(x.numpy(), u.numpy(), "x")
-    # plt.plot(x.numpy(), desired, "+")
-    # plt.plot(x.numpy(), res, ".")
-    # plt.show()
-
     assert np.sqrt(np.mean((res - desired) ** 2)) < 0.01
 
 
 @pytest.mark.parametrize(
     "file_path",
     [
-        pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
+        pathlib.Path("tests/data/vtu/cube/2x2_tet.vtu"),
         pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
     ],
 )
-@pytest.mark.parametrize("rank", [0])
-def test_global_rigidity_tet_symmetry_conservation(
-    file_path: pathlib.Path,
-    rank: int,
-    test_device: torch.device,
-):
+def test_laplace(file_path: pathlib.Path, test_device: torch.device):
     mesh = graphlow.read(
         file_path, "phlower", dtype=torch.float64, device=test_device
     )
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=rank)
+    backend = mesh.backend
 
-    lap = mesh.geometry.global_matrix_tet(c_rigidity)
-    diff = (lap - lap.transpose(0, 1)).coalesce().values().numpy()
-    np.testing.assert_almost_equal(diff, 0)
+    x = mesh.points[:, 0]
+    b = backend.zeros((mesh.n_points, 1), dimension={"L": 1})
 
-    # Check conservation
-    sum_ = lap.to_tensor().sum(dim=0).values().numpy()
-    np.testing.assert_almost_equal(sum_, 0)
+    mask_xmin = torch.abs(x - torch.min(x)).to_tensor() < 1e-5
+    mask_xmax = torch.abs(x - torch.max(x)).to_tensor() < 1e-5
+    dirichlet = torch.ones((mesh.n_points, 1)) * torch.nan
+    dirichlet[mask_xmin, 0] = 0
+    dirichlet[mask_xmax, 0] = 0.5
+    ax0, ax1 = torch.where(~torch.isnan(dirichlet))
+    dirichlet_values = dirichlet[ax0, ax1]
+    sparse_dirichlet = backend.as_tensor(
+        torch.sparse_coo_tensor(
+            values=dirichlet_values.to(dtype=backend.dtype),
+            indices=torch.stack([ax0, ax1], dim=0),
+            size=dirichlet.shape,
+        ),
+        dimension=mesh.points.dimension,
+    )
+
+    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=0)
+    rigidity = mesh.geometry.global_matrix_tet(c_rigidity)
+    rigidity, b = mesh.geometry.apply_dirichlet_to_global_matrix(
+        rigidity, b, sparse_dirichlet
+    )
+
+    # Check dimension is compatible
+    assert c_rigidity.dimension == b.dimension
+
+    sp_rigidity = sp.coo_array(
+        (
+            rigidity.values().numpy(),
+            (rigidity.indices()[0], rigidity.indices()[1]),
+        ),
+        shape=rigidity.shape,
+    )
+    res, _ = linalg.cg(sp_rigidity, b.numpy(), rtol=1e-8)
+
+    desired = (x / torch.max(x)).numpy() * 0.5
+    assert np.sqrt(np.mean((res - desired) ** 2)) < 1e-6
 
 
 @pytest.mark.parametrize(
@@ -328,20 +403,162 @@ def test_global_rigidity_tet_symmetry_conservation(
         pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
     ],
 )
-def test_global_rigidity_tet_consistent(
-    file_path: pathlib.Path, test_device: torch.device
-):
+def test_poisson(file_path: pathlib.Path, test_device: torch.device):
     mesh = graphlow.read(
         file_path, "phlower", dtype=torch.float64, device=test_device
     )
-    x = mesh.points[:, [0]]
-    u = phlower_tensor.phlower_tensor(
-        torch.randn(x.shape, dtype=mesh.backend.dtype) + torch.rand(1),
-        dimension={},
-    )
-    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=0)
-    desired_lap_u = mesh.geometry.apply_cell_local_matrix_tet(c_rigidity, u)
+    backend = mesh.backend
 
-    lap = mesh.geometry.global_matrix_tet(c_rigidity)
-    actual_lap_u = lap @ u
-    np.testing.assert_almost_equal(actual_lap_u.numpy(), desired_lap_u.numpy())
+    x = mesh.points[:, 0]
+    f = backend.ones((mesh.n_points, 1), dimension={"L": -2})
+    c_mass = mesh.geometry.cell_local_mass_tet()
+    b = mesh.geometry.apply_cell_local_matrix_tet(c_mass, f)
+
+    mask_xmin = torch.abs(x - torch.min(x)).to_tensor() < 1e-5
+    mask_xmax = torch.abs(x - torch.max(x)).to_tensor() < 1e-5
+    dirichlet = torch.ones((mesh.n_points, 1)) * torch.nan
+    dirichlet[mask_xmin, 0] = 0
+    dirichlet[mask_xmax, 0] = 0.5
+    ax0, ax1 = torch.where(~torch.isnan(dirichlet))
+    dirichlet_values = dirichlet[ax0, ax1]
+    sparse_dirichlet = backend.as_tensor(
+        torch.sparse_coo_tensor(
+            values=dirichlet_values.to(dtype=backend.dtype),
+            indices=torch.stack([ax0, ax1], dim=0),
+            size=dirichlet.shape,
+        ),
+        dimension=mesh.points.dimension,
+    )
+
+    c_rigidity = mesh.geometry.cell_local_rigidity_tet(rank=0)
+    rigidity = mesh.geometry.global_matrix_tet(c_rigidity)
+    rigidity, b = mesh.geometry.apply_dirichlet_to_global_matrix(
+        rigidity, b, sparse_dirichlet
+    )
+
+    # Check dimension is compatible
+    assert c_rigidity.dimension == b.dimension
+
+    sp_rigidity = sp.coo_array(
+        (
+            rigidity.values().numpy(),
+            (rigidity.indices()[0], rigidity.indices()[1]),
+        ),
+        shape=rigidity.shape,
+    )
+    res, _ = linalg.cg(sp_rigidity, b.numpy(), rtol=1e-8)
+
+    x_ = (x / torch.max(x)).numpy()
+    desired = 0.5 * x_ * (1 - x_) + x_ * 0.5
+    assert np.sqrt(np.mean((res - desired) ** 2)) < 1e-4
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
+    ],
+)
+def test_structural_analysis(
+    file_path: pathlib.Path, test_device: torch.device
+):
+    modulus = 1.0e6
+    nu = 0.3
+    max_disp = 0.1
+
+    mesh = graphlow.read(
+        file_path, "phlower", dtype=torch.float64, device=test_device
+    )
+    backend = mesh.backend
+
+    lam = (modulus * nu) / ((1 + nu) * (1 - 2 * nu))
+    mu = modulus / (2 * (1 + nu))
+    stiffness_dimension = {"L": -1, "M": 1, "T": -2}
+    delta = phlower_tensor(torch.eye(3, dtype=backend.dtype))
+
+    stiffness = (
+        lam
+        * functionals.einsum(
+            "ij,kl->ijkl", delta, delta, dimension=stiffness_dimension
+        )
+        + mu
+        * (
+            functionals.einsum(
+                "ik,jl->ijkl", delta, delta, dimension=stiffness_dimension
+            )
+            + functionals.einsum(
+                "il,jk->ijkl", delta, delta, dimension=stiffness_dimension
+            )
+        )
+    )[None, ..., None]
+    np.testing.assert_almost_equal(
+        stiffness.numpy(),
+        stiffness.rearrange("g i j k l f -> g j i k l f").numpy(),
+    )
+    np.testing.assert_almost_equal(
+        stiffness.numpy(),
+        stiffness.rearrange("g i j k l f -> g i j l k f").numpy(),
+    )
+
+    x = mesh.points[:, 0]
+    y = mesh.points[:, 1]
+    z = mesh.points[:, 2]
+    u_dimension = mesh.points.dimension
+
+    mask_xmin = torch.abs(x - torch.min(x)).to_tensor() < 1e-5
+    mask_xmax = torch.abs(x - torch.max(x)).to_tensor() < 1e-5
+    mask_ymin = torch.abs(y - torch.min(y)).to_tensor() < 1e-5
+    mask_zmin = torch.abs(z - torch.min(z)).to_tensor() < 1e-5
+    dirichlet = torch.ones((mesh.n_points, 3, 1)) * torch.nan
+    dirichlet[mask_xmin, 0] = 0
+    dirichlet[mask_xmin & mask_ymin & mask_zmin, :] = 0
+    dirichlet[mask_xmax, 0] = max_disp
+    ax0, ax1, ax2 = torch.where(~torch.isnan(dirichlet))
+    dirichlet_values = dirichlet[ax0, ax1, ax2]
+    sparse_dirichlet = backend.as_tensor(
+        torch.sparse_coo_tensor(
+            values=dirichlet_values.to(dtype=backend.dtype),
+            indices=torch.stack([ax0, ax1, ax2], dim=0),
+            size=dirichlet.shape,
+        ),
+        dimension=mesh.points.dimension,
+    )
+
+    u = backend.zeros((mesh.n_points * 3, 1), dimension=u_dimension).to(
+        dtype=backend.dtype
+    )
+
+    c_rigidity = mesh.geometry.cell_local_rigidity_tet(
+        rank=4, cell_material_coeff=stiffness
+    )
+    rigidity = mesh.geometry.global_matrix_tet(c_rigidity)
+    f = backend.zeros(
+        (mesh.n_points * 3, 1), dimension={"L": 1, "M": 1, "T": -2}
+    ).to(dtype=backend.dtype)  # [force/volume] * [volume]
+    rigidity, f = mesh.geometry.apply_dirichlet_to_global_matrix(
+        rigidity, f, sparse_dirichlet=sparse_dirichlet
+    )
+
+    # Check dimension is compatible
+    assert (rigidity @ u).dimension == f.dimension
+    sp_rigidity = sp.coo_array(
+        (
+            rigidity.values().numpy(),
+            (rigidity.indices()[0], rigidity.indices()[1]),
+        ),
+        shape=rigidity.shape,
+    )
+
+    # Solve K u = f
+    res, _ = linalg.cg(sp_rigidity, f.numpy(), rtol=1e-8)
+    u = res.reshape(-1, 3)
+
+    desired = np.stack(
+        [
+            x.numpy() * max_disp,
+            -y.numpy() * max_disp * nu,
+            -z.numpy() * max_disp * nu,
+        ],
+        axis=-1,
+    )
+    assert np.sqrt(np.mean((u - desired) ** 2)) < 1e-8

@@ -88,7 +88,15 @@ def cell_local_rigidity_tet[T: TensorLike](
         str_n_mat = "e"
 
     if rank == 0:
-        # Element rigidity matrix: [c, a, a, f]
+        c_rigidity = functionals.einsum(
+            f"eai,{str_n_mat}f,ebi,ef->eabf",
+            c_grad_shape,
+            cell_material_coeff,
+            c_grad_shape,
+            c_volume,
+            dimension="auto",
+        )
+    elif rank == 2:
         c_rigidity = functionals.einsum(
             f"eai,{str_n_mat}ijf,ebj,ef->eabf",
             c_grad_shape,
@@ -97,8 +105,7 @@ def cell_local_rigidity_tet[T: TensorLike](
             c_volume,
             dimension="auto",
         )
-    elif rank == 1:
-        # Element rigidity matrix: [c, a, a, d, d, f]
+    elif rank == 4:
         c_rigidity = functionals.einsum(
             f"eai,{str_n_mat}ijklf,ebk,ef->eabjlf",
             c_grad_shape,
@@ -150,9 +157,12 @@ def cell_local_mass_tet[T: TensorLike](
 
 
 def global_matrix_tet[T: TensorLike](
-    mesh: TensorMesh[T], cell_local_matrix_tet: T, rank: int = 0
+    mesh: TensorMesh[T],
+    cell_local_matrix_tet: T,
 ) -> T:
     backend = mesh.backend
+
+    rank = len(cell_local_matrix_tet.shape) - 4  # exclude (c, a, b, f)
     connectivity = mesh.topology.cell_tet_conn()
     list_n_c = [
         torch.sparse_coo_tensor(
@@ -168,27 +178,135 @@ def global_matrix_tet[T: TensorLike](
         )
         for a in range(connectivity.shape[-1])
     ]
+
+    if rank == 0:
+        global_rigidity = _generate_global_matrix_rank0(
+            backend, list_n_c, cell_local_matrix_tet
+        )
+    elif rank == 2:
+        list_global_rigidities = [
+            [
+                _generate_global_matrix_rank0(
+                    backend,
+                    list_n_c,
+                    cell_local_matrix_tet[:, ..., i_row, i_col, :],
+                )
+                for i_col in range(3)
+            ]
+            for i_row in range(3)
+        ]
+        n_dof = mesh.n_points * 3
+        global_rigidity = torch.empty(
+            (n_dof, n_dof), layout=torch.sparse_coo, dtype=backend.dtype
+        )
+        for i_row in range(3):
+            for i_col in range(3):
+                partial_rigidity = list_global_rigidities[i_row][i_col]
+                indices = torch.stack(
+                    [
+                        partial_rigidity.indices()[0] * 3 + i_row,
+                        partial_rigidity.indices()[1] * 3 + i_col,
+                    ],
+                    dim=0,
+                )
+                rearranged_rigidity = torch.sparse_coo_tensor(
+                    values=partial_rigidity.values(),
+                    indices=indices,
+                    size=(n_dof, n_dof),
+                )
+                global_rigidity += rearranged_rigidity
+    else:
+        raise NotImplementedError(f"Unexpected rank: {rank}")
+
+    return backend.as_tensor(
+        global_rigidity.coalesce(),
+        dimension=get_dimension(cell_local_matrix_tet),
+    )
+
+
+def apply_dirichlet_to_global_matrix[T: TensorLike](
+    mesh: TensorMesh[T], global_matrix: T, global_b: T, sparse_dirichlet: T
+) -> tuple[T, T]:
+    if sparse_dirichlet.shape[-1] != 1:
+        raise NotImplementedError(
+            f"The last dim should be 1 but given: {sparse_dirichlet.shape}"
+        )
+    backend = mesh.backend
+
+    sparse_dirichlet = sparse_dirichlet.coalesce()
+    if len(sparse_dirichlet.shape) == 2:
+        # Vector rank 0
+        dirichlet_indices = sparse_dirichlet.indices()[0]
+    elif len(sparse_dirichlet.shape) == 3:
+        # Vector rank 1
+        dirichlet_indices = (
+            3 * sparse_dirichlet.indices()[0] + sparse_dirichlet.indices()[1]
+        )
+    else:
+        raise NotImplementedError(f"Unexpected rank: {sparse_dirichlet.shape}")
+    dirichlet_values = sparse_dirichlet.values()
+
+    # Move effect of the Dirichlet to RHS (Dirichlet force)
+    dirichlet_source = torch.zeros_like(global_b.to_tensor())
+    dirichlet_source[dirichlet_indices] = dirichlet_values[:, None]
+    dirichlet_force = -global_matrix.to_tensor() @ dirichlet_source
+    dirichlet_force[dirichlet_indices] = 0
+
+    # Symmetrically remove off-diagonals for Dirichlet
+    values = global_matrix.values().clone()
+    indices = global_matrix.indices()
+    row = indices[0]
+    col = indices[1]
+    mask_row = torch.isin(row, dirichlet_indices)
+    mask_col = torch.isin(col, dirichlet_indices)
+    mask_diag = row == col
+    values[mask_row] = 0.0
+    values[mask_col] = 0.0
+    values[mask_diag & mask_row] = 1.0
+
+    new_global_b = global_b + backend.as_tensor(
+        dirichlet_force, dimension=global_b.dimension
+    )
+    new_global_b[dirichlet_indices] = dirichlet_values[:, None]
+    return backend.as_tensor(
+        torch.sparse_coo_tensor(
+            indices=indices, values=values, size=global_matrix.size()
+        ).coalesce(),
+        dimension=global_matrix.dimension,
+    ), new_global_b
+
+
+def _generate_global_matrix_rank0[T: TensorLike](
+    backend: Backend, list_n_c: list[torch.Tensor], cell_local_matrix: T
+) -> torch.Tensor:
+    if cell_local_matrix.shape[-1] != 1:
+        raise NotImplementedError(
+            f"The last dim should be 1 but given: {cell_local_matrix.shape}"
+        )
+
+    n_points_per_cell = cell_local_matrix.shape[-2]
     list_k_c_a = [
         torch.sum(
             torch.stack(
                 [
-                    cell_local_matrix_tet[:, a, b, 0] * list_n_c[b]
-                    for b in range(4)
+                    backend.to_torch(cell_local_matrix[:, a, b, 0])
+                    * list_n_c[b]
+                    for b in range(n_points_per_cell)
                 ],
                 dim=0,
             ),
             dim=0,
         ).transpose(0, 1)
-        for a in range(4)
+        for a in range(n_points_per_cell)
     ]
-    lap = (
-        list_n_c[0] @ list_k_c_a[0]
-        + list_n_c[1] @ list_k_c_a[1]
-        + list_n_c[2] @ list_k_c_a[2]
-        + list_n_c[3] @ list_k_c_a[3]
-    ).coalesce()
-
-    return lap
+    global_rigidity = torch.sum(
+        torch.stack(
+            [list_n_c[a] @ list_k_c_a[a] for a in range(n_points_per_cell)],
+            dim=0,
+        ),
+        dim=0,
+    )
+    return global_rigidity
 
 
 def _generate_global_identity_tensor[T: TensorLike](
@@ -196,8 +314,12 @@ def _generate_global_identity_tensor[T: TensorLike](
 ) -> T:
     delta = backend.as_tensor(torch.eye(3, dtype=dtype), dimension={})
     if rank == 0:
+        cell_material_coeff = backend.as_tensor(
+            torch.ones((1, 1)), dimension={}
+        )
+    elif rank == 2:
         cell_material_coeff = delta[None, ..., None]
-    elif rank == 1:
+    elif rank == 4:
         cell_material_coeff = functionals.einsum(
             "ik,jl->ijkl", delta, delta, dimension={}
         )[None, ..., None]

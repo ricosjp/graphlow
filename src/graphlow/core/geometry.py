@@ -292,6 +292,13 @@ class MeshGeometry[T: TensorLike]:
     def global_matrix_tet(self, cell_local_matrix_tet: T) -> T:
         return fem.global_matrix_tet(self._mesh, cell_local_matrix_tet)
 
+    def apply_dirichlet_to_global_matrix(
+        self, global_matrix: T, global_b: T, sparse_dirichlet: T
+    ) -> tuple[T, T]:
+        return fem.apply_dirichlet_to_global_matrix(
+            self._mesh, global_matrix, global_b, sparse_dirichlet
+        )
+
     def cell_local_rigidity_tet(
         self, cell_material_coeff: T | None = None, rank: int = 0
     ) -> T:
