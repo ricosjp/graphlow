@@ -112,7 +112,7 @@ def test_cell_local_fem_rigidity_tet_raises_when_cell_type_not_supported(
 ):
     mesh = graphlow.read(file_path, "phlower", dtype=torch.float64)
     with pytest.raises(
-        ValueError, match="fem_tet not supported for cell types"
+        ValueError, match="cell_tet_conn not supported for cell types"
     ):
         mesh.geometry.cell_local_fem_rigidity_tet()
 
