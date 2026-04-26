@@ -475,7 +475,7 @@ def test_poisson(file_path: pathlib.Path, test_device: torch.device):
         ("torsion", pathlib.Path("tests/data/vtu/cylinder/tet.vtu"), 2e-3),
     ],
 )
-def test_structural_analysis_simple(
+def test_structural_analysis(
     problem_name: str,
     file_path: pathlib.Path,
     threshold: float,
