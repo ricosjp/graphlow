@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 import torch
-from phlower_tensor import phlower_tensor
 from scipy.sparse import linalg
 
 import graphlow
@@ -41,17 +40,17 @@ def test_cell_local_fem_rigidity_tet_symmetry(
     )
     if has_material:
         rand = torch.rand(3, 3, dtype=mesh.backend.dtype)
-        rand = mesh.backend.as_tensor(rand @ rand.transpose(0, 1))
-        e = mesh.backend.ones((mesh.n_cells, 1)).to(dtype=mesh.backend.dtype)
+        rand = mesh.backend.as_tensor(rand @ rand.transpose(0, 1), dimension={})
+        e = mesh.backend.ones((mesh.n_cells, 1), dimension={})
         if rank == 0:
-            cell_material_coeff = phlower_tensor(e, dimension={})
+            cell_material_coeff = e
         elif rank == 2:
             cell_material_coeff = functionals.einsum(
-                "ef,ij->eijf", e, rand, dimension={}
+                "ef,ij->eijf", e, rand, dimension="auto"
             )
         elif rank == 4:
             cell_material_coeff = functionals.einsum(
-                "ef,ik,jl->eijklf", e, rand, rand, dimension={}
+                "ef,ik,jl->eijklf", e, rand, rand, dimension="auto"
             )
         else:
             raise ValueError(f"Unexpected rank: {rank}")
@@ -64,7 +63,9 @@ def test_cell_local_fem_rigidity_tet_symmetry(
 
     for pattern in patterns:
         np.testing.assert_almost_equal(
-            (c_rigidity - functionals.rearrange(c_rigidity, pattern)).numpy(),
+            (c_rigidity - functionals.rearrange(c_rigidity, pattern))
+            .to("cpu")
+            .numpy(),
             0.0,
             decimal=5,
         )
@@ -97,7 +98,7 @@ def test_cell_local_fem_rigidity_tet_component(
         file_path, "phlower", dtype=torch.float64, device=test_device
     )
     c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(rank=rank)
-    np.testing.assert_almost_equal(c_rigidity.numpy(), desired)
+    np.testing.assert_almost_equal(c_rigidity.to("cpu").numpy(), desired)
 
 
 @pytest.mark.parametrize(
@@ -145,7 +146,7 @@ def test_cell_local_fem_mass_tet_component(
         file_path, "phlower", dtype=torch.float64, device=test_device
     )
     c_mass = mesh.geometry.cell_local_fem_mass_tet()
-    np.testing.assert_almost_equal(c_mass.numpy(), desired)
+    np.testing.assert_almost_equal(c_mass.to("cpu").numpy(), desired)
 
 
 @pytest.mark.parametrize(
@@ -164,8 +165,12 @@ def test_apply_cell_local_fem_mass_tet(
     c_mass = mesh.geometry.cell_local_fem_mass_tet()
     mass_u = mesh.geometry.apply_cell_local_fem_matrix_tet(c_mass, u)
 
-    total_volume = torch.sum(torch.abs(mesh.geometry.cell_volumes())).numpy()
-    np.testing.assert_almost_equal(torch.sum(mass_u).numpy(), total_volume)
+    total_volume = mesh.backend.to_numpy(
+        torch.sum(torch.abs(mesh.geometry.cell_volumes()))
+    )
+    np.testing.assert_almost_equal(
+        mesh.backend.to_numpy(torch.sum(mass_u)), total_volume
+    )
 
 
 @pytest.mark.parametrize(
@@ -192,36 +197,33 @@ def test_apply_cell_local_fem_rigidity_tet(
     mask_internal = torch.ones(mesh.n_points, dtype=bool)
     mask_internal[surface.parent_point_ids] = False
     x = mesh.points[:, [direction]]
-    l_max = phlower_tensor([1.0], dtype=mesh.backend.dtype, dimension={"L": 1})
+    l_max = mesh.backend.as_tensor([1.0], dimension={"L": 1})
 
     if function == "linear":
         u = x / torch.max(mesh.points)
         v = u * 0
     elif function == "square":
         u = 0.1 * (x / l_max) ** 2
-        v = (
-            0.1
-            * 2
-            * phlower_tensor(
-                torch.ones_like(u.to_tensor(), dtype=mesh.backend.dtype),
-                dimension={},
-            )
-        )
+        v = 0.1 * 2 * mesh.backend.ones(u.shape, dimension={})
     elif function == "cos":
         u = torch.cos(x / l_max * 2 * torch.pi)
         v = -((2 * torch.pi) ** 2) * u
     else:
         raise ValueError(f"Unexpected function: {function}")
     c_mass = mesh.geometry.cell_local_fem_mass_tet()
-    desired = mesh.geometry.apply_cell_local_fem_matrix_tet(c_mass, v)[
-        mask_internal
-    ].numpy()
+    desired = (
+        mesh.geometry.apply_cell_local_fem_matrix_tet(c_mass, v)[mask_internal]
+        .to("cpu")
+        .numpy()
+    )
 
     c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(rank=0)
     lap_u = -mesh.geometry.apply_cell_local_fem_matrix_tet(c_rigidity, u)
     scale = np.sqrt(np.mean(desired**2))
     assert (
-        np.sqrt(np.mean((lap_u[mask_internal].numpy() - desired) ** 2))
+        np.sqrt(
+            np.mean((lap_u[mask_internal].to("cpu").numpy() - desired) ** 2)
+        )
         < scale * 0.3 + 1e-8
     )
 
@@ -245,11 +247,11 @@ def test_global_fem_rigidity_tet_symmetry_conservation(
     c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(rank=rank)
 
     lap = mesh.geometry.global_fem_matrix_tet(c_rigidity)
-    diff = (lap - lap.transpose(0, 1)).coalesce().values().numpy()
+    diff = (lap - lap.transpose(0, 1)).coalesce().values().to("cpu").numpy()
     np.testing.assert_almost_equal(diff, 0)
 
     # Check conservation
-    sum_ = lap.to_tensor().sum(dim=0).values().numpy()
+    sum_ = lap.to_tensor().sum(dim=0).values().to("cpu").numpy()
     np.testing.assert_almost_equal(sum_, 0)
 
 
@@ -272,7 +274,7 @@ def test_global_fem_rigidity_tet_consistent(
         randn = torch.randn((mesh.n_points, 3, 1), dtype=mesh.backend.dtype)
     else:
         randn = torch.randn((mesh.n_points, 1), dtype=mesh.backend.dtype)
-    u = phlower_tensor(
+    u = mesh.backend.as_tensor(
         randn + torch.rand(1),
         dimension={},
     )
@@ -282,7 +284,9 @@ def test_global_fem_rigidity_tet_consistent(
 
     rigidity = mesh.geometry.global_fem_matrix_tet(c_rigidity)
     actual_lap_u = (rigidity @ reshaped_u).reshape(u.shape)
-    np.testing.assert_almost_equal(actual_lap_u.numpy(), desired_lap_u.numpy())
+    np.testing.assert_almost_equal(
+        actual_lap_u.to("cpu").numpy(), desired_lap_u.to("cpu").numpy()
+    )
 
 
 @pytest.mark.parametrize(
@@ -292,12 +296,13 @@ def test_global_fem_rigidity_tet_consistent(
     ],
 )
 def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
-    delta_t = phlower_tensor([[0.04]], dimension={"T": 1})
-    diffusion = phlower_tensor([[0.1]], dimension={"L": 2, "T": -1})
-
     mesh = graphlow.read(
         file_path, "phlower", dtype=torch.float64, device=test_device
     )
+
+    delta_t = mesh.backend.as_tensor([[0.04]], dimension={"T": 1})
+    diffusion = mesh.backend.as_tensor([[0.1]], dimension={"L": 2, "T": -1})
+
     x = mesh.points[:, [0]]
     u = torch.cos(x / torch.max(x) * 2 * torch.pi)
 
@@ -314,7 +319,7 @@ def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
         == f.dimension
     )
 
-    coeff = torch.squeeze((delta_t * diffusion).to_tensor()).numpy()
+    coeff = torch.squeeze((delta_t * diffusion).to_tensor()).to("cpu").numpy()
 
     # Solve (M + dt nu L) U^{n+1} = M U^n
     def matvec(v: np.ndarray) -> np.ndarray:
@@ -324,22 +329,26 @@ def test_implicit_heat(file_path: pathlib.Path, test_device: torch.device):
                 mesh.backend.as_tensor(v[:, None], dimension=u.dimension).to(
                     dtype=mesh.backend.dtype
                 ),
-            ).numpy()[..., 0]
+            )
+            .to("cpu")
+            .numpy()[..., 0]
             + mesh.geometry.apply_cell_local_fem_matrix_tet(
                 c_rigidity,
                 mesh.backend.as_tensor(v[:, None], dimension=u.dimension).to(
                     dtype=mesh.backend.dtype
                 ),
-            ).numpy()[..., 0]
+            )
+            .to("cpu")
+            .numpy()[..., 0]
         )
 
     op = linalg.LinearOperator(
         shape=(mesh.n_points, mesh.n_points), matvec=matvec
     )
 
-    res, _ = linalg.cg(op, f, rtol=1e-8)
+    res, _ = linalg.cg(op, f.to("cpu").numpy(), rtol=1e-8)
 
-    desired = u.numpy()[:, 0] * np.exp(-coeff * (2 * np.pi) ** 2)
+    desired = u.to("cpu").numpy()[:, 0] * np.exp(-coeff * (2 * np.pi) ** 2)
     assert np.sqrt(np.mean((res - desired) ** 2)) < 0.01
 
 
@@ -386,14 +395,17 @@ def test_laplace(file_path: pathlib.Path, test_device: torch.device):
 
     sp_rigidity = sp.coo_array(
         (
-            rigidity.values().numpy(),
-            (rigidity.indices()[0], rigidity.indices()[1]),
+            rigidity.values().to("cpu").numpy(),
+            (
+                rigidity.indices().to("cpu").numpy()[0],
+                rigidity.indices().to("cpu").numpy()[1],
+            ),
         ),
         shape=rigidity.shape,
     )
-    res, _ = linalg.cg(sp_rigidity, b.numpy(), rtol=1e-8)
+    res, _ = linalg.cg(sp_rigidity, b.to("cpu").numpy(), rtol=1e-8)
 
-    desired = (x / torch.max(x)).numpy() * 0.5
+    desired = (x / torch.max(x)).to("cpu").numpy() * 0.5
     assert np.sqrt(np.mean((res - desired) ** 2)) < 1e-6
 
 
@@ -441,27 +453,33 @@ def test_poisson(file_path: pathlib.Path, test_device: torch.device):
 
     sp_rigidity = sp.coo_array(
         (
-            rigidity.values().numpy(),
-            (rigidity.indices()[0], rigidity.indices()[1]),
+            rigidity.values().to("cpu").numpy(),
+            (
+                rigidity.indices().to("cpu").numpy()[0],
+                rigidity.indices().to("cpu").numpy()[1],
+            ),
         ),
         shape=rigidity.shape,
     )
-    res, _ = linalg.cg(sp_rigidity, b.numpy(), rtol=1e-8)
+    res, _ = linalg.cg(sp_rigidity, b.to("cpu").numpy(), rtol=1e-8)
 
-    x_ = (x / torch.max(x)).numpy()
+    x_ = (x / torch.max(x)).to("cpu").numpy()
     desired = 0.5 * x_ * (1 - x_) + x_ * 0.5
     assert np.sqrt(np.mean((res - desired) ** 2)) < 1e-4
 
 
 @pytest.mark.parametrize(
-    "problem_name, file_path",
+    "problem_name, file_path, threshold",
     [
-        ("simple", pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu")),
-        ("torsion", pathlib.Path("tests/data/vtu/cylinder/tet.vtu")),
+        ("simple", pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"), 1e-8),
+        ("torsion", pathlib.Path("tests/data/vtu/cylinder/tet.vtu"), 2e-3),
     ],
 )
 def test_structural_analysis_simple(
-    problem_name: str, file_path: pathlib.Path, test_device: torch.device
+    problem_name: str,
+    file_path: pathlib.Path,
+    threshold: float,
+    test_device: torch.device,
 ):
     modulus = 1.0e6
     nu = 0.3
@@ -475,7 +493,7 @@ def test_structural_analysis_simple(
     lam = (modulus * nu) / ((1 + nu) * (1 - 2 * nu))
     mu = modulus / (2 * (1 + nu))
     stiffness_dimension = {"L": -1, "M": 1, "T": -2}
-    delta = phlower_tensor(torch.eye(3, dtype=backend.dtype))
+    delta = backend.as_tensor(torch.eye(3, dtype=backend.dtype))
 
     stiffness = (
         lam
@@ -491,14 +509,14 @@ def test_structural_analysis_simple(
                 "il,jk->ijkl", delta, delta, dimension=stiffness_dimension
             )
         )
-    )[None, ..., None]
+    )[None, ..., None].to(backend.device)
     np.testing.assert_almost_equal(
-        stiffness.numpy(),
-        stiffness.rearrange("g i j k l f -> g j i k l f").numpy(),
+        stiffness.to("cpu").numpy(),
+        stiffness.rearrange("g i j k l f -> g j i k l f").to("cpu").numpy(),
     )
     np.testing.assert_almost_equal(
-        stiffness.numpy(),
-        stiffness.rearrange("g i j k l f -> g i j l k f").numpy(),
+        stiffness.to("cpu").numpy(),
+        stiffness.rearrange("g i j k l f -> g i j l k f").to("cpu").numpy(),
     )
 
     # Set boundary condition
@@ -512,7 +530,12 @@ def test_structural_analysis_simple(
     mask_ymin = torch.abs(y - torch.min(y)).to_tensor() < 1e-5
     mask_zmin = torch.abs(z - torch.min(z)).to_tensor() < 1e-5
     mask_zmax = torch.abs(z - torch.max(z)).to_tensor() < 1e-5
-    dirichlet = torch.ones((mesh.n_points, 3, 1)) * torch.nan
+    dirichlet = (
+        torch.ones(
+            (mesh.n_points, 3, 1), dtype=backend.dtype, device=backend.device
+        )
+        * torch.nan
+    )
 
     if problem_name == "simple":
         max_disp = 0.1
@@ -522,9 +545,9 @@ def test_structural_analysis_simple(
 
         desired = np.stack(
             [
-                x.numpy() * max_disp,
-                -y.numpy() * max_disp * nu,
-                -z.numpy() * max_disp * nu,
+                x.to("cpu").numpy() * max_disp,
+                -y.to("cpu").numpy() * max_disp * nu,
+                -z.to("cpu").numpy() * max_disp * nu,
             ],
             axis=-1,
         )
@@ -532,15 +555,15 @@ def test_structural_analysis_simple(
     elif problem_name == "torsion":
         max_angle = 0.1 * 2 * torch.pi
         dirichlet[mask_zmin, :] = 0
-        dirichlet[mask_zmax, 0] = -max_angle * y
-        dirichlet[mask_zmax, 1] = -max_angle * x
-        dirichlet[mask_zmax, 2] = 0
+        dirichlet[mask_zmax, 0, 0] = -max_angle * y[mask_zmax].to_tensor()
+        dirichlet[mask_zmax, 1, 0] = max_angle * x[mask_zmax].to_tensor()
+        dirichlet[mask_zmax, 2, 0] = 0
 
         desired = np.stack(
             [
-                max_angle.numpy() * y.numpy() * z.numpy(),
-                -y.numpy() * max_disp * nu,
-                -z.numpy() * max_disp * nu,
+                -(max_angle * y * z / torch.max(z)).to("cpu").numpy(),
+                (max_angle * x * z / torch.max(z)).to("cpu").numpy(),
+                np.zeros(mesh.n_points),
             ],
             axis=-1,
         )
@@ -579,14 +602,20 @@ def test_structural_analysis_simple(
     assert (rigidity @ u).dimension == f.dimension
     sp_rigidity = sp.coo_array(
         (
-            rigidity.values().numpy(),
-            (rigidity.indices()[0], rigidity.indices()[1]),
+            rigidity.values().to("cpu").numpy(),
+            (
+                rigidity.indices().to("cpu").numpy()[0],
+                rigidity.indices().to("cpu").numpy()[1],
+            ),
         ),
         shape=rigidity.shape,
     )
 
     # Solve K u = f
-    res, _ = linalg.cg(sp_rigidity, f.numpy(), rtol=1e-8)
+    res, _ = linalg.cg(sp_rigidity, f.to("cpu").numpy(), rtol=1e-8)
     u = res.reshape(-1, 3)
 
-    assert np.sqrt(np.mean((u - desired) ** 2)) < 1e-8
+    mesh.pvmesh.point_data.update({"u": u, "desired": desired})
+    mesh.pvmesh.save("tmp.vtu")
+
+    assert np.sqrt(np.mean((u - desired) ** 2)) < threshold
