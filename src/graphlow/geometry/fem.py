@@ -44,6 +44,8 @@ def apply_cell_local_fem_matrix_tet[T: TensorLike](
     matvec: T
         matvec results.
     """
+    _validate_mesh(mesh)
+
     vector_rank = _get_rank(u, rank=vector_rank)
     matrix_rank = _get_rank(cell_local_matrix_tet, rank=matrix_rank, offset=2)
 
@@ -98,6 +100,7 @@ def cell_local_fem_rigidity_tet[T: TensorLike](
     cell_local_rigidity: T
         Cell-wise local rigidity matrix.
     """
+    _validate_mesh(mesh)
     backend = mesh.backend
 
     if cell_material_coeff is None:
@@ -178,6 +181,7 @@ def cell_local_fem_mass_tet[T: TensorLike](
     cell_local_mass: T
         Cell-wise local mass matrix.
     """
+    _validate_mesh(mesh)
     backend = mesh.backend
 
     if cell_density is None:
@@ -227,6 +231,7 @@ def global_fem_matrix_tet[T: TensorLike](
     global_matrix: T
         Assembled global FEM matrix with COO layout.
     """
+    _validate_mesh(mesh)
     backend = mesh.backend
 
     rank = len(cell_local_matrix_tet.shape) - 4  # exclude (c, a, b, f)
@@ -319,6 +324,7 @@ def apply_dirichlet_to_global_fem_matrix[T: TensorLike](
     global_b_with_dirichlet: T
         Global b after taking into account the Dirichlet bc.
     """
+    _validate_mesh(mesh)
     if sparse_dirichlet.shape[-1] != 1:
         raise NotImplementedError(
             f"The last dim should be 1 but given: {sparse_dirichlet.shape}"
@@ -366,6 +372,14 @@ def apply_dirichlet_to_global_fem_matrix[T: TensorLike](
         ).coalesce(),
         dimension=global_matrix.dimension,
     ), new_global_b
+
+
+def _validate_mesh[T: TensorLike](mesh: TensorMesh[T]):
+    if not mesh.topology.is_unique_cell():
+        raise NotImplementedError(
+            "Mixed cell type is not supported. Given: "
+            f"{mesh.topology.unique_cell_types()}"
+        )
 
 
 def _generate_global_fem_matrix_rank0[T: TensorLike](

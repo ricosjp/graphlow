@@ -126,8 +126,22 @@ def test_cell_local_fem_rigidity_tet_raises_when_cell_type_not_supported(
     file_path: pathlib.Path,
 ):
     mesh = graphlow.read(file_path, "phlower", dtype=torch.float64)
+    with pytest.raises(ValueError, match="The mesh has no tetra cells"):
+        mesh.geometry.cell_local_fem_rigidity_tet()
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
+    ],
+)
+def test_cell_local_fem_rigidity_tet_raises_when_mixed_cell(
+    file_path: pathlib.Path,
+):
+    mesh = graphlow.read(file_path, "phlower", dtype=torch.float64)
     with pytest.raises(
-        ValueError, match="cell_tet_conn not supported for cell types"
+        NotImplementedError, match="Mixed cell type is not supported"
     ):
         mesh.geometry.cell_local_fem_rigidity_tet()
 

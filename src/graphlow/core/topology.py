@@ -75,7 +75,6 @@ class MeshTopology[T: TensorLike]:
         self._face_registry: FaceRegistry | None = None
         self._face_blocks: dict[pv.CellType, FaceBlock] = {}
         self._built_face_blocks: bool = False
-        self._cell_tet_conn: np.ndarray | None = None
 
     # =========================================================================
     # Basic info
@@ -96,15 +95,13 @@ class MeshTopology[T: TensorLike]:
 
     def cell_tet_conn(self) -> np.ndarray:
         """(n_cell, 4)-shaped cell connectivity array for tet cells."""
-        if self._cell_tet_conn is not None:
-            return self._cell_tet_conn
-        if np.all(self._mesh.topology.unique_cell_types() != pv.CellType.TETRA):
+        tet_block = self.cell_block(pv.CellType.TETRA)
+        if tet_block is None:
             raise ValueError(
-                "cell_tet_conn not supported for cell types: "
+                "The mesh has no tetra cells: "
                 f"{self._mesh.topology.unique_cell_types()}"
             )
-        self._cell_tet_conn = self._mesh.topology.cell_conn().reshape(-1, 4)
-        return self._cell_tet_conn
+        return tet_block.conn
 
     def cell_offsets(self) -> np.ndarray:
         """Cell offsets array (VTK-style)."""
@@ -113,6 +110,10 @@ class MeshTopology[T: TensorLike]:
     def cell_types(self) -> np.ndarray:
         """Cell types array (VTK cell type IDs)."""
         return self._mesh.pvmesh.celltypes
+
+    def is_unique_cell(self) -> bool:
+        unique_cell_types = self._mesh.topology.unique_cell_types()
+        return len(unique_cell_types) == 1
 
     def unique_cell_types(self) -> np.ndarray:
         """Unique cell type IDs present in the mesh."""
@@ -167,7 +168,6 @@ class MeshTopology[T: TensorLike]:
         invalidates the backend cache via ``mesh.bcache.invalidate()``.
         """
         self._unique_cell_types = None
-        self._cell_tet_conn = None
         self._mesh_dim = None
         self._skeletons.clear()
         self._cell_blocks.clear()
