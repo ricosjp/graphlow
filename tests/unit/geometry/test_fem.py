@@ -6,10 +6,24 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 import torch
+from phlower_tensor import phlower_tensor
 from scipy.sparse import linalg
 
 import graphlow
+from graphlow.geometry.fem import _get_rank
 from graphlow.utils import functionals
+
+
+def test_get_rank_raises_when_negative_rank():
+    t = phlower_tensor(torch.randn(10, 3))
+    with pytest.raises(ValueError, match="Rank is negative"):
+        _get_rank(t, offset=2)
+
+
+def test_get_rank_raises_when_rank_cannot_be_determined():
+    t = torch.randn(10, 3)
+    with pytest.raises(ValueError, match="Feed rank"):
+        _get_rank(t)
 
 
 @pytest.mark.parametrize(
@@ -119,6 +133,28 @@ def test_cell_local_fem_rigidity_tet_raises_when_cell_type_not_supported(
 
 
 @pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
+    ],
+)
+@pytest.mark.parametrize("has_material", [True, False])
+@pytest.mark.parametrize("rank", [3, 5])
+def test_cell_local_fem_rigidity_tet_raises_when_rank_not_supported(
+    file_path: pathlib.Path, has_material: bool, rank: int
+):
+    mesh = graphlow.read(file_path, "phlower", dtype=torch.float64)
+    if has_material:
+        mat = mesh.backend.as_tensor(
+            torch.randn([mesh.n_cells] + [3] * rank + [1])
+        )
+    else:
+        mat = None
+    with pytest.raises(NotImplementedError, match=f"Unsupported rank: {rank}"):
+        mesh.geometry.cell_local_fem_rigidity_tet(mat, rank=rank)
+
+
+@pytest.mark.parametrize(
     "file_path, desired",
     [
         (
@@ -155,22 +191,65 @@ def test_cell_local_fem_mass_tet_component(
         pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
     ],
 )
+@pytest.mark.parametrize("has_density", [True, False])
+@pytest.mark.parametrize("u_shape_per_point", [(1,), (3, 1), (3, 3, 1)])
+@pytest.mark.parametrize("feed_rank", [True, False])
 def test_apply_cell_local_fem_mass_tet(
-    file_path: pathlib.Path, test_device: torch.device
+    file_path: pathlib.Path,
+    has_density: bool,
+    u_shape_per_point: tuple[int],
+    feed_rank: bool,
+    test_device: torch.device,
 ):
     mesh = graphlow.read(
         file_path, "phlower", dtype=torch.float64, device=test_device
     )
-    u = mesh.backend.ones((mesh.n_points, 1), dimension={})
-    c_mass = mesh.geometry.cell_local_fem_mass_tet()
-    mass_u = mesh.geometry.apply_cell_local_fem_matrix_tet(c_mass, u)
+    u = mesh.backend.ones(
+        [mesh.n_points] + list(u_shape_per_point), dimension={}
+    )
+    if has_density:
+        density = mesh.backend.ones((mesh.n_cells, 1))
+    else:
+        density = None
+    c_mass = mesh.geometry.cell_local_fem_mass_tet(cell_density=density)
+    mass_u = mesh.geometry.apply_cell_local_fem_matrix_tet(
+        c_mass, u, vector_rank=u.rank() if feed_rank else None
+    )
 
     total_volume = mesh.backend.to_numpy(
         torch.sum(torch.abs(mesh.geometry.cell_volumes()))
     )
     np.testing.assert_almost_equal(
-        mesh.backend.to_numpy(torch.sum(mass_u)), total_volume
+        mesh.backend.to_numpy(torch.sum(mass_u, axis=0)), total_volume
     )
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
+    ],
+)
+@pytest.mark.parametrize("vector_rank, matrix_rank", [(1, 3), (0, 1), (2, 3)])
+def test_apply_cell_local_fem_matrix_tet_raises_unexpected_rank(
+    file_path: pathlib.Path,
+    vector_rank: int,
+    matrix_rank: int,
+    test_device: torch.device,
+):
+    mesh = graphlow.read(
+        file_path, "phlower", dtype=torch.float64, device=test_device
+    )
+    u = mesh.backend.as_tensor(
+        torch.randn([mesh.n_points] + [3] * vector_rank + [1]), dimension={}
+    )
+    local_matrix = mesh.backend.as_tensor(
+        torch.randn([mesh.n_cells, 4, 4] + [3] * matrix_rank + [1]),
+        dimension={},
+    )
+
+    with pytest.raises(NotImplementedError, match="Unexpected combination"):
+        mesh.geometry.apply_cell_local_fem_matrix_tet(local_matrix, u)
 
 
 @pytest.mark.parametrize(
@@ -287,6 +366,113 @@ def test_global_fem_rigidity_tet_consistent(
     np.testing.assert_almost_equal(
         actual_lap_u.to("cpu").numpy(), desired_lap_u.to("cpu").numpy()
     )
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
+    ],
+)
+@pytest.mark.parametrize("rank", [1, 3, 4])
+def test_global_fem_matrix_tet_raises_when_rank_not_supported(
+    file_path: pathlib.Path, rank: int, test_device: torch.device
+):
+    mesh = graphlow.read(
+        file_path, "phlower", dtype=torch.float64, device=test_device
+    )
+    local_matrix = mesh.backend.as_tensor(
+        torch.randn([mesh.n_cells, 4, 4] + [3] * rank + [1])
+    )
+
+    with pytest.raises(NotImplementedError, match=f"Unexpected rank: {rank}"):
+        mesh.geometry.global_fem_matrix_tet(local_matrix)
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/tetbeam/mesh.vtu"),
+    ],
+)
+@pytest.mark.parametrize("rank", [0, 2])
+@pytest.mark.parametrize("n_feat", [2, 4])
+def test_global_fem_matrix_tet_raises_when_n_feature_not_supported(
+    file_path: pathlib.Path, rank: int, n_feat: int, test_device: torch.device
+):
+    mesh = graphlow.read(
+        file_path, "phlower", dtype=torch.float64, device=test_device
+    )
+    local_matrix = mesh.backend.as_tensor(
+        torch.randn([mesh.n_cells, 4, 4] + [3] * rank + [n_feat])
+    )
+
+    with pytest.raises(NotImplementedError, match="The last dim should be 1"):
+        mesh.geometry.global_fem_matrix_tet(local_matrix)
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
+    ],
+)
+@pytest.mark.parametrize("n_feat", [2, 4])
+def test_apply_dirichlet_to_global_fem_matrix_raises_when_unexpected_n_feature(
+    file_path: pathlib.Path, n_feat: int, test_device: torch.device
+):
+    mesh = graphlow.read(
+        file_path, "phlower", dtype=torch.float64, device=test_device
+    )
+    randn = torch.randn((mesh.n_points, 1), dtype=mesh.backend.dtype)
+    u = mesh.backend.as_tensor(
+        randn + torch.rand(1),
+        dimension={},
+    )
+    c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(rank=0)
+    lap = mesh.geometry.global_fem_matrix_tet(c_rigidity)
+    sparse_dirichlet = torch.empty(
+        (mesh.n_points, n_feat),
+        layout=torch.sparse_coo,
+        dtype=mesh.backend.dtype,
+        device=mesh.backend.device,
+    )
+    with pytest.raises(NotImplementedError, match="The last dim should be 1"):
+        mesh.geometry.apply_dirichlet_to_global_fem_matrix(
+            lap, u, sparse_dirichlet
+        )
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    [
+        pathlib.Path("tests/data/vtu/primitive_cell/tet.vtu"),
+    ],
+)
+@pytest.mark.parametrize("rank", [2, 3, 4])
+def test_apply_dirichlet_to_global_fem_matrix_raises_when_unexpected_rank(
+    file_path: pathlib.Path, rank: int, test_device: torch.device
+):
+    mesh = graphlow.read(
+        file_path, "phlower", dtype=torch.float64, device=test_device
+    )
+    randn = torch.randn((mesh.n_points, 1), dtype=mesh.backend.dtype)
+    u = mesh.backend.as_tensor(
+        randn + torch.rand(1),
+        dimension={},
+    )
+    c_rigidity = mesh.geometry.cell_local_fem_rigidity_tet(rank=0)
+    lap = mesh.geometry.global_fem_matrix_tet(c_rigidity)
+    sparse_dirichlet = torch.empty(
+        [mesh.n_points] + [3] * rank + [1],
+        layout=torch.sparse_coo,
+        dtype=mesh.backend.dtype,
+        device=mesh.backend.device,
+    )
+    with pytest.raises(NotImplementedError, match="Unexpected rank"):
+        mesh.geometry.apply_dirichlet_to_global_fem_matrix(
+            lap, u, sparse_dirichlet
+        )
 
 
 @pytest.mark.parametrize(
