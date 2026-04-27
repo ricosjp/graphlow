@@ -49,7 +49,9 @@ def apply_cell_local_fem_matrix_tet[T: TensorLike](
     vector_rank = _get_rank(u, rank=vector_rank)
     matrix_rank = _get_rank(cell_local_matrix_tet, rank=matrix_rank, offset=2)
 
-    c_u = u[mesh.topology.cell_tet_conn()]
+    cell_tet_conn = mesh.backend.as_index_tensor(mesh.topology.cell_tet_conn())
+
+    c_u = u[cell_tet_conn]
     if matrix_rank == 0:
         if vector_rank == 0:
             additional_string = ""
@@ -71,11 +73,7 @@ def apply_cell_local_fem_matrix_tet[T: TensorLike](
         )
 
     p_res = mesh.backend.zeros(u.shape, dimension=c_f.dimension)
-    p_res.index_put_(
-        (torch.from_numpy(mesh.topology.cell_tet_conn()).to(torch.int64),),
-        c_f,
-        accumulate=True,
-    )
+    p_res.index_put_((cell_tet_conn,), c_f, accumulate=True)
     return p_res
 
 
@@ -107,7 +105,7 @@ def cell_local_fem_rigidity_tet[T: TensorLike](
         cell_material_coeff = _generate_global_identity_tensor(
             backend=backend, rank=rank, dtype=backend.dtype
         )
-    connectivity = mesh.topology.cell_tet_conn()
+    connectivity = backend.as_index_tensor(mesh.topology.cell_tet_conn())
     c_x = mesh.points[connectivity]
 
     # x^i = C^i_a L_a, where L_a is the volume coordinate as in
@@ -194,11 +192,7 @@ def cell_local_fem_mass_tet[T: TensorLike](
 
     # Rank 0 version of eq 9.23 of Liu and Quek 2013
     mass_coeff = (
-        backend.as_tensor(
-            torch.ones((4, 4)) + torch.eye(4),
-            dimension=None if get_dimension(mesh.points) is None else {},
-        )
-        / 20
+        backend.as_tensor(torch.ones((4, 4)) + torch.eye(4), dimension={}) / 20
     )
 
     c_mass = functionals.einsum(
@@ -235,15 +229,11 @@ def global_fem_matrix_tet[T: TensorLike](
     backend = mesh.backend
 
     rank = len(cell_local_matrix_tet.shape) - 4  # exclude (c, a, b, f)
-    connectivity = mesh.topology.cell_tet_conn()
+    connectivity = backend.as_index_tensor(mesh.topology.cell_tet_conn())
     list_n_c = [
         torch.sparse_coo_tensor(
             indices=torch.stack(
-                [
-                    torch.from_numpy(connectivity[:, a]),
-                    torch.arange(mesh.n_cells),
-                ],
-                dim=0,
+                [connectivity[:, a], torch.arange(mesh.n_cells)], dim=0
             ),
             values=torch.ones(mesh.n_cells, dtype=backend.dtype),
             size=(mesh.n_points, mesh.n_cells),
