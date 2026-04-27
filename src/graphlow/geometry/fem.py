@@ -233,11 +233,16 @@ def global_fem_matrix_tet[T: TensorLike](
     list_n_c = [
         torch.sparse_coo_tensor(
             indices=torch.stack(
-                [connectivity[:, a], torch.arange(mesh.n_cells)], dim=0
+                [
+                    connectivity[:, a],
+                    torch.arange(mesh.n_cells, device=backend.device),
+                ],
+                dim=0,
             ),
-            values=torch.ones(mesh.n_cells, dtype=backend.dtype),
+            values=torch.ones(
+                mesh.n_cells, dtype=backend.dtype, device=backend.device
+            ),
             size=(mesh.n_points, mesh.n_cells),
-            device=backend.device,
         )
         for a in range(connectivity.shape[-1])
     ]
