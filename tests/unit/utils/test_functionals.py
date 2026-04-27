@@ -80,6 +80,21 @@ def test_einsum(
 
 
 @pytest.mark.parametrize(
+    "pattern, shapes",
+    (
+        ("cf,cf->f", ((10, 1), (10, 1))),
+        ("cf,cpf->cpf", ((10, 1), (10, 3, 1))),
+    ),
+)
+def test_einsum_raises_unexpected_input_type(
+    pattern: str, shapes: tuple[tuple[int]]
+):
+    np_arrays = [np.random.randn(*shape) for shape in shapes]
+    with pytest.raises(ValueError, match="Unexpected tensor"):
+        F.einsum(pattern, np_arrays)
+
+
+@pytest.mark.parametrize(
     "pattern, shape",
     (
         ("c f -> (f c)", (10, 1)),
@@ -108,3 +123,18 @@ def test_rearrange(
     assert actual.device.type == backend.device.type
     if isinstance(backend, PhlowerBackend):
         assert actual.dimension == tensor.dimension
+
+
+@pytest.mark.parametrize(
+    "pattern, shape",
+    (
+        ("c f -> (f c)", (10, 1)),
+        ("c i j f -> c j i f", (10, 3, 3, 1)),
+    ),
+)
+def test_rearrange_raises_unexpected_input_type(
+    pattern: str, shape: tuple[int]
+):
+    np_array = np.random.randn(*shape)
+    with pytest.raises(ValueError, match="Unexpected tensor"):
+        F.rearrange(np_array, pattern)
