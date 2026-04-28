@@ -93,6 +93,16 @@ class MeshTopology[T: TensorLike]:
         """Cell connectivity array (VTK-style flattened connectivity)."""
         return self._mesh.pvmesh.cell_connectivity
 
+    def cell_tet_conn(self) -> np.ndarray:
+        """(n_cell, 4)-shaped cell connectivity array for tet cells."""
+        tet_block = self.cell_block(pv.CellType.TETRA)
+        if tet_block is None:
+            raise ValueError(
+                "The mesh has no tetra cells: "
+                f"{self._mesh.topology.unique_cell_types()}"
+            )
+        return tet_block.conn
+
     def cell_offsets(self) -> np.ndarray:
         """Cell offsets array (VTK-style)."""
         return self._mesh.pvmesh.offset
@@ -100,6 +110,10 @@ class MeshTopology[T: TensorLike]:
     def cell_types(self) -> np.ndarray:
         """Cell types array (VTK cell type IDs)."""
         return self._mesh.pvmesh.celltypes
+
+    def is_unique_cell(self) -> bool:
+        unique_cell_types = self._mesh.topology.unique_cell_types()
+        return len(unique_cell_types) == 1
 
     def unique_cell_types(self) -> np.ndarray:
         """Unique cell type IDs present in the mesh."""

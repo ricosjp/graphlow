@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from graphlow.core.backend.base import TensorLike
+from graphlow.geometry import fem
 from graphlow.geometry.distance import (
     chamfer_distance as _chamfer_distance,
 )
@@ -281,4 +282,125 @@ class MeshGeometry[T: TensorLike]:
             normal_weight=normal_weight,
             normal_interp_mode=normal_interp_mode,
             eps=eps,
+        )
+
+    def global_fem_matrix_tet(self, cell_local_matrix_tet: T) -> T:
+        """
+        Compute the global FEM matrix on the tet mesh
+        from the given cell-wise local FEM matrix.
+
+        Parameters
+        ----------
+        cell_local_matrix_tet: T
+            Cell-wise local FEM matrix.
+
+        Returns
+        -------
+        global_matrix: T
+            Assembled global FEM matrix with COO layout.
+        """
+        return fem.global_fem_matrix_tet(self._mesh, cell_local_matrix_tet)
+
+    def apply_dirichlet_to_global_fem_matrix(
+        self, global_matrix: T, global_b: T, sparse_dirichlet: T
+    ) -> tuple[T, T]:
+        """
+        Apply the given Dirichlet boundary condition to the linear problem.
+
+        Parameters
+        ----------
+        global_matrix: T
+            Sparse global matrix.
+        global_b: T
+            Dense global tensor.
+        sparse_dirichlet: T
+            Sparse tensor describing the Dirichlet boundary condition.
+
+        Returns
+        -------
+        global_matrix_with_dirichlet: T
+            Sparse global matrix after taking into account the Dirichlet bc.
+        global_b_with_dirichlet: T
+            Global b after taking into account the Dirichlet bc.
+        """
+        return fem.apply_dirichlet_to_global_fem_matrix(
+            self._mesh, global_matrix, global_b, sparse_dirichlet
+        )
+
+    def apply_cell_local_fem_matrix_tet(
+        self,
+        cell_local_matrix_tet: T,
+        u: T,
+        vector_rank: int | None = None,
+        matrix_rank: int | None = None,
+    ) -> T:
+        """
+        Apply the given local FEM matrix on the tet mesh.
+
+        Parameters
+        ----------
+        cell_local_matrix_tet: T
+            Cell-wise local FEM matrix.
+        u: T
+            Point-wise physical variable to be multiplied by the matrix.
+        vector_rank: int | None
+            Rank of the vector. If not fed, the rank is inferred when possible.
+        matrix_rank: int | None
+            Rank of the matrix. If not fed, the rank is inferred when possible.
+
+        Returns
+        -------
+        matvec: T
+            matvec results.
+        """
+        return fem.apply_cell_local_fem_matrix_tet(
+            self._mesh,
+            cell_local_matrix_tet=cell_local_matrix_tet,
+            u=u,
+            vector_rank=vector_rank,
+            matrix_rank=matrix_rank,
+        )
+
+    def cell_local_fem_rigidity_tet(
+        self, cell_material_coeff: T | None = None, rank: int = 0
+    ) -> T:
+        """
+        Generate the cell-wise local FEM rigidity matrix on the tet mesh.
+
+        Parameters
+        ----------
+        cell_material_coeff: T
+            Cell-wise (or global) material coefficient.
+        rank: int
+            Rank of the material coefficient. Typically, 0 for isotropic
+            heat, 2 for anisotropic heat, and 4 for structural analysis.
+
+        Returns
+        -------
+        cell_local_rigidity: T
+            Cell-wise local rigidity matrix.
+        """
+        return fem.cell_local_fem_rigidity_tet(
+            self._mesh, cell_material_coeff=cell_material_coeff, rank=rank
+        )
+
+    def cell_local_fem_mass_tet(
+        self,
+        cell_density: T | None = None,
+    ) -> T:
+        """
+        Generate the cell-wise local FEM mass matrix on the tet mesh.
+
+        Parameters
+        ----------
+        cell_density: T
+            Cell-wise (or global) density.
+
+        Returns
+        -------
+        cell_local_mass: T
+            Cell-wise local mass matrix.
+        """
+        return fem.cell_local_fem_mass_tet(
+            self._mesh, cell_density=cell_density
         )
