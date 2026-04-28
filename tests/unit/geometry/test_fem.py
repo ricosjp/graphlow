@@ -11,7 +11,6 @@ from scipy.sparse import linalg
 
 import graphlow
 from graphlow.geometry.fem import _get_rank
-from graphlow.utils import functionals
 
 
 def test_get_rank_raises_when_negative_rank():
@@ -59,11 +58,11 @@ def test_cell_local_fem_rigidity_tet_symmetry(
         if rank == 0:
             cell_material_coeff = e
         elif rank == 2:
-            cell_material_coeff = functionals.einsum(
+            cell_material_coeff = mesh.backend.einsum(
                 "ef,ij->eijf", e, rand, dimension="auto"
             )
         elif rank == 4:
-            cell_material_coeff = functionals.einsum(
+            cell_material_coeff = mesh.backend.einsum(
                 "ef,ik,jl->eijklf", e, rand, rand, dimension="auto"
             )
         else:
@@ -77,7 +76,7 @@ def test_cell_local_fem_rigidity_tet_symmetry(
 
     for pattern in patterns:
         np.testing.assert_almost_equal(
-            (c_rigidity - functionals.rearrange(c_rigidity, pattern))
+            (c_rigidity - mesh.backend.rearrange(c_rigidity, pattern))
             .to("cpu")
             .numpy(),
             0.0,
@@ -697,15 +696,15 @@ def test_structural_analysis(
 
     stiffness = (
         lam
-        * functionals.einsum(
+        * backend.einsum(
             "ij,kl->ijkl", delta, delta, dimension=stiffness_dimension
         )
         + mu
         * (
-            functionals.einsum(
+            backend.einsum(
                 "ik,jl->ijkl", delta, delta, dimension=stiffness_dimension
             )
-            + functionals.einsum(
+            + backend.einsum(
                 "il,jk->ijkl", delta, delta, dimension=stiffness_dimension
             )
         )

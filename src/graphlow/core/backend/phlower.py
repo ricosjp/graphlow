@@ -10,7 +10,7 @@ import torch
 
 try:
     import phlower_tensor as pt
-    from phlower_tensor import PhlowerDimensionTensor
+    from phlower_tensor import PhlowerDimensionTensor, functionals
 except ImportError as e:
     raise RuntimeError(
         "PhlowerBackend requires phlower_tensor. "
@@ -151,6 +151,33 @@ class PhlowerBackend(Backend[pt.PhlowerTensor]):
         raise NotImplementedError(
             f"{type(arr)} cannot be converted to index tensor"
         )
+
+    def einsum(
+        self,
+        equation: str,
+        *args: pt.PhlowerTensor,
+        dimension: PhlowerDimensionTensor | None = None,
+        is_time_series: bool | None = None,
+        is_voxel: bool | None = None,
+    ) -> pt.PhlowerTensor:
+        """Compute einsum for the backend tensor."""
+        if not isinstance(args[0], pt.PhlowerTensor):
+            raise ValueError(f"Unexpected tensor: {args[0].__class__}")
+        return functionals.einsum(
+            equation,
+            *args,
+            dimension=dimension,
+            is_time_series=is_time_series,
+            is_voxel=is_voxel,
+        )
+
+    def rearrange(
+        self, tensor: pt.PhlowerTensor, pattern: str, **axes_length: int
+    ) -> pt.PhlowerTensor:
+        """Rearrange the backend tensor."""
+        if not isinstance(tensor, pt.PhlowerTensor):
+            raise ValueError(f"Unexpected tensor: {tensor.__class__}")
+        return tensor.rearrange(pattern, **axes_length)
 
     def to_torch(self, x: pt.PhlowerTensor) -> torch.Tensor:
         """Convert backend tensor to torch tensor."""
