@@ -419,7 +419,7 @@ def _generate_global_identity_tensor[T: TensorLike](
     elif rank == 2:
         cell_material_coeff = delta[None, ..., None]
     elif rank == 4:
-        cell_material_coeff = functionals.einsum(
+        cell_material_coeff = backend.einsum(
             "ik,jl->ijkl", delta, delta, dimension="auto"
         )[None, ..., None]
     else:
@@ -432,7 +432,7 @@ def _get_rank[T: TensorLike](
 ) -> int:
     if rank is not None:
         return rank
-    if isinstance(t, PhlowerTensor):
+    if hasattr(t, "rank"):
         rank = t.rank() - offset
         if rank < 0:
             raise ValueError(f"Rank is negative for {t} with offset {offset}")
