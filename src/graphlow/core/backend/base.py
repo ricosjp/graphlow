@@ -162,6 +162,23 @@ class Backend[T: TensorLike](ABC):
         ...
 
     @abstractmethod
+    def einsum(
+        self,
+        equation: str,
+        *args: T,
+        dimension: PhlowerDimensionTensor | None = None,
+        is_time_series: bool | None = None,
+        is_voxel: bool | None = None,
+    ) -> T:
+        """Compute einsum for the backend tensor."""
+        ...
+
+    @abstractmethod
+    def rearrange(self, x: T, pattern: str, **axes_length: int) -> T:
+        """Rearrange the backend tensor."""
+        ...
+
+    @abstractmethod
     def to_torch(self, x: T) -> torch.Tensor:
         """Convert backend tensor to torch tensor."""
         ...

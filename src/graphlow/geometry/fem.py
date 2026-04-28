@@ -4,10 +4,8 @@ import logging
 from typing import TYPE_CHECKING
 
 import torch
-from phlower_tensor._tensor import PhlowerTensor
 
 from graphlow.core.backend.base import Backend, TensorLike
-from graphlow.utils import functionals
 from graphlow.utils.dimension import get_dimension
 
 if TYPE_CHECKING:
@@ -57,14 +55,14 @@ def apply_cell_local_fem_matrix_tet[T: TensorLike](
             additional_string = ""
         else:
             additional_string = "..."
-        c_f = functionals.einsum(
+        c_f = mesh.backend.einsum(
             f"cabf,cb{additional_string}f->ca{additional_string}f",
             cell_local_matrix_tet,
             c_u,
             dimension="auto",
         )
     elif matrix_rank == 2 and vector_rank == 1:
-        c_f = functionals.einsum(
+        c_f = mesh.backend.einsum(
             "cabijf,cbjf->caif", cell_local_matrix_tet, c_u, dimension="auto"
         )
     else:
@@ -112,7 +110,7 @@ def cell_local_fem_rigidity_tet[T: TensorLike](
     # eq 9.11 of Liu and Quek 2013
     c_total = backend.ones((mesh.n_cells, 1, 4), dimension=get_dimension(c_x))
     c_coeff = torch.cat(
-        [c_total, functionals.rearrange(c_x, "e a j -> e j a")], dim=1
+        [c_total, mesh.backend.rearrange(c_x, "e a j -> e j a")], dim=1
     )
 
     # NOTE: We use pinv instead of inv
@@ -128,7 +126,7 @@ def cell_local_fem_rigidity_tet[T: TensorLike](
         str_n_mat = "e"
 
     if rank == 0:
-        c_rigidity = functionals.einsum(
+        c_rigidity = mesh.backend.einsum(
             f"eai,{str_n_mat}f,ebi,ef->eabf",
             c_grad_shape,
             cell_material_coeff,
@@ -137,7 +135,7 @@ def cell_local_fem_rigidity_tet[T: TensorLike](
             dimension="auto",
         )
     elif rank == 2:
-        c_rigidity = functionals.einsum(
+        c_rigidity = mesh.backend.einsum(
             f"eai,{str_n_mat}ijf,ebj,ef->eabf",
             c_grad_shape,
             cell_material_coeff,
@@ -146,7 +144,7 @@ def cell_local_fem_rigidity_tet[T: TensorLike](
             dimension="auto",
         )
     elif rank == 4:
-        c_rigidity = functionals.einsum(
+        c_rigidity = mesh.backend.einsum(
             f"eai,{str_n_mat}ijklf,ebk,ef->eabjlf",
             c_grad_shape,
             cell_material_coeff,
@@ -195,7 +193,7 @@ def cell_local_fem_mass_tet[T: TensorLike](
         backend.as_tensor(torch.ones((4, 4)) + torch.eye(4), dimension={}) / 20
     )
 
-    c_mass = functionals.einsum(
+    c_mass = mesh.backend.einsum(
         f"{str_n_density}f,cf,ab->cabf",
         cell_density,
         c_volume,

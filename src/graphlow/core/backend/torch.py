@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+import einops
 import numpy as np
 import scipy.sparse as sps
 import torch
@@ -137,6 +138,27 @@ class TorchBackend(Backend[torch.Tensor]):
         raise NotImplementedError(
             f"{type(arr)} cannot be converted to index tensor"
         )
+
+    def einsum(
+        self,
+        equation: str,
+        *args: torch.Tensor,
+        dimension: PhlowerDimensionTensor | None = None,
+        is_time_series: bool | None = None,
+        is_voxel: bool | None = None,
+    ) -> torch.Tensor:
+        """Compute einsum for the backend tensor."""
+        if not isinstance(args[0], torch.Tensor):
+            raise ValueError(f"Unexpected tensor: {args[0].__class__}")
+        return torch.einsum(equation, *args)
+
+    def rearrange(
+        self, tensor: torch.Tensor, pattern: str, **axes_length: int
+    ) -> torch.Tensor:
+        """Rearrange the backend tensor."""
+        if not isinstance(tensor, torch.Tensor):
+            raise ValueError(f"Unexpected tensor: {tensor.__class__}")
+        return einops.rearrange(tensor, pattern, **axes_length)
 
     def to_torch(self, x: torch.Tensor) -> torch.Tensor:
         """Convert backend tensor to torch tensor."""
