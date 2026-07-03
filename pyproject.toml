@@ -22,6 +22,7 @@ dependencies = [
     "pydantic>=2.12.5",
     "pyvista>=0.47",
     "scipy>=1.14.0",
+    "vtk>=9.6.0",
 ]
 
 # graphlow[cpu|cu118|cu124, phlower]
