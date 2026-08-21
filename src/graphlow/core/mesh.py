@@ -18,6 +18,7 @@ from graphlow.utils.enums import (
     UNSTRUCTURED_GRID_EXTENSIONS,
     FeatureName,
 )
+from graphlow.utils.points import as_xyz_points
 
 if TYPE_CHECKING:
     from graphlow.core.backend.base import Backend, TensorLike
@@ -73,7 +74,13 @@ class TensorMesh[T: TensorLike]:
     """
 
     points: T
-    """(n_points, 3) backend tensor; only differentiable part."""
+    """
+    Point coordinates; only differentiable part.
+
+    Shape is ``(n_points, 3)`` or ``(n_points, 3, 1)``. The latter follows
+    the phlower rank-1 convention (spatial dim + trailing feature axis).
+    Use :attr:`xyz` when a plain ``(n_points, 3)`` tensor is required.
+    """
 
     pvmesh: pv.UnstructuredGrid
     """PyVista UnstructuredGrid."""
@@ -113,6 +120,16 @@ class TensorMesh[T: TensorLike]:
     def n_points(self) -> int:
         """Number of points."""
         return int(self.points.shape[0])
+
+    @property
+    def xyz(self) -> T:
+        """
+        Point coordinates of shape ``(n_points, 3)``.
+
+        ``points`` may be ``(n_points, 3)`` or ``(n_points, 3, 1)``. This
+        property always returns ``(n_points, 3)`` for vector geometry ops.
+        """
+        return as_xyz_points(self.points)
 
     @property
     def n_cells(self) -> int:

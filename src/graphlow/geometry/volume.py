@@ -90,7 +90,7 @@ def cell_volumes[T: TensorLike](mesh: TensorMesh[T]) -> T:
         if block is None or not isinstance(block, FixedCellBlock):
             continue
         conn = mesh.backend.as_index_tensor(block.conn)
-        sub_volumes = _VOLUME_FN[cell_type](mesh.points, conn, mesh.backend)
+        sub_volumes = _VOLUME_FN[cell_type](mesh.xyz, conn, mesh.backend)
         gidx = mesh.backend.as_index_tensor(block.global_indices)
         volumes.index_add_(0, gidx, sub_volumes)
     return volumes
@@ -160,7 +160,7 @@ def _compute_volume_using_divergence_theorem[T: TensorLike](
     """
     # HACK: Improve the performance of this function.
     points_on_faces = mesh.topology.map_point_to_face(
-        mesh.points, "mean", "segment"
+        mesh.xyz, "mean", "segment"
     )
     face_area_vectors = mesh.geometry.face_area_vectors()  # (Nf, 3)
     cone_volumes = (

@@ -161,7 +161,7 @@ class MeshGeometry[T: TensorLike]:
         Parameters
         ----------
         target_points : T
-            Target points of shape ``(n_target, 3)``.
+            Target points of shape ``(n_target, 3)`` or ``(n_target, 3, 1)``.
         softmin_temperature : float or None, optional
             If positive, use soft min/max so gradient flows to all vertices.
 
@@ -188,7 +188,7 @@ class MeshGeometry[T: TensorLike]:
         Parameters
         ----------
         target_points : T
-            Target points of shape ``(n_target, 3)``.
+            Target points of shape ``(n_target, 3)`` or ``(n_target, 3, 1)``.
         softmin_temperature : float or None, optional
             If positive, use soft min so gradient flows to all vertices.
 

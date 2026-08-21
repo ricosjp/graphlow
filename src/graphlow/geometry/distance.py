@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from graphlow.core.backend.base import TensorLike
+from graphlow.utils.points import as_xyz_points
 
 if TYPE_CHECKING:
     from graphlow.core.mesh import TensorMesh
@@ -32,7 +33,7 @@ def hausdorff_distance[T: TensorLike](
     mesh : TensorMesh[T]
         Mesh with differentiable points.
     target_points : T
-        Target points of shape ``(n_target, 3)``.
+        Target points of shape ``(n_target, 3)`` or ``(n_target, 3, 1)``.
     softmin_temperature : float or None, optional
         If None, use hard min/max. If positive, use soft min/max with this
         temperature so that gradient flows to all vertices.
@@ -42,8 +43,8 @@ def hausdorff_distance[T: TensorLike](
     T
         Tensor of shape ``(1,)``.
     """
-    p = mesh.points  # (N, 3)
-    q = target_points  # (M, 3)
+    p = mesh.xyz  # (N, 3)
+    q = as_xyz_points(target_points)  # (M, 3)
     dists = torch.cdist(p, q)  # (N, M) L2 distances
     n_p, n_q = dists.shape[0], dists.shape[1]
 
@@ -97,7 +98,7 @@ def chamfer_distance[T: TensorLike](
     mesh : TensorMesh[T]
         Mesh with differentiable points.
     target_points : T
-        Target points of shape ``(n_target, 3)``.
+        Target points of shape ``(n_target, 3)`` or ``(n_target, 3, 1)``.
     softmin_temperature : float or None, optional
         If None, use hard min. If positive, use soft min with this temperature
         (smaller = closer to hard min; larger = more uniform gradients).
@@ -107,8 +108,8 @@ def chamfer_distance[T: TensorLike](
     T
         Tensor of shape ``(1,)``.
     """
-    p = mesh.points  # (N, 3)
-    q = target_points  # (M, 3)
+    p = mesh.xyz  # (N, 3)
+    q = as_xyz_points(target_points)  # (M, 3)
     dists = torch.cdist(p, q) ** 2  # (N, M)
     n_p, n_q = dists.shape[0], dists.shape[1]
 

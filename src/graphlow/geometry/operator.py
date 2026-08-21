@@ -48,7 +48,7 @@ def isoAM[T: TensorLike](
         if ``with_moment_matrix`` is True; otherwise None.
     """
     backend = mesh.backend
-    points = mesh.points
+    points = mesh.xyz
     n_points, dim = points.shape
     adj = mesh.topology.point_adjacency(layout="coo")
 
@@ -131,7 +131,7 @@ def isoAM_with_neumann[T: TensorLike](
         if ``with_moment_matrix`` is True; otherwise None.
     """
     backend = mesh.backend
-    points = mesh.points
+    points = mesh.xyz
     n_points, _ = points.shape
     adj = mesh.topology.point_adjacency(layout="coo")
 

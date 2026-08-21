@@ -22,6 +22,18 @@ def test_n_points(tet_mesh: TensorMesh):
     assert tet_mesh.n_points == 4
 
 
+def test_xyz_and_n_points_with_feature_axis(tet_mesh: TensorMesh):
+    """``xyz`` is ``(N, 3)`` even when ``points`` is ``(N, 3, 1)``."""
+    desired = tet_mesh.backend.to_numpy(tet_mesh.xyz)
+    tet_mesh.points = tet_mesh.points[:, :, None]
+    assert tuple(tet_mesh.points.shape) == (4, 3, 1)
+    assert tet_mesh.n_points == 4
+    assert tuple(tet_mesh.xyz.shape) == (4, 3)
+    np.testing.assert_array_equal(
+        tet_mesh.backend.to_numpy(tet_mesh.xyz), desired
+    )
+
+
 def test_n_cells(tet_mesh: TensorMesh):
     """TensorMesh.n_cells returns pvmesh.n_cells (defined in mesh.py)."""
     assert tet_mesh.n_cells == 1
