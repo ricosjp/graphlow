@@ -408,6 +408,8 @@ def wedge_volume[T: TensorLike](
     Compute volumes of wedges using symmetric tetrahedral decomposition.
     Ensures consistency even for wedges with non-planar faces.
 
+    Face indices follow VTK 9.7 ``vtkWedge::GetFaceArray`` (outward winding).
+
     Parameters
     ----------
     points : TensorLike
@@ -423,14 +425,15 @@ def wedge_volume[T: TensorLike](
         Tensor of shape ``(n_cells, 1)``.
     """
     pts = points[conn]
-    # divide the wedge into 2 tets + 3 pyramids
+    # Divide the wedge into 2 tets + 3 pyramids.
+    # Face windings follow VTK 9.7 vtkWedge::GetFaceArray (outward normals).
     # This is a better solution than 3 tets because
     # if the wedge is twisted then the 3 quads will be twisted.
     cell_centroid = torch.mean(pts, dim=1, keepdim=True)  # (Nc, 1, 3)
 
-    # pyramids
+    # pyramids (quad faces)
     pyramid_bottoms_idx = backend.as_index_tensor(
-        [[0, 3, 4, 1], [2, 5, 3, 0], [1, 4, 5, 2]]
+        [[0, 1, 4, 3], [1, 2, 5, 4], [2, 0, 3, 5]]
     )
     pyramid_bottoms = pts[:, pyramid_bottoms_idx]  # (Nc, 3, 4, 3)
     pyramid_bottom_centroids = torch.mean(pyramid_bottoms, dim=2)  # (Nc, 3, 3)
@@ -442,8 +445,8 @@ def wedge_volume[T: TensorLike](
         torch.sum(top2bottom[:, :, None, :] * cross_e1_e2, dim=(1, 2, 3)) / 6.0
     )
 
-    # tets
-    tet_bottoms_idx = backend.as_index_tensor([[0, 1, 2], [3, 5, 4]])
+    # tets (triangular faces)
+    tet_bottoms_idx = backend.as_index_tensor([[0, 2, 1], [3, 4, 5]])
     tet_bottoms = pts[:, tet_bottoms_idx]  # (Nc, 2, 3, 3)
     tet_bottom_centroids = torch.mean(tet_bottoms, dim=2)  # (Nc, 2, 3)
     top2bottom = tet_bottom_centroids - cell_centroid  # (Nc, 2, 3)
