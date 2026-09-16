@@ -22,7 +22,7 @@ from graphlow.utils.topology_helper import (
 
 _FIXED_FACE_PATTERNS = {
     pv.CellType.TETRA: {
-        # https://github.com/Kitware/VTK/blob/df1b46c3f5fe315d588016191607401fccfa80fd/Common/DataModel/vtkTetra.cxx#L301
+        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkTetra.cxx#L58
         pv.CellType.TRIANGLE: np.array(
             [
                 [0, 1, 3],
@@ -34,7 +34,7 @@ _FIXED_FACE_PATTERNS = {
         ),
     },
     pv.CellType.VOXEL: {
-        # https://github.com/Kitware/VTK/blob/df1b46c3f5fe315d588016191607401fccfa80fd/Common/DataModel/vtkVoxel.cxx#L391
+        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkVoxel.cxx#L74
         pv.CellType.PIXEL: np.array(
             [
                 [2, 0, 6, 4],
@@ -48,7 +48,7 @@ _FIXED_FACE_PATTERNS = {
         ),
     },
     pv.CellType.HEXAHEDRON: {
-        # https://github.com/Kitware/VTK/blob/df1b46c3f5fe315d588016191607401fccfa80fd/Common/DataModel/vtkHexahedron.cxx#L406
+        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkHexahedron.cxx#L73
         pv.CellType.QUAD: np.array(
             [
                 [0, 4, 7, 3],
@@ -62,27 +62,26 @@ _FIXED_FACE_PATTERNS = {
         ),
     },
     pv.CellType.WEDGE: {
-        # https://github.com/Kitware/VTK/blob/df1b46c3f5fe315d588016191607401fccfa80fd/Common/DataModel/vtkWedge.cxx#L57
-        # https://github.com/Kitware/VTK/blob/df1b46c3f5fe315d588016191607401fccfa80fd/Common/DataModel/vtkWedge.cxx#L688
+        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkWedge.cxx#L67
         pv.CellType.TRIANGLE: np.array(
             [
-                [0, 1, 2],
-                [3, 5, 4],
+                [0, 2, 1],
+                [3, 4, 5],
             ],
             dtype=np.int64,
         ),
         pv.CellType.QUAD: np.array(
             [
-                [0, 3, 4, 1],
-                [1, 4, 5, 2],
-                [2, 5, 3, 0],
+                [0, 1, 4, 3],
+                [1, 2, 5, 4],
+                [2, 0, 3, 5],
             ],
             dtype=np.int64,
         ),
     },
     pv.CellType.PYRAMID: {
-        # https://github.com/Kitware/VTK/blob/df1b46c3f5fe315d588016191607401fccfa80fd/Common/DataModel/vtkPyramid.cxx#L57
-        # https://github.com/Kitware/VTK/blob/df1b46c3f5fe315d588016191607401fccfa80fd/Common/DataModel/vtkPyramid.cxx#L674
+        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkPyramid.cxx#L75
+        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkPyramid.cxx#L718
         pv.CellType.QUAD: np.array(
             [
                 [0, 3, 2, 1],

@@ -205,8 +205,8 @@ class TestFaceCentroids:
                 Wedge(),
                 np.array(
                     [
-                        [1 / 2, 3 / 4, np.sqrt(3) / 4],
                         [1 / 2, 1 / 2, 0],
+                        [1 / 2, 3 / 4, np.sqrt(3) / 4],
                         [0, 1 / 2, np.sqrt(3) / 6],
                         [1 / 2, 1 / 4, np.sqrt(3) / 4],
                         [1, 1 / 2, np.sqrt(3) / 6],
@@ -299,9 +299,9 @@ class TestFaceCentroids:
                     [
                         [0, 1 / 2, np.sqrt(3) / 6],
                         [1, 1 / 2, np.sqrt(3) / 6],
-                        [1 / 2, 1 / 2, 0],
-                        [1 / 2, 1 / 4, np.sqrt(3) / 4],
                         [1 / 2, 3 / 4, np.sqrt(3) / 4],
+                        [1 / 2, 1 / 4, np.sqrt(3) / 4],
+                        [1 / 2, 1 / 2, 0],
                     ]
                 ),
             ),
