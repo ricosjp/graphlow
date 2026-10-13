@@ -355,7 +355,7 @@ def build_face_registry(
     """
     n_cells = grid.n_cells
     celltypes = grid.celltypes
-    offsets = grid.offset
+    offsets = grid.cell_offsets
     cell_conn = grid.cell_connectivity
 
     reg = FaceRegistryBuilder.create()

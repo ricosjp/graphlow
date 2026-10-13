@@ -579,6 +579,7 @@ def test_laplace(file_path: pathlib.Path, test_device: torch.device):
             values=dirichlet_values.to(dtype=backend.dtype),
             indices=torch.stack([ax0, ax1], dim=0),
             size=dirichlet.shape,
+            check_invariants=False,
         ),
         dimension=mesh.points.dimension,
     )
@@ -637,6 +638,7 @@ def test_poisson(file_path: pathlib.Path, test_device: torch.device):
             values=dirichlet_values.to(dtype=backend.dtype),
             indices=torch.stack([ax0, ax1], dim=0),
             size=dirichlet.shape,
+            check_invariants=False,
         ),
         dimension=mesh.points.dimension,
     )
@@ -777,6 +779,7 @@ def test_structural_analysis(
             values=dirichlet_values.to(dtype=backend.dtype),
             indices=torch.stack([ax0, ax1, ax2], dim=0),
             size=dirichlet.shape,
+            check_invariants=False,
         ),
         dimension=mesh.points.dimension,
     )

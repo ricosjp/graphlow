@@ -200,13 +200,17 @@ class PhlowerBackend(Backend[pt.PhlowerTensor]):
             crow = torch.from_numpy(np.asarray(csr.indptr, dtype=np.int64))
             col = torch.from_numpy(np.asarray(csr.indices, dtype=np.int64))
             values = torch.from_numpy(np.asarray(csr.data)).to(dtype=self.dtype)
-            out = torch.sparse_csr_tensor(crow, col, values, size=csr.shape)
+            out = torch.sparse_csr_tensor(
+                crow, col, values, size=csr.shape, check_invariants=False
+            )
         else:
             coo: sps.coo_array = skeleton.tocoo()
             indices = torch.from_numpy(
                 np.stack([coo.row, coo.col], axis=0).astype(np.int64)
             )
             values = torch.from_numpy(np.asarray(coo.data)).to(dtype=self.dtype)
-            out = torch.sparse_coo_tensor(indices, values, coo.shape).coalesce()
+            out = torch.sparse_coo_tensor(
+                indices, values, coo.shape, check_invariants=False
+            ).coalesce()
 
         return pt.phlower_tensor(out, dimension={}).to(device=self.device)

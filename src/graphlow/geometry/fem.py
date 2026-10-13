@@ -241,6 +241,7 @@ def global_fem_matrix_tet[T: TensorLike](
                 mesh.n_cells, dtype=backend.dtype, device=backend.device
             ),
             size=(mesh.n_points, mesh.n_cells),
+            check_invariants=False,
         )
         for a in range(connectivity.shape[-1])
     ]
@@ -282,6 +283,7 @@ def global_fem_matrix_tet[T: TensorLike](
                     values=partial_rigidity.values(),
                     indices=indices,
                     size=(n_dof, n_dof),
+                    check_invariants=False,
                 )
                 global_rigidity += rearranged_rigidity
     else:
@@ -361,7 +363,10 @@ def apply_dirichlet_to_global_fem_matrix[T: TensorLike](
     new_global_b[dirichlet_indices] = dirichlet_values[:, None]
     return backend.as_tensor(
         torch.sparse_coo_tensor(
-            indices=indices, values=values, size=global_matrix.size()
+            indices=indices,
+            values=values,
+            size=global_matrix.size(),
+            check_invariants=False,
         ).coalesce(),
         dimension=global_matrix.dimension,
     ), new_global_b
