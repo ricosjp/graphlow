@@ -324,7 +324,12 @@ def _create_grad_operator_from[T: TensorLike](
     new_vals = torch.cat([values, diag_vals], dim=0)
     return backend.as_tensor(
         torch.sparse_coo_tensor(
-            new_idx, new_vals, size=(K, N, N), dtype=dtype, device=device
+            new_idx,
+            new_vals,
+            size=(K, N, N),
+            dtype=dtype,
+            device=device,
+            check_invariants=False,
         ).coalesce(),
         dimension=dimension,
     )
@@ -432,6 +437,7 @@ def _compute_rawAM_and_moment_inv[T: TensorLike](
             size=(K, N, N),
             dtype=dtype,
             device=device,
+            check_invariants=False,
         ).coalesce(),
         dimension=get_dimension(D_vals),
     )

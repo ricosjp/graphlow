@@ -114,6 +114,10 @@ markers = [
     "profile: Run test with memray / pyinstrument",
     "slow: Run slow test (10s+)",
 ]
+filterwarnings = [
+    "error",
+    "ignore:Sparse CSR tensor support is in beta state:UserWarning",
+]
 addopts = [
     "--import-mode=importlib",
     "-m",

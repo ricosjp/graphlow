@@ -105,7 +105,7 @@ class MeshTopology[T: TensorLike]:
 
     def cell_offsets(self) -> np.ndarray:
         """Cell offsets array (VTK-style)."""
-        return self._mesh.pvmesh.offset
+        return self._mesh.pvmesh.cell_offsets
 
     def cell_types(self) -> np.ndarray:
         """Cell types array (VTK cell type IDs)."""
