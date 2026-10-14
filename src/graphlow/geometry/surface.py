@@ -220,14 +220,14 @@ def _dispatch_area_vectors[T: TensorLike](
         if fn is None:
             raise ValueError(f"Unsupported fixed face/cell type: {cell_type}")
         conn = mesh.backend.as_index_tensor(block.conn)
-        return fn(mesh.points, conn, mesh.backend)
+        return fn(mesh.xyz, conn, mesh.backend)
     if isinstance(block, (JaggedFaceBlock, JaggedCellBlock)):
         if cell_type != pv.CellType.POLYGON:
             raise ValueError(f"Unsupported jagged face/cell type: {cell_type}")
         conn = mesh.backend.as_index_tensor(block.conn)
         offsets = mesh.backend.as_index_tensor(block.offsets)
         return analytic.polygon_area_vectors(
-            mesh.points, conn, offsets, mesh.backend
+            mesh.xyz, conn, offsets, mesh.backend
         )
     raise ValueError(f"Unknown block type: {type(block)}")
 
@@ -241,13 +241,11 @@ def _dispatch_face_centroids[T: TensorLike](
         if fn is None:
             raise ValueError(f"Unsupported fixed face/cell type: {cell_type}")
         conn = mesh.backend.as_index_tensor(block.conn)
-        return fn(mesh.points, conn, mesh.backend)
+        return fn(mesh.xyz, conn, mesh.backend)
     if isinstance(block, (JaggedFaceBlock, JaggedCellBlock)):
         if cell_type != pv.CellType.POLYGON:
             raise ValueError(f"Unsupported jagged face/cell type: {cell_type}")
         conn = mesh.backend.as_index_tensor(block.conn)
         offsets = mesh.backend.as_index_tensor(block.offsets)
-        return analytic.polygon_centroids(
-            mesh.points, conn, offsets, mesh.backend
-        )
+        return analytic.polygon_centroids(mesh.xyz, conn, offsets, mesh.backend)
     raise ValueError(f"Unknown block type: {type(block)}")

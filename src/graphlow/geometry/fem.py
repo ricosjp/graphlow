@@ -104,7 +104,7 @@ def cell_local_fem_rigidity_tet[T: TensorLike](
             backend=backend, rank=rank, dtype=backend.dtype
         )
     connectivity = backend.as_index_tensor(mesh.topology.cell_tet_conn())
-    c_x = mesh.points[connectivity]
+    c_x = mesh.xyz[connectivity]
 
     # x^i = C^i_a L_a, where L_a is the volume coordinate as in
     # eq 9.11 of Liu and Quek 2013
