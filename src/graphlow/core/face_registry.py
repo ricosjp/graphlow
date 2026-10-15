@@ -11,115 +11,11 @@ from pydantic import (
 )
 
 from graphlow.core.blocks import FaceBlock, FixedFaceBlock, JaggedFaceBlock
+from graphlow.core.element_definitions import get_fixed_face_patterns
 from graphlow.utils.topology_helper import (
     TopologyDim,
     get_cell_dimension,
 )
-
-# =============================================================================
-# Cell <-> Face Relationship
-# =============================================================================
-
-_FIXED_FACE_PATTERNS = {
-    pv.CellType.TETRA: {
-        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkTetra.cxx#L58
-        pv.CellType.TRIANGLE: np.array(
-            [
-                [0, 1, 3],
-                [1, 2, 3],
-                [2, 0, 3],
-                [0, 2, 1],
-            ],
-            dtype=np.int64,
-        ),
-    },
-    pv.CellType.VOXEL: {
-        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkVoxel.cxx#L74
-        pv.CellType.PIXEL: np.array(
-            [
-                [2, 0, 6, 4],
-                [1, 3, 5, 7],
-                [0, 1, 4, 5],
-                [3, 2, 7, 6],
-                [1, 0, 3, 2],
-                [4, 5, 6, 7],
-            ],
-            dtype=np.int64,
-        ),
-    },
-    pv.CellType.HEXAHEDRON: {
-        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkHexahedron.cxx#L73
-        pv.CellType.QUAD: np.array(
-            [
-                [0, 4, 7, 3],
-                [1, 2, 6, 5],
-                [0, 1, 5, 4],
-                [3, 7, 6, 2],
-                [0, 3, 2, 1],
-                [4, 5, 6, 7],
-            ],
-            dtype=np.int64,
-        ),
-    },
-    pv.CellType.WEDGE: {
-        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkWedge.cxx#L67
-        pv.CellType.TRIANGLE: np.array(
-            [
-                [0, 2, 1],
-                [3, 4, 5],
-            ],
-            dtype=np.int64,
-        ),
-        pv.CellType.QUAD: np.array(
-            [
-                [0, 1, 4, 3],
-                [1, 2, 5, 4],
-                [2, 0, 3, 5],
-            ],
-            dtype=np.int64,
-        ),
-    },
-    pv.CellType.PYRAMID: {
-        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkPyramid.cxx#L75
-        # https://github.com/Kitware/VTK/blob/v9.7.0/Common/DataModel/vtkPyramid.cxx#L718
-        pv.CellType.QUAD: np.array(
-            [
-                [0, 3, 2, 1],
-            ],
-            dtype=np.int64,
-        ),
-        pv.CellType.TRIANGLE: np.array(
-            [
-                [0, 1, 4],
-                [1, 2, 4],
-                [2, 3, 4],
-                [3, 0, 4],
-            ],
-            dtype=np.int64,
-        ),
-    },
-}
-
-
-def get_fixed_face_patterns(
-    cell_type: pv.CellType,
-) -> dict[pv.CellType, np.ndarray] | None:
-    """
-    Get the fixed face patterns for a given cell type.
-
-    Parameters
-    ----------
-    cell_type : pv.CellType
-        VTK cell type to query.
-
-    Returns
-    -------
-    dict[pv.CellType, np.ndarray] or None
-        Face patterns keyed by face type, or None if the cell type does not use
-        a fixed face layout in this module.
-    """
-    return _FIXED_FACE_PATTERNS.get(cell_type)
-
 
 # =============================================================================
 # Face Registry
