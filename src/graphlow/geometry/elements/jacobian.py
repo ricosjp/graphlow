@@ -27,6 +27,7 @@ def compute_jacobian[T: TensorLike](
     T
         Jacobians with shape
         ``(n_cells, n_points, embedding_dim, reference_dimension)``.
+        The physical dimension is inferred from ``x_nodes`` and ``dN_dxi``.
     """
     if x_nodes.ndim != 3:
         raise ValueError(
@@ -38,8 +39,8 @@ def compute_jacobian[T: TensorLike](
         raise ValueError(f"dN_dxi must have rank 3, got {tuple(dN_dxi.shape)}")
     if x_nodes.shape[1] != dN_dxi.shape[1]:
         raise ValueError("x_nodes and dN_dxi must have the same node count")
-    # J = sum_a x_a ⊗ ∇_ξ N_a
-    return backend.einsum("cne,qnr->cqer", x_nodes, dN_dxi)
+    # J = sum_a x_a ⊗ ∇_ξ N_a. Dimension follows the operands.
+    return backend.einsum("cne,qnr->cqer", x_nodes, dN_dxi, dimension="auto")
 
 
 def jacobian_measure[T: TensorLike](
@@ -136,7 +137,8 @@ def physical_shape_function_gradients[T: TensorLike](
     T
         Physical gradients with shape
         ``(n_cells, n_points, n_nodes, embedding_dim)``.
+        The physical dimension is inferred from ``jacobian`` and ``dN_dxi``.
     """
-    # ∇_x N = ∇_ξ N @ J^{+}  (pinv matches existing fem.py convention)
+    # ∇_x N = ∇_ξ N @ J^{+}. Dimension follows the operands.
     inverse = torch.linalg.pinv(jacobian)
-    return backend.einsum("qnr,cqre->cqne", dN_dxi, inverse)
+    return backend.einsum("qnr,cqre->cqne", dN_dxi, inverse, dimension="auto")
