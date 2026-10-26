@@ -1,0 +1,38 @@
+CI_REGISTRY_IMAGE ?= registry.ritc.jp/ricos/machine_learning/graphlow
+# This version is different from that of graphlow itself
+# Keep in sync with IMAGE_VERSION in .gitlab-ci.yml.
+IMAGE_VERSION ?= 1.0.0
+
+
+CPU_IMAGE = $(CI_REGISTRY_IMAGE):$(IMAGE_VERSION)-cpu
+GPU_IMAGE = $(CI_REGISTRY_IMAGE):$(IMAGE_VERSION)-cu124
+
+login:
+ifeq ($(CI_JOB_TOKEN),)
+	docker login $(CI_REGISTRY_IMAGE)
+else
+	echo "$(CI_JOB_TOKEN)" | docker login -u gitlab-ci-token --password-stdin $(CI_REGISTRY)
+endif
+
+
+.PHONY: push_cpu_images
+push_cpu_images:
+	docker build \
+		--target cpu-ci \
+		-t $(CPU_IMAGE) \
+		-f docker/ci.Dockerfile \
+		.
+	docker push $(CPU_IMAGE)
+	@echo "Pushed CPU image:" $(CPU_IMAGE)
+
+.PHONY: push_gpu_image
+push_gpu_image:
+	docker build \
+		--target cu124-ci \
+		-t $(GPU_IMAGE) \
+		-f docker/ci.Dockerfile \
+		.
+	docker push $(GPU_IMAGE)
+	@echo "Pushed GPU image:" $(GPU_IMAGE)
+
+push: login push_cpu_images push_gpu_image
