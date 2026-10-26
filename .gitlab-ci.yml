@@ -1,24 +1,104 @@
 variables:
-  PYTHON_VERSION: "3.12"
-  BASE_LAYER: bookworm-slim
+  # Keep in sync with IMAGE_VERSION in Makefile.docker.
+  IMAGE_VERSION: "1.0.0"
   # GitLab CI creates a separate mountpoint for the build directory,
   # so we need to copy instead of using hard links.
   UV_LINK_MODE: copy
 
+# workflow is the pipeline default. GitLab's built-in default includes
+# branch and tag pipelines; this project uses merge requests, tags, and
+# manual web runs instead. A push to a protected branch is the exception.
+# A commit message that starts with [skip ci] creates no pipeline at all.
+# Jobs without rules run in every pipeline created here. A push to a branch
+# that already has an open merge request does not also create a branch pipeline.
+workflow:
+  rules:
+    - if: '$CI_COMMIT_MESSAGE =~ /^\[skip ci\]/'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"'
+
 stages:
+  - build-images
+  - setup
   - test
   - deploy
 
-default:
-  image: astral/uv:python${PYTHON_VERSION}-${BASE_LAYER}
+# -----------------------------------------------------------------------------
+# build CI image for CPU and GPU
+# -----------------------------------------------------------------------------
+
+# Track the Docker 29 eMudhra revocation, which rejects certificate chains
+# that include the compromised intermediates.
+# https://docs.docker.com/engine/release-notes/29/
+# We intentionally don't pin the Docker version. CI failures are easy to notice,
+# while running an unsupported version could go unnoticed
+build-images:
+  stage: build-images
+  image:
+    name: docker:cli
+    pull_policy: always
+  services:
+    - name: docker:dind
+      alias: docker
+      pull_policy: always
   before_script:
-    - apt-get update -qq && apt-get install -y -qq make git
+    - docker version
+    - apk add --no-cache make
+  script:
+    - make push_docker_images
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true")'
+      changes:
+        - docker/ci.Dockerfile
+        - Makefile.docker
+      when: manual
+      allow_failure: false
+  tags:
+    - no-gpu
+
+# -----------------------------------------------------------------------------
+# Templates
+# -----------------------------------------------------------------------------
+
+.cpu-job:
+  image: "$CI_REGISTRY_IMAGE:${IMAGE_VERSION}-cpu"
+  before_script:
+    - 'echo "Using CPU image: $CI_REGISTRY_IMAGE:${IMAGE_VERSION}-cpu"'
+
+.gpu-job:
+  image: "$CI_REGISTRY_IMAGE:${IMAGE_VERSION}-cu124"
+  before_script:
+    - 'echo "Using GPU image: $CI_REGISTRY_IMAGE:${IMAGE_VERSION}-cu124"'
+
+.docs-job:
+  image: "$CI_REGISTRY_IMAGE:${IMAGE_VERSION}-cpu"
+  before_script:
+    - 'echo "Using CPU image: $CI_REGISTRY_IMAGE:${IMAGE_VERSION}-cpu"'
+    - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && rm -rf /var/lib/apt/lists/*
+
+# -----------------------------------------------------------------------------
+# setup stage
+# -----------------------------------------------------------------------------
+
+system-check:
+  extends: .cpu-job
+  stage: setup
+  script:
+    - make show_system
+  tags:
+    - no-gpu
 
 # -----------------------------------------------------------------------------
 # test stage
 # -----------------------------------------------------------------------------
 
 lint:
+  extends: .cpu-job
   stage: test
   script:
     - uv sync --group lint
@@ -27,6 +107,7 @@ lint:
     - no-gpu
 
 cpu-test:
+  extends: .cpu-job
   stage: test
   script:
     - uv sync --group test --extra cpu
@@ -43,11 +124,8 @@ cpu-test:
     - mem-ge-32gb
 
 gpu-test:
+  extends: .gpu-job
   stage: test
-  image: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
-  before_script:
-    - apt-get update -qq && apt-get install -y -qq make git
-    - pip install uv
   script:
     - uv sync --group test --extra cu124
     - make gpu-test
@@ -59,6 +137,7 @@ gpu-test:
     - gpu
 
 slow-test:
+  extends: .cpu-job
   stage: test
   needs:
     - job: lint
@@ -75,11 +154,10 @@ slow-test:
     - mem-ge-32gb
 
 document-test:
+  extends: .docs-job
   stage: test
-  before_script:
-    - apt-get update -qq && apt-get install -y -qq make git xvfb
-    - uv sync --group docs --extra cpu
   script:
+    - uv sync --group docs --extra cpu
     - xvfb-run make document
   tags:
     - no-gpu
@@ -89,6 +167,7 @@ document-test:
     - mem-ge-32gb
 
 coverage:
+  extends: .cpu-job
   stage: test
   script:
     - uv run coverage combine coverage-cpu/.coverage coverage-gpu/.coverage
@@ -115,11 +194,10 @@ coverage:
 # -----------------------------------------------------------------------------
 
 pages:
+  extends: .docs-job
   stage: deploy
-  before_script:
-    - apt-get update -qq && apt-get install -y -qq make git xvfb
-    - uv sync --group docs --extra cpu
   script:
+    - uv sync --group docs --extra cpu
     - xvfb-run make document
     - mkdir public
     - mv docs/build/* public/
@@ -132,6 +210,7 @@ pages:
     - docs/sphinx-update
 
 .deploy:wheel:
+  extends: .cpu-job
   stage: deploy
   script:
     - export VERSION=$CI_COMMIT_REF_NAME

@@ -84,6 +84,10 @@ conflicts = [
         { extra = "cu124" },
     ],
 ]
+preview-features = ["audit-command", "malware-check"]
+
+[tool.uv.audit]
+malware-check = true
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
