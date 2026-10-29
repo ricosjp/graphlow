@@ -52,7 +52,7 @@ build-images:
   script:
     - make push_docker_images
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true")'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - docker/ci.Dockerfile
         - Makefile.docker
