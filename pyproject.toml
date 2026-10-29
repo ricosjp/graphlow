@@ -7,7 +7,7 @@ include = ["src/graphlow", "pyproject.toml", "README.md", "LICENSE"]
 
 [project]
 name = "graphlow"
-version = "0.1.0"
+version = "0.2.0"
 description = "graphlow provides graph processing features for physical simulation data."
 readme = "README.md"
 license = { text = "Apache-2.0" }
