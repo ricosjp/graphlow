@@ -51,14 +51,16 @@ def test_cell_local_fem_rigidity_match_for_points_n31(
     tet_mesh: TensorMesh[TensorLike],
 ):
     """FEM rigidity is unchanged when points gain a feature axis."""
-    desired = tet_mesh.geometry.cell_local_fem_rigidity_tet(rank=0)
-    actual = _with_feature_axis(tet_mesh).geometry.cell_local_fem_rigidity_tet(
+    desired = tet_mesh.geometry.cell_local_fem_rigidity(rank=0)
+    actual = _with_feature_axis(tet_mesh).geometry.cell_local_fem_rigidity(
         rank=0
     )
-    np.testing.assert_allclose(
-        tet_mesh.backend.to_numpy(actual),
-        tet_mesh.backend.to_numpy(desired),
-    )
+    backend = tet_mesh.backend
+    for cell_type, block in desired.items():
+        np.testing.assert_allclose(
+            backend.to_numpy(actual[cell_type]),
+            backend.to_numpy(block),
+        )
 
 
 def test_chamfer_distance_match_for_points_n31(

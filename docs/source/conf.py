@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pathlib
 import sys
+
 from sphinx_gallery.sorting import ExplicitOrder
 
 # -- Paths -------------------------------------------------------------------
@@ -85,6 +86,8 @@ sphinx_gallery_conf = {
             "point_cell_mapping.py",
             "face_area_vectors.py",
             "gradient.py",
+            "poisson_tet10.py",
+            "linear_elasticity.py",
             "target_fitting.py",
             "shape_optimization.py",
             "sphere_eversion_continuous_metrics.py",
@@ -92,8 +95,8 @@ sphinx_gallery_conf = {
     ),
     # Execute all .py examples.
     "filename_pattern": r".*\.py",
-    # Route graphlow examples through a wrapper scraper.
-    "image_scrapers": ("pyvista",),
+    # Capture both scientific plots and interactive mesh visualisations.
+    "image_scrapers": ("matplotlib", "pyvista"),
     # Avoid cluttering pages with timing.
     "show_memory": False,
 }
