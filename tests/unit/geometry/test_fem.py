@@ -1,28 +1,94 @@
-"""Tests for FEM operators."""
+"""Compatibility tests for the original tetrahedron FEM API and solvers.
+
+Element-generic behavior is covered in ``test_fem_generic.py``. Historical
+goldens here are fixed reference data and must not be regenerated from the
+implementation under test.
+"""
 
 import pathlib
 
 import numpy as np
 import pytest
+import pyvista as pv
 import scipy.sparse as sp
 import torch
-from phlower_tensor import phlower_tensor
 from scipy.sparse import linalg
 
 import graphlow
-from graphlow.geometry.fem import _get_rank
 
 
-def test_get_rank_raises_when_negative_rank():
-    t = phlower_tensor(torch.randn(10, 3))
-    with pytest.raises(ValueError, match="Rank is negative"):
-        _get_rank(t, offset=2)
+@pytest.mark.parametrize("legacy", [False, True], ids=["generic", "legacy"])
+@pytest.mark.parametrize("operator", ["rigidity", "mass"])
+def test_tet_local_matrices_match_historical_goldens(
+    operator: str, legacy: bool, test_device: torch.device
+):
+    suffix = "rigidity_rank0" if operator == "rigidity" else "mass"
+    with np.load(f"tests/data/fem/local/tetbeam_{suffix}.npz") as golden:
+        mesh = graphlow.read(
+            str(golden["mesh_path"]),
+            "phlower",
+            dtype=torch.float64,
+            device=test_device,
+        )
+        method = f"cell_local_fem_{operator}" + ("_tet" if legacy else "")
+        actual = getattr(mesh.geometry, method)()
+        if not legacy:
+            actual = actual[pv.CellType.TETRA]
+        # Quadrature and the closed-form implementation sum in different orders.
+        torch.testing.assert_close(
+            actual.to_tensor(),
+            mesh.backend.to_torch(mesh.backend.as_tensor(golden["matrix"])),
+            rtol=1e-10,
+            atol=1e-12,
+        )
 
 
-def test_get_rank_raises_when_rank_cannot_be_determined():
-    t = torch.randn(10, 3)
-    with pytest.raises(ValueError, match="Feed rank"):
-        _get_rank(t)
+@pytest.mark.parametrize("legacy", [False, True], ids=["generic", "legacy"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "primitive_tet_rank0",
+        "primitive_tet_rank2",
+        "tetbeam_rank0",
+        "tetbeam_rank2",
+    ],
+)
+def test_tet_assembly_matches_historical_goldens(
+    case: str, legacy: bool, test_device: torch.device
+):
+    with np.load(f"tests/data/fem/assembly/{case}.npz") as golden:
+        mesh = graphlow.read(
+            str(golden["mesh_path"]),
+            "phlower",
+            dtype=torch.float64,
+            device=test_device,
+        )
+        backend = mesh.backend
+        local = backend.as_tensor(golden["local"], dimension={})
+        field = backend.as_tensor(golden["u"], dimension={})
+        suffix = "_tet" if legacy else ""
+        supplied = local if legacy else {pv.CellType.TETRA: local}
+        actual = getattr(mesh.geometry, f"apply_cell_local_fem_matrix{suffix}")(
+            supplied, field
+        )
+        torch.testing.assert_close(
+            actual.to_tensor(),
+            backend.to_torch(backend.as_tensor(golden["matvec"])),
+            rtol=1e-12,
+            atol=1e-12,
+        )
+        assembled = getattr(mesh.geometry, f"global_fem_matrix{suffix}")(
+            supplied
+        ).to_tensor()
+        expected = torch.sparse_coo_tensor(
+            backend.as_index_tensor(golden["global_indices"]),
+            backend.to_torch(backend.as_tensor(golden["global_values"])),
+            size=tuple(int(size) for size in golden["global_size"]),
+            check_invariants=False,
+        ).coalesce()
+        torch.testing.assert_close(
+            assembled.to_dense(), expected.to_dense(), rtol=1e-12, atol=1e-12
+        )
 
 
 @pytest.mark.parametrize(
@@ -118,31 +184,18 @@ def test_cell_local_fem_rigidity_tet_component(
     "file_path",
     [
         pathlib.Path("tests/data/vtu/hexbeam/mesh.vtu"),
-        pathlib.Path("tests/data/vtu/complex/mesh.vtu"),
     ],
 )
-def test_cell_local_fem_rigidity_tet_raises_when_cell_type_not_supported(
+@pytest.mark.parametrize("operator", ["rigidity", "mass"])
+def test_cell_local_fem_tet_requires_a_tetrahedron_block(
     file_path: pathlib.Path,
+    operator: str,
 ):
+    """Legacy local APIs select TETRA from the generic result dictionary."""
     mesh = graphlow.read(file_path, "phlower", dtype=torch.float64)
-    with pytest.raises(ValueError, match="The mesh has no tetra cells"):
-        mesh.geometry.cell_local_fem_rigidity_tet()
-
-
-@pytest.mark.parametrize(
-    "file_path",
-    [
-        pathlib.Path("tests/data/vtu/mix_poly/mesh.vtu"),
-    ],
-)
-def test_cell_local_fem_rigidity_tet_raises_when_mixed_cell(
-    file_path: pathlib.Path,
-):
-    mesh = graphlow.read(file_path, "phlower", dtype=torch.float64)
-    with pytest.raises(
-        NotImplementedError, match="Mixed cell type is not supported"
-    ):
-        mesh.geometry.cell_local_fem_rigidity_tet()
+    with pytest.raises(KeyError) as error:
+        getattr(mesh.geometry, f"cell_local_fem_{operator}_tet")()
+    assert error.value.args == (pv.CellType.TETRA,)
 
 
 @pytest.mark.parametrize(

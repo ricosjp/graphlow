@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal
+
+import pyvista as pv
 
 from graphlow.core.backend.base import TensorLike
 from graphlow.geometry import fem
@@ -285,19 +288,10 @@ class MeshGeometry[T: TensorLike]:
         )
 
     def global_fem_matrix_tet(self, cell_local_matrix_tet: T) -> T:
-        """
-        Compute the global FEM matrix on the tet mesh
-        from the given cell-wise local FEM matrix.
+        """Deprecated wrapper for :meth:`global_fem_matrix`.
 
-        Parameters
-        ----------
-        cell_local_matrix_tet: T
-            Cell-wise local FEM matrix.
-
-        Returns
-        -------
-        global_matrix: T
-            Assembled global FEM matrix with COO layout.
+        .. deprecated::
+            Use :meth:`global_fem_matrix` instead.
         """
         return fem.global_fem_matrix_tet(self._mesh, cell_local_matrix_tet)
 
@@ -334,24 +328,10 @@ class MeshGeometry[T: TensorLike]:
         vector_rank: int | None = None,
         matrix_rank: int | None = None,
     ) -> T:
-        """
-        Apply the given local FEM matrix on the tet mesh.
+        """Deprecated wrapper for :meth:`apply_cell_local_fem_matrix`.
 
-        Parameters
-        ----------
-        cell_local_matrix_tet: T
-            Cell-wise local FEM matrix.
-        u: T
-            Point-wise physical variable to be multiplied by the matrix.
-        vector_rank: int | None
-            Rank of the vector. If not fed, the rank is inferred when possible.
-        matrix_rank: int | None
-            Rank of the matrix. If not fed, the rank is inferred when possible.
-
-        Returns
-        -------
-        matvec: T
-            matvec results.
+        .. deprecated::
+            Use :meth:`apply_cell_local_fem_matrix` instead.
         """
         return fem.apply_cell_local_fem_matrix_tet(
             self._mesh,
@@ -364,21 +344,10 @@ class MeshGeometry[T: TensorLike]:
     def cell_local_fem_rigidity_tet(
         self, cell_material_coeff: T | None = None, rank: int = 0
     ) -> T:
-        """
-        Generate the cell-wise local FEM rigidity matrix on the tet mesh.
+        """Deprecated wrapper for :meth:`cell_local_fem_rigidity`.
 
-        Parameters
-        ----------
-        cell_material_coeff: T
-            Cell-wise (or global) material coefficient.
-        rank: int
-            Rank of the material coefficient. Typically, 0 for isotropic
-            heat, 2 for anisotropic heat, and 4 for structural analysis.
-
-        Returns
-        -------
-        cell_local_rigidity: T
-            Cell-wise local rigidity matrix.
+        .. deprecated::
+            Use :meth:`cell_local_fem_rigidity` instead.
         """
         return fem.cell_local_fem_rigidity_tet(
             self._mesh, cell_material_coeff=cell_material_coeff, rank=rank
@@ -388,19 +357,132 @@ class MeshGeometry[T: TensorLike]:
         self,
         cell_density: T | None = None,
     ) -> T:
-        """
-        Generate the cell-wise local FEM mass matrix on the tet mesh.
+        """Deprecated wrapper for :meth:`cell_local_fem_mass`.
 
-        Parameters
-        ----------
-        cell_density: T
-            Cell-wise (or global) density.
-
-        Returns
-        -------
-        cell_local_mass: T
-            Cell-wise local mass matrix.
+        .. deprecated::
+            Use :meth:`cell_local_fem_mass` instead.
         """
         return fem.cell_local_fem_mass_tet(
             self._mesh, cell_density=cell_density
         )
+
+    def cell_local_fem_rigidity(
+        self,
+        cell_material_coeff: T | Mapping[pv.CellType, T] | None = None,
+        rank: int = 0,
+        *,
+        quadrature_order: int | None = None,
+    ) -> dict[pv.CellType, T]:
+        """Generate quadrature-based cell-local rigidity matrices.
+
+        Parameters
+        ----------
+        cell_material_coeff : T, Mapping[pyvista.CellType, T], or None, optional
+            Cell-constant material coefficient in the rigidity integrand.
+            ``None`` uses the identity for ``rank``. A tensor with leading
+            size 1 is one coefficient for every cell. A tensor with leading
+            size ``n_cells`` follows mesh cell order and is gathered onto
+            each block with ``global_indices``. A mapping holds one
+            block-ordered tensor per cell type. Layouts are ``(c, f)``,
+            ``(c, i, j, f)``, and ``(c, i, j, k, l, f)`` for ranks 0, 2,
+            and 4.
+        rank : {0, 2, 4}, default=0
+            Tensor rank of ``cell_material_coeff``.
+        quadrature_order : int or None, optional
+            Quadrature order. ``None`` selects the safe cell-type default.
+
+        Returns
+        -------
+        dict[pyvista.CellType, T]
+            One block-local rigidity matrix per cell type. Row ``i`` matches
+            ``cell_block(cell_type).global_indices[i]``.
+        """
+        return fem.cell_local_fem_rigidity(
+            self._mesh,
+            cell_material_coeff=cell_material_coeff,
+            rank=rank,
+            quadrature_order=quadrature_order,
+        )
+
+    def cell_local_fem_mass(
+        self,
+        cell_density: T | Mapping[pv.CellType, T] | None = None,
+        *,
+        quadrature_order: int | None = None,
+    ) -> dict[pv.CellType, T]:
+        """Generate quadrature-based consistent cell-local mass matrices.
+
+        Parameters
+        ----------
+        cell_density : T, Mapping[pyvista.CellType, T], or None, optional
+            Cell-constant density with layout ``(c, f)``. ``None`` uses unit
+            density. A tensor with leading size 1 is shared by every cell.
+            A tensor with leading size ``n_cells`` is mesh cell order. A
+            mapping is one block-ordered tensor per cell type.
+        quadrature_order : int or None, optional
+            Quadrature order. ``None`` selects the safe cell-type default.
+
+        Returns
+        -------
+        dict[pyvista.CellType, T]
+            One consistent block-local mass matrix per cell type. Row ``i``
+            matches ``cell_block(cell_type).global_indices[i]``.
+        """
+        return fem.cell_local_fem_mass(
+            self._mesh,
+            cell_density=cell_density,
+            quadrature_order=quadrature_order,
+        )
+
+    def apply_cell_local_fem_matrix(
+        self,
+        cell_local_matrix: T | Mapping[pv.CellType, T],
+        u: T,
+        vector_rank: int | None = None,
+        matrix_rank: int | None = None,
+    ) -> T:
+        """Apply block-local FEM matrices and sum the products onto points.
+
+        Parameters
+        ----------
+        cell_local_matrix : T or Mapping[pyvista.CellType, T]
+            One block-local matrix, or one matrix per cell type.
+        u : T
+            Point-wise physical variable to be multiplied by the matrix.
+        vector_rank : int or None, optional
+            Rank of ``u``. If omitted, a Phlower tensor uses ``u.rank()``
+            and any other tensor uses ``u.ndim - 2``.
+        matrix_rank : int or None, optional
+            Rank of the local matrix between the node axes and the feature
+            axis. If omitted, a Phlower tensor uses ``rank() - 2`` and any
+            other tensor uses ``ndim - 4``.
+
+        Returns
+        -------
+        T
+            Sum of the assembled matvec results.
+        """
+        return fem.apply_cell_local_fem_matrix(
+            self._mesh,
+            cell_local_matrix=cell_local_matrix,
+            u=u,
+            vector_rank=vector_rank,
+            matrix_rank=matrix_rank,
+        )
+
+    def global_fem_matrix(
+        self, cell_local_matrix: T | Mapping[pv.CellType, T]
+    ) -> T:
+        """Assemble block-local FEM matrices into one global sparse matrix.
+
+        Parameters
+        ----------
+        cell_local_matrix : T or Mapping[pyvista.CellType, T]
+            One block-local matrix, or one matrix per cell type.
+
+        Returns
+        -------
+        T
+            Sum of the assembled blocks as one COO matrix.
+        """
+        return fem.global_fem_matrix(self._mesh, cell_local_matrix)
