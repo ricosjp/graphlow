@@ -11,6 +11,10 @@ to be used seamlessly with automatic differentiation.
 # Documentation
 https://ricosjp.github.io/graphlow/
 
+**What's new in 0.2.0:** expanded FEM element support, numerical quadrature,
+mixed-cell assembly, and migration notes for the deprecated `_tet` APIs are in
+[the release notes](docs/source/release_notes.rst) (section **0.2.0**).
+
 **Migrating from 0.0.x:** breaking changes for 0.1.0 are summarized in
 [docs/source/release_notes.rst](docs/source/release_notes.rst) (section **0.1.0**).
 
